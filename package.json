@@ -9,14 +9,25 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.3.4",
+    "@tanstack/query-async-storage-persister": "^5.100.10",
+    "@tanstack/react-query": "^5.100.10",
+    "@tanstack/react-query-persist-client": "^5.100.10",
+    "convex": "^1.39.1",
+    "date-fns": "^4.1.0",
+    "idb-keyval": "^6.2.2",
+    "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-big-calendar": "^1.19.4",
+    "react-dom": "19.2.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
+    "@types/react-big-calendar": "^1.16.3",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",

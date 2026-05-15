@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\laith\\\\Documents\\\\projects\\\\freelance\\\\groomhub2.0\\\\app\\\\page.tsx\")",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)"
+    ]
+  }
+}
