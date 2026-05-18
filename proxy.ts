@@ -8,6 +8,7 @@ const isProtectedRoute = createRouteMatcher([
   "/services(.*)",
   "/staff(.*)",
   "/settings(.*)",
+  "/account(.*)",
   "/onboarding(.*)",
 ]);
 
