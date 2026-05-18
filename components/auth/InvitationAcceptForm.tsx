@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useClerk } from "@clerk/nextjs";
+import { useEffect, useState } from "react";
+import { useAction } from "convex/react";
+import { useSignUp } from "@clerk/nextjs";
 import { z } from "zod";
+import { api } from "@/convex/_generated/api";
 import { Field } from "@/components/forms/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
@@ -15,21 +17,13 @@ type FormInput = z.infer<typeof schema>;
 type FieldErrors = Partial<Record<keyof FormInput, string>>;
 
 /**
- * Accepts an organisation invitation via Clerk's legacy SignUpResource API.
+ * Accepts an organisation invitation using Clerk's Future SignUp API.
  *
- * The new Future API's `signUp.ticket()` does *not* populate the invited
- * email address from organisation-invitation tickets (the JWT only carries
- * `oid`/`sid` — the email lives on the server-side invitation record).
- *
- * The legacy `signUp.create({ strategy: "ticket", ticket })` flow does the
- * lookup automatically: it populates `emailAddress`, marks it verified, and
- * applies the role + org membership on `setActive`. Well-documented, stable
- * across Clerk versions, and still fully supported in Clerk 7.
- *
- * Flow:
- *   1. `signUp.create({ strategy: "ticket", ticket })` — invitation context applied
- *   2. `signUp.update({ firstName, lastName })` — add the user's name
- *   3. `clerk.setActive({ session: signUp.createdSessionId })` — activate
+ * Clerk's Future `signUp.ticket()` doesn't populate the invited email for
+ * `organization_invitation` tickets — the email lives only on the server
+ * invitation record. We bridge the gap via a Convex action that calls
+ * Clerk's Backend API to look up the email, then drive the Future API
+ * normally: ticket → update(emailAddress) if needed → finalize.
  */
 export function InvitationAcceptForm({
   invitationTicket,
@@ -42,14 +36,32 @@ export function InvitationAcceptForm({
   onAccepted: () => void;
   onError: (message: string) => void;
 }) {
-  const clerk = useClerk();
+  const { signUp } = useSignUp();
+  const lookupTicket = useAction(api.invitations.lookupTicket);
 
+  const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [diagnostic, setDiagnostic] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    lookupTicket({ ticket: invitationTicket })
+      .then((info) => {
+        if (cancelled) return;
+        if (info?.email) setInvitedEmail(info.email);
+      })
+      .catch(() => {
+        // Non-fatal — the form still works, the user just won't see their
+        // email pre-displayed. The actual sign-up uses the ticket.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invitationTicket, lookupTicket]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -67,37 +79,53 @@ export function InvitationAcceptForm({
       return;
     }
     setFieldErrors({});
-    if (!clerk.client) return;
+    if (!signUp) return;
 
-    const legacySignUp = clerk.client.signUp;
     setSubmitting(true);
     try {
-      // 1) Apply the ticket. Legacy API auto-attaches the invited email.
-      await legacySignUp.create({
+      // Future API's `create({strategy:"ticket", ticket})` auto-verifies the
+      // invited email server-side, so we skip the separate `signUp.ticket()`
+      // → `signUp.update()` dance which leaves the email unverified.
+      //
+      // Clerk 7's published types omit the `ticket` field on
+      // `SignUpFutureCreateParams`, but the runtime requires it
+      // ("`ticket` is required when `strategy` is `ticket`."). Casting to
+      // include it until the types catch up.
+      type SignUpCreateParams = Parameters<typeof signUp.create>[0];
+      const createResult = await signUp.create({
         strategy: "ticket",
         ticket: invitationTicket,
-      });
-
-      // 2) Provide the names. Required by Clerk's User & Authentication config.
-      await legacySignUp.update({
         firstName: parsed.data.firstName,
         lastName: parsed.data.lastName,
-      });
+      } as SignUpCreateParams);
+      if (createResult.error) {
+        const message =
+          createResult.error.message ?? "Could not accept the invitation";
+        setServerError(message);
+        onError(message);
+        return;
+      }
 
-      // 3) If everything's in order, activate the session.
-      const sessionId = legacySignUp.createdSessionId;
-      if (sessionId) {
-        await clerk.setActive({ session: sessionId });
+      if (signUp.createdSessionId) {
+        const finalizeResult = await signUp.finalize({
+          navigate: () => undefined,
+        });
+        if (finalizeResult.error) {
+          const message =
+            finalizeResult.error.message ?? "Could not finish sign-up";
+          setServerError(message);
+          onError(message);
+          return;
+        }
         onAccepted();
         return;
       }
 
-      // No session — surface what Clerk thinks is still missing.
       setDiagnostic(
-        `status=${legacySignUp.status ?? "unknown"}; missing=[${(legacySignUp.missingFields ?? []).join(", ") || "none"}]; unverified=[${(legacySignUp.unverifiedFields ?? []).join(", ") || "none"}]`,
+        `status=${signUp.status ?? "unknown"}; missing=[${(signUp.missingFields ?? []).join(", ") || "none"}]; unverified=[${(signUp.unverifiedFields ?? []).join(", ") || "none"}]`,
       );
       setServerError(
-        "Sign-up didn't finish. See the detail below for what's still needed.",
+        "Sign-up didn't finish. The detail below tells us exactly what's still required.",
       );
       onError("Sign-up didn't finish.");
     } catch (caught) {
@@ -116,6 +144,14 @@ export function InvitationAcceptForm({
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+      {invitedEmail && (
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Joining as{" "}
+          <span className="font-medium text-zinc-900 dark:text-zinc-100">
+            {invitedEmail}
+          </span>
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <Field
           label="First name"
@@ -141,7 +177,7 @@ export function InvitationAcceptForm({
       )}
       <button
         type="submit"
-        disabled={isBusy || !clerk.client}
+        disabled={isBusy || !signUp}
         className="mt-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
       >
         {isBusy ? "Joining…" : "Join shop"}

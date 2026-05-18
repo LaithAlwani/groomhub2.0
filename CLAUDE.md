@@ -42,3 +42,15 @@ Convex agent skills for common tasks can be installed by running
   they do at a glance: `verifyStandardWebhook`, `useDebouncedValue`,
   `GoogleButton`. Avoid suffixes like `Helper`, `Util`, `Manager` unless
   they really mean something.
+
+## Library APIs
+
+- **Always use the newest stable API** the dependency exposes. If a library
+  has both a legacy and a "future" / "v2" / "new" API for the same feature,
+  pick the new one and update our codebase to match — don't write new code
+  against the legacy surface just because it's more familiar.
+- If the new API genuinely doesn't yet support a needed feature, prefer
+  to **fill the gap on our side** (server-side helper, small wrapper)
+  rather than fall back to the legacy API in client code.
+- If you must use a legacy API as a last resort, add a comment that names
+  the gap in the new API and a `TODO` to migrate when it lands.

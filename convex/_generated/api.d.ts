@@ -10,6 +10,7 @@
 
 import type * as clerkSync from "../clerkSync.js";
 import type * as http from "../http.js";
+import type * as invitations from "../invitations.js";
 import type * as lib_ensureMembership from "../lib/ensureMembership.js";
 import type * as lib_errors from "../lib/errors.js";
 import type * as lib_reservedSlugs from "../lib/reservedSlugs.js";
@@ -29,6 +30,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   clerkSync: typeof clerkSync;
   http: typeof http;
+  invitations: typeof invitations;
   "lib/ensureMembership": typeof lib_ensureMembership;
   "lib/errors": typeof lib_errors;
   "lib/reservedSlugs": typeof lib_reservedSlugs;
