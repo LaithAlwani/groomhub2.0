@@ -1,0 +1,239 @@
+import { v } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
+import { appError } from "./lib/errors";
+import { requireRole } from "./lib/rbac";
+
+const MAX_RESULTS = 200;
+
+/**
+ * Lists or searches clients in the caller's org.
+ * - `staff+` can read.
+ * - When `search` is a digit-only string (e.g. "5550100" or "4231"), the route
+ *   walks the bounded `by_org` index and filters on `phoneDigits.includes(...)`
+ *   so callers can find a client by phone number or just the last few digits.
+ * - When `search` contains letters, uses the `search_name` fuzzy index on
+ *   `fullName`.
+ * - `includeArchived=false` (default) hides soft-deleted rows.
+ */
+export const list = query({
+  args: {
+    search: v.optional(v.string()),
+    includeArchived: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    const search = args.search?.trim();
+
+    if (search && search.length > 0) {
+      const digitsOnly = search.replace(/\D/g, "");
+      const isDigitQuery = digitsOnly.length > 0 && digitsOnly === search;
+      if (isDigitQuery) {
+        const rows = await ctx.db
+          .query("clients")
+          .withIndex("by_org", (index) => index.eq("orgId", orgId))
+          .take(MAX_RESULTS);
+        return rows
+          .filter((row) =>
+            args.includeArchived ? true : row.deletedAt === undefined,
+          )
+          .filter((row) => {
+            const phoneDigits = (row.phone ?? "").replace(/\D/g, "");
+            return phoneDigits.includes(digitsOnly);
+          })
+          .sort((a, b) => a.fullName.localeCompare(b.fullName));
+      }
+      return await ctx.db
+        .query("clients")
+        .withSearchIndex("search_name", (index) =>
+          args.includeArchived
+            ? index.search("fullName", search).eq("orgId", orgId)
+            : index
+                .search("fullName", search)
+                .eq("orgId", orgId)
+                .eq("deletedAt", undefined),
+        )
+        .take(MAX_RESULTS);
+    }
+    const rows = await ctx.db
+      .query("clients")
+      .withIndex("by_org", (index) => index.eq("orgId", orgId))
+      .take(MAX_RESULTS);
+    const filtered = args.includeArchived
+      ? rows
+      : rows.filter((row) => row.deletedAt === undefined);
+    return filtered.sort((a, b) => a.fullName.localeCompare(b.fullName));
+  },
+});
+
+/**
+ * Fetch a single client by id. Refuses cross-org IDs.
+ */
+export const get = query({
+  args: { id: v.id("clients") },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    return await loadOwnClient(ctx, args.id, orgId);
+  },
+});
+
+const clientInputValidator = {
+  fullName: v.string(),
+  phone: v.optional(v.string()),
+  email: v.optional(v.string()),
+  addressLine1: v.optional(v.string()),
+  addressLine2: v.optional(v.string()),
+  city: v.optional(v.string()),
+  state: v.optional(v.string()),
+  postalCode: v.optional(v.string()),
+  country: v.optional(v.string()),
+  notes: v.optional(v.string()),
+};
+
+function buildClientPatch(args: {
+  fullName: string;
+  phone?: string;
+  email?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  notes?: string;
+}) {
+  const phoneDigits = (args.phone ?? "").replace(/\D/g, "");
+  const phone = phoneDigits || undefined;
+  return {
+    fullName: args.fullName.trim(),
+    phone,
+    email: args.email?.trim() || undefined,
+    addressLine1: args.addressLine1?.trim() || undefined,
+    addressLine2: args.addressLine2?.trim() || undefined,
+    city: args.city?.trim() || undefined,
+    state: args.state?.trim() || undefined,
+    postalCode: args.postalCode?.trim() || undefined,
+    country: args.country?.trim() || undefined,
+    notes: args.notes?.trim() || undefined,
+  };
+}
+
+/**
+ * Create a client. Admin + superAdmin only.
+ */
+export const create = mutation({
+  args: clientInputValidator,
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    validateInput(args);
+    return await ctx.db.insert("clients", {
+      orgId,
+      ...buildClientPatch(args),
+    });
+  },
+});
+
+/**
+ * Update an existing client. Admin + superAdmin only. Refuses cross-org IDs.
+ */
+export const update = mutation({
+  args: { id: v.id("clients"), ...clientInputValidator },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    const existing = await loadOwnClient(ctx, args.id, orgId);
+    validateInput(args);
+    await ctx.db.patch(existing._id, buildClientPatch(args));
+  },
+});
+
+/**
+ * Soft-delete a client (sets `deletedAt`). Cascade-archives their pets.
+ * Appointment history that references this client stays readable.
+ */
+export const archive = mutation({
+  args: { id: v.id("clients") },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const existing = await loadOwnClient(ctx, args.id, orgId);
+    if (existing.deletedAt !== undefined) return;
+    const now = Date.now();
+    await ctx.db.patch(existing._id, { deletedAt: now });
+    const pets = await ctx.db
+      .query("pets")
+      .withIndex("by_client", (index) => index.eq("clientId", existing._id))
+      .collect();
+    for (const pet of pets) {
+      if (pet.deletedAt === undefined) {
+        await ctx.db.patch(pet._id, { deletedAt: now });
+      }
+    }
+  },
+});
+
+/**
+ * Restore a previously archived client. Admin + superAdmin.
+ * Does NOT auto-restore pets — owners may want to bring a pet back individually.
+ */
+export const restore = mutation({
+  args: { id: v.id("clients") },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const existing = await loadOwnClient(ctx, args.id, orgId);
+    if (existing.deletedAt === undefined) return;
+    await ctx.db.patch(existing._id, { deletedAt: undefined });
+  },
+});
+
+/**
+ * Permanently delete a client AND all their pets. superAdmin only.
+ * Historical appointment rows that reference them will be orphaned.
+ */
+export const hardDelete = mutation({
+  args: { id: v.id("clients") },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin"]);
+    const existing = await loadOwnClient(ctx, args.id, orgId);
+    const pets = await ctx.db
+      .query("pets")
+      .withIndex("by_client", (index) => index.eq("clientId", existing._id))
+      .collect();
+    for (const pet of pets) {
+      if (pet.imageStorageId) {
+        await ctx.storage.delete(pet.imageStorageId);
+      }
+      await ctx.db.delete(pet._id);
+    }
+    await ctx.db.delete(existing._id);
+  },
+});
+
+async function loadOwnClient(
+  ctx: QueryCtx | MutationCtx,
+  id: Id<"clients">,
+  orgId: string,
+): Promise<Doc<"clients">> {
+  const row = await ctx.db.get(id);
+  if (!row) appError("NOT_FOUND", { reason: "CLIENT_NOT_FOUND" });
+  if (row.orgId !== orgId) appError("FORBIDDEN", { reason: "WRONG_ORG" });
+  return row;
+}
+
+function validateInput(args: {
+  fullName: string;
+  email?: string;
+}): void {
+  if (args.fullName.trim().length === 0) {
+    appError("VALIDATION", { field: "fullName", reason: "REQUIRED" });
+  }
+  if (args.email !== undefined) {
+    const email = args.email.trim();
+    if (email.length > 0 && !email.includes("@")) {
+      appError("VALIDATION", { field: "email", reason: "INVALID" });
+    }
+  }
+}

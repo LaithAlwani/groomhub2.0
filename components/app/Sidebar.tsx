@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useOrganization } from "@clerk/nextjs";
-import { LayoutDashboard, Scissors, Users, type LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  PawPrint,
+  Scissors,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { mapClerkOrgRole, type Role } from "@/convex/lib/roles";
 import { OrgSwitcher } from "./OrgSwitcher";
 
@@ -16,6 +22,7 @@ type NavLink = {
 
 const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/clients", label: "Clients", icon: PawPrint },
   { href: "/services", label: "Services", icon: Scissors },
   { href: "/staff", label: "Team", icon: Users, visibleTo: ["admin", "superAdmin"] },
 ];

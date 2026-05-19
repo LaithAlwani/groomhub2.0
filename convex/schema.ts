@@ -13,6 +13,14 @@ export const speciesValidator = v.union(
   v.literal("other"),
 );
 
+export const vaccinationValidator = v.object({
+  type: v.string(),
+  expiresOn: v.string(), // ISO date YYYY-MM-DD in the org's timezone
+  verified: v.boolean(),
+});
+
+export const sexValidator = v.union(v.literal("male"), v.literal("female"));
+
 export default defineSchema({
   organizations: defineTable({
     clerkOrgId: v.string(),
@@ -71,4 +79,55 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_org_active", ["orgId", "isActive"]),
+
+  // Pet owner record per shop. Soft-delete via `deletedAt`; superAdmin can hard-delete.
+  // `search_name` is the prefix/fuzzy index used by the clients list quick search.
+  clients: defineTable({
+    orgId: v.string(),
+    fullName: v.string(),
+    // Stored as digits-only (e.g. "5551234567"). Display surfaces format as
+    // xxx-xxx-xxxx via `lib/phone.ts`.
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    addressLine1: v.optional(v.string()),
+    addressLine2: v.optional(v.string()),
+    city: v.optional(v.string()),
+    state: v.optional(v.string()),
+    postalCode: v.optional(v.string()),
+    country: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    deletedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["orgId"])
+    .searchIndex("search_name", {
+      searchField: "fullName",
+      filterFields: ["orgId", "deletedAt"],
+    }),
+
+  // Pets belong to one client. Soft-delete via `deletedAt`; appointment history
+  // referencing a removed pet stays readable.
+  pets: defineTable({
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    name: v.string(),
+    species: speciesValidator,
+    breed: v.optional(v.string()),
+    coatType: v.optional(v.string()),
+    sizeKg: v.optional(v.number()),
+    birthDate: v.optional(v.string()), // ISO date YYYY-MM-DD
+    sex: v.optional(sexValidator),
+    // `true` = spayed (female) or neutered (male); UI picks the label by sex.
+    isFixed: v.optional(v.boolean()),
+    temperament: v.optional(v.string()),
+    medicalConditions: v.optional(v.array(v.string())),
+    notes: v.optional(v.string()),
+    vaccinations: v.array(vaccinationValidator),
+    // Convex storage id for the pet's main photo. UI uses a placeholder when
+    // unset. `update`/`hardDelete` clean up the storage object so we don't
+    // orphan files. Upload URLs are generated via `pets.generateImageUploadUrl`.
+    imageStorageId: v.optional(v.id("_storage")),
+    deletedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_client", ["clientId"]),
 });

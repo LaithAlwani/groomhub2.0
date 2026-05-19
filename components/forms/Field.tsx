@@ -6,6 +6,7 @@ export function Field({
   label,
   value,
   onChange,
+  onBlur,
   error,
   type = "text",
   autoComplete,
@@ -16,6 +17,7 @@ export function Field({
   label: string;
   value: string;
   onChange: (next: string) => void;
+  onBlur?: () => void;
   error?: string;
   type?: string;
   autoComplete?: string;
@@ -32,6 +34,7 @@ export function Field({
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
         autoComplete={autoComplete}
         inputMode={inputMode}
         placeholder={placeholder}

@@ -9,6 +9,7 @@
  */
 
 import type * as clerkSync from "../clerkSync.js";
+import type * as clients from "../clients.js";
 import type * as http from "../http.js";
 import type * as invitations from "../invitations.js";
 import type * as lib_ensureMembership from "../lib/ensureMembership.js";
@@ -20,6 +21,7 @@ import type * as lib_tenant from "../lib/tenant.js";
 import type * as lib_verifyWebhook from "../lib/verifyWebhook.js";
 import type * as memberships from "../memberships.js";
 import type * as organizations from "../organizations.js";
+import type * as pets from "../pets.js";
 import type * as services from "../services.js";
 import type * as users from "../users.js";
 
@@ -31,6 +33,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   clerkSync: typeof clerkSync;
+  clients: typeof clients;
   http: typeof http;
   invitations: typeof invitations;
   "lib/ensureMembership": typeof lib_ensureMembership;
@@ -42,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   "lib/verifyWebhook": typeof lib_verifyWebhook;
   memberships: typeof memberships;
   organizations: typeof organizations;
+  pets: typeof pets;
   services: typeof services;
   users: typeof users;
 }>;

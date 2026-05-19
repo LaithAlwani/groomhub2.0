@@ -1,0 +1,200 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { Field } from "@/components/forms/Field";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { digitsOnly, formatPhone } from "@/lib/phone";
+import { AddressFields } from "./AddressFields";
+
+type ClientFormState = {
+  fullName: string;
+  phone: string;
+  email: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  notes: string;
+};
+
+type FieldErrors = Partial<Record<keyof ClientFormState, string>>;
+
+const INITIAL_STATE: ClientFormState = {
+  fullName: "",
+  phone: "",
+  email: "",
+  addressLine1: "",
+  addressLine2: "",
+  city: "",
+  state: "",
+  postalCode: "",
+  country: "",
+  notes: "",
+};
+
+export function ClientFormDialog({
+  clientId,
+  onClose,
+}: {
+  clientId: Id<"clients"> | "new";
+  onClose: () => void;
+}) {
+  const isEdit = clientId !== "new";
+  const existing = useQuery(
+    api.clients.get,
+    isEdit ? { id: clientId } : "skip",
+  );
+
+  const create = useMutation(api.clients.create);
+  const update = useMutation(api.clients.update);
+
+  const [state, setState] = useState<ClientFormState>(INITIAL_STATE);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!existing) return;
+    setState({
+      fullName: existing.fullName,
+      phone: formatPhone(existing.phone),
+      email: existing.email ?? "",
+      addressLine1: existing.addressLine1 ?? "",
+      addressLine2: existing.addressLine2 ?? "",
+      city: existing.city ?? "",
+      state: existing.state ?? "",
+      postalCode: existing.postalCode ?? "",
+      country: existing.country ?? "",
+      notes: existing.notes ?? "",
+    });
+  }, [existing]);
+
+  function setField<K extends keyof ClientFormState>(key: K, value: ClientFormState[K]) {
+    setState((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setServerError(null);
+    const next: FieldErrors = {};
+    if (state.fullName.trim().length === 0) next.fullName = "Name is required";
+    if (state.email.trim() && !state.email.includes("@"))
+      next.email = "Looks like an invalid email";
+    if (Object.keys(next).length > 0) {
+      setFieldErrors(next);
+      return;
+    }
+    setFieldErrors({});
+    setSubmitting(true);
+    try {
+      const payload = {
+        fullName: state.fullName.trim(),
+        phone: digitsOnly(state.phone) || undefined,
+        email: state.email.trim() || undefined,
+        addressLine1: state.addressLine1.trim() || undefined,
+        addressLine2: state.addressLine2.trim() || undefined,
+        city: state.city.trim() || undefined,
+        state: state.state.trim() || undefined,
+        postalCode: state.postalCode.trim() || undefined,
+        country: state.country.trim() || undefined,
+        notes: state.notes.trim() || undefined,
+      };
+      if (isEdit) {
+        await update({ id: clientId, ...payload });
+      } else {
+        await create(payload);
+      }
+      onClose();
+    } catch (caught) {
+      setServerError(caught instanceof Error ? caught.message : "Could not save");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handlePhoneBlur() {
+    setField("phone", formatPhone(state.phone));
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal
+      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          {isEdit ? "Edit client" : "New client"}
+        </h2>
+        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
+          <Field
+            label="Full name"
+            value={state.fullName}
+            onChange={(value) => setField("fullName", value)}
+            error={fieldErrors.fullName}
+            placeholder="Jane Doe"
+          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field
+              label="Phone (optional)"
+              type="tel"
+              value={state.phone}
+              onChange={(value) => setField("phone", value)}
+              onBlur={handlePhoneBlur}
+              error={fieldErrors.phone}
+              inputMode="tel"
+              placeholder="555-123-4567"
+            />
+            <Field
+              label="Email (optional)"
+              type="email"
+              value={state.email}
+              onChange={(value) => setField("email", value)}
+              error={fieldErrors.email}
+              inputMode="email"
+              placeholder="jane@example.com"
+            />
+          </div>
+          <AddressFields state={state} onChange={setField} />
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+              Notes (optional)
+            </span>
+            <textarea
+              value={state.notes}
+              onChange={(event) => setField("notes", event.target.value)}
+              rows={3}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+            />
+          </label>
+          {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+            >
+              {submitting ? "Saving…" : isEdit ? "Save changes" : "Create client"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
