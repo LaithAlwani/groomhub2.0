@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useOrganization, useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const ROLE_LABEL: Record<string, string> = {
   superAdmin: "Owner",
@@ -18,6 +19,9 @@ export function MemberList() {
 
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<
+    { clerkUserId: string; displayName: string } | null
+  >(null);
 
   if (members === undefined) return <ListSkeleton />;
   if (members.length === 0) {
@@ -28,20 +32,19 @@ export function MemberList() {
     );
   }
 
-  async function handleRemove(clerkUserId: string, displayName: string) {
-    if (!organization) return;
-    const confirmed = window.confirm(
-      `Remove ${displayName} from this shop? They'll lose access immediately.`,
-    );
-    if (!confirmed) return;
+  async function confirmRemove() {
+    if (!organization || !confirmTarget) return;
+    const { clerkUserId } = confirmTarget;
     setRemovingId(clerkUserId);
     setRemoveError(null);
     try {
       await organization.removeMember(clerkUserId);
+      setConfirmTarget(null);
     } catch (caught) {
       setRemoveError(
         caught instanceof Error ? caught.message : "Could not remove member",
       );
+      setConfirmTarget(null);
     } finally {
       setRemovingId(null);
     }
@@ -85,7 +88,12 @@ export function MemberList() {
                   <button
                     type="button"
                     disabled={isRemoving || !organization}
-                    onClick={() => handleRemove(member.clerkUserId, displayName)}
+                    onClick={() =>
+                      setConfirmTarget({
+                        clerkUserId: member.clerkUserId,
+                        displayName,
+                      })
+                    }
                     className="rounded-lg border border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
                   >
                     {isRemoving ? "Removing…" : "Remove"}
@@ -101,6 +109,26 @@ export function MemberList() {
           {removeError}
         </p>
       )}
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        title="Remove member?"
+        description={
+          confirmTarget && (
+            <>
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                {confirmTarget.displayName}
+              </span>{" "}
+              will lose access to this shop immediately. You can re-invite them
+              later.
+            </>
+          )
+        }
+        confirmLabel="Remove"
+        tone="danger"
+        busy={removingId !== null}
+        onConfirm={confirmRemove}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </div>
   );
 }

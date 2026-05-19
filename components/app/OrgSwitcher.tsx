@@ -71,19 +71,19 @@ export function OrgSwitcher() {
         disabled={switching}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
       >
-        <span className="max-w-[180px] truncate">{organization.name}</span>
+        <span className="min-w-0 flex-1 truncate text-left">{organization.name}</span>
         <ChevronsUpDown
           size={14}
-          className="text-zinc-400 dark:text-zinc-500"
+          className="shrink-0 text-zinc-400 dark:text-zinc-500"
         />
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950"
+          className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950"
         >
           <ul className="max-h-72 overflow-y-auto py-1">
             {memberships.map((membership) => {
@@ -130,6 +130,6 @@ export function OrgSwitcher() {
 
 function SwitcherSkeleton() {
   return (
-    <div className="h-8 w-40 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800" />
+    <div className="h-9 w-full animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800" />
   );
 }

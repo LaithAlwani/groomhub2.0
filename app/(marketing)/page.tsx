@@ -16,7 +16,7 @@ export default function Home() {
       <div className="mt-10 flex flex-col gap-3 sm:flex-row">
         <Link
           href="/sign-up"
-          className="rounded-full bg-zinc-900 px-6 py-3 font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="rounded-full bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700"
         >
           Start free
         </Link>

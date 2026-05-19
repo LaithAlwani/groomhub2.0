@@ -65,7 +65,7 @@ export function PendingInvitationsBanner() {
                 type="button"
                 disabled={acceptingId === invitation.id}
                 onClick={() => handleAccept(invitation.id)}
-                className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
               >
                 {acceptingId === invitation.id ? "Joining…" : "Accept"}
               </button>

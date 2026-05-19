@@ -7,6 +7,12 @@ export const roleValidator = v.union(
   v.literal("staff"),
 );
 
+export const speciesValidator = v.union(
+  v.literal("dog"),
+  v.literal("cat"),
+  v.literal("other"),
+);
+
 export default defineSchema({
   organizations: defineTable({
     clerkOrgId: v.string(),
@@ -47,4 +53,22 @@ export default defineSchema({
     .index("by_user_org", ["userId", "orgId"])
     .index("by_org_active", ["orgId", "isActive"])
     .index("by_org_role", ["orgId", "role"]),
+
+  // Service menu per shop. Soft-delete via `deletedAt`; superAdmin can hard-delete.
+  // `priceCents` + `currency` are stored alongside payments going live (deferred);
+  // for now they're just informational on the service card.
+  services: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    durationMin: v.number(),
+    priceCents: v.number(),
+    currency: v.string(),
+    species: v.array(speciesValidator),
+    color: v.optional(v.string()),
+    isActive: v.boolean(),
+    deletedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_active", ["orgId", "isActive"]),
 });
