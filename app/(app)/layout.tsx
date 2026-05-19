@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { EnsureMe } from "@/components/auth/EnsureMe";
+import { RequireOrgContext } from "@/components/auth/RequireOrgContext";
 import { ManageOrgButton } from "@/components/app/ManageOrgButton";
 import { OrgSwitcher } from "@/components/app/OrgSwitcher";
 import { PendingInvitationsBanner } from "@/components/app/PendingInvitationsBanner";
@@ -30,6 +31,7 @@ export default async function AppLayout({
       <PendingInvitationsBanner />
       <main className="flex flex-1 flex-col">{children}</main>
       <EnsureMe />
+      <RequireOrgContext />
     </div>
   );
 }
