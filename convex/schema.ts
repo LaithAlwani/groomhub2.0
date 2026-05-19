@@ -106,6 +106,35 @@ export default defineSchema({
 
   // Pets belong to one client. Soft-delete via `deletedAt`; appointment history
   // referencing a removed pet stays readable.
+  // Recurring weekly availability per staff member. Multiple rows are allowed
+  // per (staff, weekday) so split shifts and lunch breaks are modelled as gaps
+  // (e.g. Mon 540–720 and Mon 780–1020 = “9–12, 13–17”).
+  // Times are minutes from midnight in the org's timezone.
+  staffWeeklySchedule: defineTable({
+    orgId: v.string(),
+    staffId: v.id("memberships"),
+    weekday: v.number(), // 0=Sunday … 6=Saturday (matches JS Date.getDay())
+    startMin: v.number(),
+    endMin: v.number(),
+  })
+    .index("by_org_staff", ["orgId", "staffId"])
+    .index("by_org_staff_weekday", ["orgId", "staffId", "weekday"]),
+
+  // Per-day override for the next ~60 days: PTO, extra shifts, holiday closures.
+  // `date` is ISO YYYY-MM-DD in the org's timezone. `kind="off"` means the day
+  // is unavailable; `kind="custom"` means `slots` replaces the weekly pattern
+  // for that date. No row = use the weekly pattern.
+  staffDayOverride: defineTable({
+    orgId: v.string(),
+    staffId: v.id("memberships"),
+    date: v.string(),
+    kind: v.union(v.literal("off"), v.literal("custom")),
+    slots: v.optional(
+      v.array(v.object({ startMin: v.number(), endMin: v.number() })),
+    ),
+  })
+    .index("by_org_staff_date", ["orgId", "staffId", "date"]),
+
   pets: defineTable({
     orgId: v.string(),
     clientId: v.id("clients"),

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as availability from "../availability.js";
 import type * as clerkSync from "../clerkSync.js";
 import type * as clients from "../clients.js";
 import type * as http from "../http.js";
@@ -32,6 +33,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  availability: typeof availability;
   clerkSync: typeof clerkSync;
   clients: typeof clients;
   http: typeof http;
