@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import { readOrgClaims } from "./lib/tenant";
 
 /**
  * Returns all active memberships in the caller's current org, joined with
@@ -13,13 +14,13 @@ export const forOrg = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
-    const orgId = identity.orgId as string | undefined;
-    if (!orgId) return [];
+    const claims = readOrgClaims(identity);
+    if (!claims) return [];
 
     const activeMemberships = await ctx.db
       .query("memberships")
       .withIndex("by_org_active", (index) =>
-        index.eq("orgId", orgId).eq("isActive", true),
+        index.eq("orgId", claims.orgId).eq("isActive", true),
       )
       .collect();
 
@@ -36,3 +37,4 @@ export const forOrg = query({
     return results;
   },
 });
+

@@ -80,8 +80,11 @@ export default function SignInPage() {
   }
 
   async function handleGoogle() {
-    if (!signIn) return;
     setServerError(null);
+    if (!signIn) {
+      setServerError("Sign-in is still loading — give it a second and try again.");
+      return;
+    }
     const result = await signIn.sso({
       strategy: "oauth_google",
       redirectUrl: "/sso-callback",

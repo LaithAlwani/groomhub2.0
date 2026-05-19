@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { PendingInvitationsBanner } from "@/components/app/PendingInvitationsBanner";
 import { UserMenu } from "@/components/app/UserMenu";
 
 export default async function OnboardingLayout({
@@ -18,6 +19,7 @@ export default async function OnboardingLayout({
           <UserMenu />
         </div>
       </header>
+      <PendingInvitationsBanner />
       <main className="flex flex-1 flex-col">{children}</main>
     </div>
   );

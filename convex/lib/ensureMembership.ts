@@ -85,7 +85,19 @@ async function ensureMembershipRecord(
       index.eq("userId", userId).eq("orgId", identity.orgId),
     )
     .unique();
-  if (existing) return existing;
+  if (existing) {
+    // If this user was previously removed from the org and just rejoined,
+    // reactivate the row rather than orphan it. The Clerk JWT proves they're
+    // an active member right now, so the row should reflect that.
+    const role = mapClerkOrgRole(identity.orgRole);
+    if (!existing.isActive || existing.role !== role) {
+      await ctx.db.patch(existing._id, { isActive: true, role });
+      const refreshed = await ctx.db.get(existing._id);
+      if (!refreshed) throw new Error("ensureMembershipRecord: patched row vanished");
+      return refreshed;
+    }
+    return existing;
+  }
 
   const role = mapClerkOrgRole(identity.orgRole);
   const insertedId = await ctx.db.insert("memberships", {

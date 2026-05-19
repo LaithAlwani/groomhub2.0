@@ -4,6 +4,7 @@ import {
   readMembershipForQuery,
 } from "./lib/ensureMembership";
 import type { AuthedIdentity } from "./lib/tenant";
+import { readOrgClaims } from "./lib/tenant";
 
 /**
  * Returns the current `{ user, membership }` pair for the active
@@ -16,12 +17,10 @@ export const me = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    const orgId = identity.orgId as string | undefined;
-    if (!orgId) return null;
-    const { user, membership } = await readMembershipForQuery(
-      ctx,
-      identity as AuthedIdentity,
-    );
+    const claims = readOrgClaims(identity);
+    if (!claims) return null;
+    const authed = Object.assign(identity, claims) as AuthedIdentity;
+    const { user, membership } = await readMembershipForQuery(ctx, authed);
     if (!user || !membership) return null;
     return { user, membership };
   },
@@ -37,9 +36,9 @@ export const ensureMe = mutation({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    const orgId = identity.orgId as string | undefined;
-    const orgRole = identity.orgRole as string | undefined;
-    if (!orgId || !orgRole) return null;
-    return await ensureMembership(ctx, identity as AuthedIdentity);
+    const claims = readOrgClaims(identity);
+    if (!claims) return null;
+    const authed = Object.assign(identity, claims) as AuthedIdentity;
+    return await ensureMembership(ctx, authed);
   },
 });

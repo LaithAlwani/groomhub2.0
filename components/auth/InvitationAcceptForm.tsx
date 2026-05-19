@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAction } from "convex/react";
 import { useSignUp } from "@clerk/nextjs";
 import { z } from "zod";
@@ -19,11 +20,13 @@ type FieldErrors = Partial<Record<keyof FormInput, string>>;
 /**
  * Accepts an organisation invitation using Clerk's Future SignUp API.
  *
- * Clerk's Future `signUp.ticket()` doesn't populate the invited email for
- * `organization_invitation` tickets — the email lives only on the server
- * invitation record. We bridge the gap via a Convex action that calls
- * Clerk's Backend API to look up the email, then drive the Future API
- * normally: ticket → update(emailAddress) if needed → finalize.
+ * Two paths:
+ *   - New email: `signUp.create({strategy:"ticket"})` creates the user,
+ *     auto-verifies the invited email, mints a session.
+ *   - Existing email: Clerk rejects sign-up ("verification strategy is not
+ *     valid for this account"). We detect that, switch to a "Sign in to
+ *     accept" panel, and rely on `PendingInvitationsBanner` to surface the
+ *     pending invitation after the user signs in.
  */
 export function InvitationAcceptForm({
   invitationTicket,
@@ -44,7 +47,7 @@ export function InvitationAcceptForm({
   const [lastName, setLastName] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
-  const [diagnostic, setDiagnostic] = useState<string | null>(null);
+  const [accountExists, setAccountExists] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -54,10 +57,7 @@ export function InvitationAcceptForm({
         if (cancelled) return;
         if (info?.email) setInvitedEmail(info.email);
       })
-      .catch(() => {
-        // Non-fatal — the form still works, the user just won't see their
-        // email pre-displayed. The actual sign-up uses the ticket.
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -66,7 +66,6 @@ export function InvitationAcceptForm({
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setServerError(null);
-    setDiagnostic(null);
 
     const parsed = schema.safeParse({ firstName, lastName });
     if (!parsed.success) {
@@ -83,14 +82,6 @@ export function InvitationAcceptForm({
 
     setSubmitting(true);
     try {
-      // Future API's `create({strategy:"ticket", ticket})` auto-verifies the
-      // invited email server-side, so we skip the separate `signUp.ticket()`
-      // → `signUp.update()` dance which leaves the email unverified.
-      //
-      // Clerk 7's published types omit the `ticket` field on
-      // `SignUpFutureCreateParams`, but the runtime requires it
-      // ("`ticket` is required when `strategy` is `ticket`."). Casting to
-      // include it until the types catch up.
       type SignUpCreateParams = Parameters<typeof signUp.create>[0];
       const createResult = await signUp.create({
         strategy: "ticket",
@@ -98,36 +89,37 @@ export function InvitationAcceptForm({
         firstName: parsed.data.firstName,
         lastName: parsed.data.lastName,
       } as SignUpCreateParams);
+
       if (createResult.error) {
         const message =
           createResult.error.message ?? "Could not accept the invitation";
+        if (isAccountExistsError(message)) {
+          setAccountExists(true);
+          return;
+        }
         setServerError(message);
         onError(message);
         return;
       }
 
-      if (signUp.createdSessionId) {
-        const finalizeResult = await signUp.finalize({
-          navigate: () => undefined,
-        });
-        if (finalizeResult.error) {
-          const message =
-            finalizeResult.error.message ?? "Could not finish sign-up";
-          setServerError(message);
-          onError(message);
-          return;
-        }
-        onAccepted();
+      if (!signUp.createdSessionId) {
+        const message = "Sign-up didn't finish. Try again or contact support.";
+        setServerError(message);
+        onError(message);
         return;
       }
 
-      setDiagnostic(
-        `status=${signUp.status ?? "unknown"}; missing=[${(signUp.missingFields ?? []).join(", ") || "none"}]; unverified=[${(signUp.unverifiedFields ?? []).join(", ") || "none"}]`,
-      );
-      setServerError(
-        "Sign-up didn't finish. The detail below tells us exactly what's still required.",
-      );
-      onError("Sign-up didn't finish.");
+      const finalizeResult = await signUp.finalize({
+        navigate: () => undefined,
+      });
+      if (finalizeResult.error) {
+        const message =
+          finalizeResult.error.message ?? "Could not finish sign-up";
+        setServerError(message);
+        onError(message);
+        return;
+      }
+      onAccepted();
     } catch (caught) {
       const message =
         caught instanceof Error
@@ -140,7 +132,38 @@ export function InvitationAcceptForm({
     }
   }
 
-  const isBusy = busy || submitting;
+  if (accountExists) {
+    return (
+      <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          You already have an account
+        </h2>
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          We found a GroomHub account
+          {invitedEmail ? (
+            <>
+              {" "}for <span className="font-medium">{invitedEmail}</span>
+            </>
+          ) : null}
+          . Sign in and your invitation will be waiting on the dashboard.
+        </p>
+        {invitedEmail && (
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            Important: sign in with{" "}
+            <span className="font-medium">{invitedEmail}</span>. Invitations
+            are tied to the email they were sent to, so a different account
+            won&apos;t pick this one up.
+          </p>
+        )}
+        <Link
+          href="/sign-in"
+          className="mt-4 inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          Sign in
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
@@ -170,18 +193,22 @@ export function InvitationAcceptForm({
       </div>
       <div id="clerk-captcha" />
       {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
-      {diagnostic && (
-        <pre className="overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-          {diagnostic}
-        </pre>
-      )}
       <button
         type="submit"
-        disabled={isBusy || !signUp}
+        disabled={submitting || busy || !signUp}
         className="mt-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
       >
-        {isBusy ? "Joining…" : "Join shop"}
+        {submitting || busy ? "Joining…" : "Join shop"}
       </button>
     </form>
+  );
+}
+
+function isAccountExistsError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("verification strategy is not valid") ||
+    lower.includes("identifier exists") ||
+    lower.includes("already exists")
   );
 }
