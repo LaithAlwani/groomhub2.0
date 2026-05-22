@@ -10,6 +10,7 @@ import { ReassignDialog } from "@/components/dashboard/ReassignDialog";
 import { formatPhone } from "@/lib/phone";
 import { AppointmentFormFields } from "./AppointmentFormFields";
 import { AppointmentDialogFooter } from "./AppointmentDialogFooter";
+import { AppointmentDialogSkeleton } from "./AppointmentDialogSkeleton";
 import {
   useAppointmentDialog,
   type AppointmentDialogProps,
@@ -29,6 +30,7 @@ export function AppointmentDialog(props: AppointmentDialogProps) {
     setConfirmCancel,
     lockedStaff,
     role,
+    isDirty,
     handleSubmit,
     transitionStatus,
   } = useAppointmentDialog(props);
@@ -41,6 +43,10 @@ export function AppointmentDialog(props: AppointmentDialogProps) {
   );
   const showCallPrompt =
     selectedClient !== undefined && selectedClient !== null && !selectedClient.email;
+
+  // In edit mode, hold the dialog body until the appointment query resolves
+  // so the user doesn't see a flash of empty fields before they hydrate.
+  const isLoading = isEdit && existing === undefined;
 
   return (
     <div
@@ -56,49 +62,56 @@ export function AppointmentDialog(props: AppointmentDialogProps) {
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
           {isEdit ? "Edit appointment" : "New appointment"}
         </h2>
-        {existing?.status === "pendingApproval" && (
-          <Banner tone="amber" icon={<Clock size={14} aria-hidden />}>
-            This booking is waiting on approval. Confirm to send the client a
-            confirmation email, or decline to send it back to admin.
-          </Banner>
+        {isLoading ? (
+          <AppointmentDialogSkeleton onClose={props.onClose} />
+        ) : (
+          <>
+            {existing?.status === "pendingApproval" && (
+              <Banner tone="amber" icon={<Clock size={14} aria-hidden />}>
+                This booking is waiting on approval. Confirm to send the client
+                a confirmation email, or decline to send it back to admin.
+              </Banner>
+            )}
+            {existing?.status === "declined" && canReassign && (
+              <Banner tone="red" icon={<AlertTriangle size={14} aria-hidden />}>
+                This booking was declined. Reassign it to a different groomer,
+                or cancel it entirely. The client hasn&apos;t been notified yet.
+              </Banner>
+            )}
+            {showCallPrompt && (
+              <Banner tone="amber" icon={<PhoneCall size={14} aria-hidden />}>
+                <strong>{selectedClient!.fullName}</strong> has no email on file.
+                {selectedClient!.phone
+                  ? ` Please call ${formatPhone(selectedClient!.phone)} to confirm.`
+                  : " Please call them to confirm — no phone on file either."}
+              </Banner>
+            )}
+            <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
+              <AppointmentFormFields
+                state={state}
+                errors={errors}
+                isEdit={isEdit}
+                lockedClient={!isEdit && props.initialClientId !== undefined}
+                lockedStaff={lockedStaff}
+                onChange={setField}
+              />
+              {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
+              <AppointmentDialogFooter
+                isEdit={isEdit}
+                status={existing?.status ?? null}
+                canReassign={canReassign}
+                isDirty={isDirty}
+                submitting={submitting}
+                cancelling={cancelling}
+                onClose={props.onClose}
+                onCancelAppointment={() => setConfirmCancel(true)}
+                onApprove={() => transitionStatus("scheduled")}
+                onDecline={() => transitionStatus("declined")}
+                onReassign={() => setReassignOpen(true)}
+              />
+            </form>
+          </>
         )}
-        {existing?.status === "declined" && canReassign && (
-          <Banner tone="red" icon={<AlertTriangle size={14} aria-hidden />}>
-            This booking was declined. Reassign it to a different groomer, or
-            cancel it entirely. The client hasn&apos;t been notified yet.
-          </Banner>
-        )}
-        {showCallPrompt && (
-          <Banner tone="amber" icon={<PhoneCall size={14} aria-hidden />}>
-            <strong>{selectedClient!.fullName}</strong> has no email on file.
-            {selectedClient!.phone
-              ? ` Please call ${formatPhone(selectedClient!.phone)} to confirm.`
-              : " Please call them to confirm — no phone on file either."}
-          </Banner>
-        )}
-        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
-          <AppointmentFormFields
-            state={state}
-            errors={errors}
-            isEdit={isEdit}
-            lockedClient={!isEdit && props.initialClientId !== undefined}
-            lockedStaff={lockedStaff}
-            onChange={setField}
-          />
-          {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
-          <AppointmentDialogFooter
-            isEdit={isEdit}
-            status={existing?.status ?? null}
-            canReassign={canReassign}
-            submitting={submitting}
-            cancelling={cancelling}
-            onClose={props.onClose}
-            onCancelAppointment={() => setConfirmCancel(true)}
-            onApprove={() => transitionStatus("scheduled")}
-            onDecline={() => transitionStatus("declined")}
-            onReassign={() => setReassignOpen(true)}
-          />
-        </form>
       </div>
       <ConfirmDialog
         open={confirmCancel}
@@ -152,3 +165,4 @@ function Banner({
     </div>
   );
 }
+

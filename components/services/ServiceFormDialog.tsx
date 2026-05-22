@@ -48,16 +48,32 @@ export function ServiceFormDialog({
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
 
   useEffect(() => {
     if (!existing) return;
-    setName(existing.name);
-    setDescription(existing.description ?? "");
-    setDurationMin(String(existing.durationMin));
-    setPriceDollars((existing.priceCents / 100).toFixed(2));
-    setSpecies(existing.species as Species[]);
-    setColor(existing.color ?? "");
+    const next = {
+      name: existing.name,
+      description: existing.description ?? "",
+      durationMin: String(existing.durationMin),
+      priceDollars: (existing.priceCents / 100).toFixed(2),
+      species: existing.species as Species[],
+      color: existing.color ?? "",
+    };
+    setName(next.name);
+    setDescription(next.description);
+    setDurationMin(next.durationMin);
+    setPriceDollars(next.priceDollars);
+    setSpecies(next.species);
+    setColor(next.color);
+    setInitialSnapshot(JSON.stringify(next));
   }, [existing]);
+
+  const isDirty = isEdit
+    ? initialSnapshot === null ||
+      initialSnapshot !==
+        JSON.stringify({ name, description, durationMin, priceDollars, species, color })
+    : true;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -205,8 +221,8 @@ export function ServiceFormDialog({
             </button>
             <button
               type="submit"
-              disabled={submitting}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              disabled={submitting || !isDirty}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
             >
               {submitting ? "Saving…" : isEdit ? "Save changes" : "Create service"}
             </button>

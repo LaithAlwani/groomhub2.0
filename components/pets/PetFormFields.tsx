@@ -30,10 +30,12 @@ export type PetFormState = {
 export type PetFormErrors = Partial<Record<keyof PetFormState, string>>;
 
 export function PetFormFields({
+  petId,
   state,
   errors,
   onChange,
 }: {
+  petId?: Id<"pets">;
   state: PetFormState;
   errors: PetFormErrors;
   onChange: <K extends keyof PetFormState>(key: K, value: PetFormState[K]) => void;
@@ -48,6 +50,7 @@ export function PetFormFields({
   return (
     <>
       <PetImageUploader
+        petId={petId}
         petName={state.name}
         imageUrl={state.imagePreviewUrl}
         hasImage={state.imageStorageId !== undefined}

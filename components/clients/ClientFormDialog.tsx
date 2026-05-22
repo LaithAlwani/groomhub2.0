@@ -57,10 +57,11 @@ export function ClientFormDialog({
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
 
   useEffect(() => {
     if (!existing) return;
-    setState({
+    const next: ClientFormState = {
       fullName: existing.fullName,
       phone: formatPhone(existing.phone),
       email: existing.email ?? "",
@@ -71,8 +72,14 @@ export function ClientFormDialog({
       postalCode: existing.postalCode ?? "",
       country: existing.country ?? "",
       notes: existing.notes ?? "",
-    });
+    };
+    setState(next);
+    setInitialSnapshot(JSON.stringify(next));
   }, [existing]);
+
+  const isDirty = isEdit
+    ? initialSnapshot === null || initialSnapshot !== JSON.stringify(state)
+    : true;
 
   function setField<K extends keyof ClientFormState>(key: K, value: ClientFormState[K]) {
     setState((current) => ({ ...current, [key]: value }));
@@ -187,8 +194,8 @@ export function ClientFormDialog({
             </button>
             <button
               type="submit"
-              disabled={submitting}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              disabled={submitting || !isDirty}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
             >
               {submitting ? "Saving…" : isEdit ? "Save changes" : "Create client"}
             </button>

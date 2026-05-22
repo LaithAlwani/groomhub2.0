@@ -9,13 +9,28 @@ import { PetImage } from "./PetImage";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
+/**
+ * Uploader behaviour depends on whether the parent already has a `petId`:
+ *
+ * - **Edit mode** (`petId` set): every successful upload + every Remove is
+ *   committed to the pet record immediately via `pets.setImage`. No more
+ *   waiting for the parent's Save button — and no more orphan files if the
+ *   user cancels the dialog after picking a photo.
+ *
+ * - **Create mode** (`petId` undefined): the new pet doesn't exist yet, so
+ *   we just hand the storageId back to the parent via `onUploaded`. The
+ *   parent links it on `pets.create`. If the parent later wants to clean
+ *   up an unsaved upload, it calls `pets.deleteOrphanStorage`.
+ */
 export function PetImageUploader({
+  petId,
   petName,
   imageUrl,
   hasImage,
   onUploaded,
   onCleared,
 }: {
+  petId?: Id<"pets">;
   petName: string;
   imageUrl: string | null;
   hasImage: boolean;
@@ -23,8 +38,9 @@ export function PetImageUploader({
   onCleared: () => void;
 }) {
   const generateUploadUrl = useMutation(api.pets.generateImageUploadUrl);
+  const setImage = useMutation(api.pets.setImage);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -40,7 +56,7 @@ export function PetImageUploader({
       return;
     }
     setError(null);
-    setUploading(true);
+    setBusy(true);
     try {
       const uploadUrl = await generateUploadUrl();
       const response = await fetch(uploadUrl, {
@@ -49,13 +65,34 @@ export function PetImageUploader({
         body: file,
       });
       if (!response.ok) throw new Error("Upload failed");
-      const { storageId } = (await response.json()) as { storageId: Id<"_storage"> };
+      const { storageId } = (await response.json()) as {
+        storageId: Id<"_storage">;
+      };
       const localPreviewUrl = URL.createObjectURL(file);
+      // Edit mode: commit the new image to the pet right now. The mutation
+      // also deletes the previous file in the same call.
+      if (petId) {
+        await setImage({ id: petId, storageId });
+      }
       onUploaded(storageId, localPreviewUrl);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not upload");
     } finally {
-      setUploading(false);
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove() {
+    if (!hasImage) return;
+    setError(null);
+    setBusy(true);
+    try {
+      if (petId) await setImage({ id: petId, storageId: null });
+      onCleared();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not remove");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -75,16 +112,16 @@ export function PetImageUploader({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
           >
             <Camera size={14} />
-            {uploading ? "Uploading…" : hasImage ? "Replace photo" : "Add photo"}
+            {busy ? "Saving photo…" : hasImage ? "Replace photo" : "Add photo"}
           </button>
-          {hasImage && !uploading && (
+          {hasImage && !busy && (
             <button
               type="button"
-              onClick={onCleared}
+              onClick={handleRemove}
               className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 hover:text-red-600 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-red-400"
             >
               <Trash2 size={14} />
@@ -93,7 +130,9 @@ export function PetImageUploader({
           )}
         </div>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Tap to snap a photo with your camera or choose one from your library.
+          {petId
+            ? "Photo saves automatically when you upload."
+            : "Tap to snap a photo or pick one from your library — saved when you create the pet."}
         </p>
         {error && (
           <p className="text-xs text-red-600 dark:text-red-400">{error}</p>

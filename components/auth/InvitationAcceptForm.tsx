@@ -196,7 +196,7 @@ export function InvitationAcceptForm({
       <button
         type="submit"
         disabled={submitting || busy || !signUp}
-        className="mt-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+        className="mt-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
       >
         {submitting || busy ? "Joining…" : "Join shop"}
       </button>

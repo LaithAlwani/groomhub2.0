@@ -71,6 +71,48 @@ export const generateImageUploadUrl = mutation({
   },
 });
 
+/**
+ * Atomically swap a pet's main photo. Used by the uploader in edit mode so
+ * photo changes commit the moment the file lands in storage — no orphans
+ * waiting on a `Save changes` click. Pass `storageId: null` to clear the
+ * photo entirely. The previous file (if any) is deleted in the same call.
+ */
+export const setImage = mutation({
+  args: {
+    id: v.id("pets"),
+    storageId: v.union(v.id("_storage"), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    const existing = await loadOwnPet(ctx, args.id, orgId);
+    const nextStorageId = args.storageId ?? undefined;
+    if (
+      existing.imageStorageId &&
+      existing.imageStorageId !== nextStorageId
+    ) {
+      await ctx.storage.delete(existing.imageStorageId);
+    }
+    await ctx.db.patch(existing._id, { imageStorageId: nextStorageId });
+  },
+});
+
+/**
+ * Best-effort cleanup for the create-pet flow: the user uploads a photo,
+ * never clicks Create, then closes the dialog. We call this with whatever
+ * storageId we were holding so it doesn't sit forever in storage.
+ *
+ * Auth-gated to staff+ so a random caller can't delete files by guessing
+ * IDs. Worst case: an authed user could delete an upload they happen to
+ * know the id of — low risk given storage IDs are unguessable.
+ */
+export const deleteOrphanStorage = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    await ctx.storage.delete(args.storageId);
+  },
+});
+
 const petInputValidator = {
   clientId: v.id("clients"),
   name: v.string(),

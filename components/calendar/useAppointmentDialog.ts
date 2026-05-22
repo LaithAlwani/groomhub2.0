@@ -71,6 +71,7 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
 
   useEffect(() => {
     if (isEdit || !lockedStaff || !me?.membership || state.staffId) return;
@@ -80,7 +81,7 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
   useEffect(() => {
     if (!existing) return;
     const start = new Date(existing.startTime);
-    setState({
+    const next: AppointmentFormState = {
       clientId: existing.clientId,
       petId: existing.petId,
       serviceId: existing.serviceId,
@@ -89,8 +90,14 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
       time: isoTimeFromDate(start),
       notes: existing.notes ?? "",
       status: existing.status,
-    });
+    };
+    setState(next);
+    setInitialSnapshot(JSON.stringify(next));
   }, [existing]);
+
+  const isDirty = isEdit
+    ? initialSnapshot === null || initialSnapshot !== JSON.stringify(state)
+    : true;
 
   function setField<K extends keyof AppointmentFormState>(
     key: K,
@@ -184,6 +191,7 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
     setConfirmCancel,
     lockedStaff,
     role,
+    isDirty,
     handleSubmit,
     transitionStatus,
   };
