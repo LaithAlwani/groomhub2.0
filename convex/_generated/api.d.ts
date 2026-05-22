@@ -8,11 +8,14 @@
  * @module
  */
 
+import type * as appointments from "../appointments.js";
 import type * as availability from "../availability.js";
 import type * as clerkSync from "../clerkSync.js";
 import type * as clients from "../clients.js";
+import type * as email from "../email.js";
 import type * as http from "../http.js";
 import type * as invitations from "../invitations.js";
+import type * as lib_appointmentChecks from "../lib/appointmentChecks.js";
 import type * as lib_ensureMembership from "../lib/ensureMembership.js";
 import type * as lib_errors from "../lib/errors.js";
 import type * as lib_rbac from "../lib/rbac.js";
@@ -33,11 +36,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  appointments: typeof appointments;
   availability: typeof availability;
   clerkSync: typeof clerkSync;
   clients: typeof clients;
+  email: typeof email;
   http: typeof http;
   invitations: typeof invitations;
+  "lib/appointmentChecks": typeof lib_appointmentChecks;
   "lib/ensureMembership": typeof lib_ensureMembership;
   "lib/errors": typeof lib_errors;
   "lib/rbac": typeof lib_rbac;

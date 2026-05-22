@@ -8,8 +8,9 @@ import {
 } from "./_generated/server";
 import { appError } from "./lib/errors";
 import { ensureMembership, readMembershipForQuery } from "./lib/ensureMembership";
+import { mapClerkOrgRole } from "./lib/roles";
 import { requireRole } from "./lib/rbac";
-import { requireAuth } from "./lib/tenant";
+import { requireAuth, softAuth } from "./lib/tenant";
 
 const MAX_RANGES_PER_DAY = 6;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -34,7 +35,8 @@ const overrideKindValidator = v.union(v.literal("off"), v.literal("custom"));
 export const myWeekly = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await requireAuth(ctx);
+    const identity = await softAuth(ctx);
+    if (!identity) return [];
     const { membership } = await readMembershipForQuery(ctx, identity);
     if (!membership) return [];
     return await readWeekly(ctx, identity.orgId, membership._id);
@@ -48,7 +50,8 @@ export const myWeekly = query({
 export const myOverridesInRange = query({
   args: { fromDate: v.string(), toDate: v.string() },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx);
+    const identity = await softAuth(ctx);
+    if (!identity) return [];
     const { membership } = await readMembershipForQuery(ctx, identity);
     if (!membership) return [];
     return await readOverridesInRange(
@@ -132,6 +135,7 @@ export const forStaffWeekly = query({
   args: { staffId: v.id("memberships") },
   handler: async (ctx, args) => {
     const orgId = await requireOwnOrAdmin(ctx, args.staffId);
+    if (!orgId) return [];
     return await readWeekly(ctx, orgId, args.staffId);
   },
 });
@@ -147,6 +151,7 @@ export const forStaffOverridesInRange = query({
   },
   handler: async (ctx, args) => {
     const orgId = await requireOwnOrAdmin(ctx, args.staffId);
+    if (!orgId) return [];
     return await readOverridesInRange(
       ctx,
       orgId,
@@ -171,6 +176,7 @@ export const forStaffSlotsInRange = query({
   },
   handler: async (ctx, args) => {
     const orgId = await requireOwnOrAdmin(ctx, args.staffId);
+    if (!orgId) return {};
     if (!DATE_PATTERN.test(args.fromDate) || !DATE_PATTERN.test(args.toDate)) {
       appError("VALIDATION", { reason: "INVALID_DATE_RANGE" });
     }
@@ -312,11 +318,18 @@ async function upsertOverrideForStaff(
   });
 }
 
+/**
+ * Like the call name suggests — for queries called by anyone reading availability.
+ * Returns `null` for transient missing-auth states (org switch in progress) so
+ * the live query just returns empty rather than blowing up. Throws FORBIDDEN
+ * for real violations (staff reading another staff's row).
+ */
 async function requireOwnOrAdmin(
   ctx: QueryCtx,
   staffId: Id<"memberships">,
-): Promise<string> {
-  const identity = await requireAuth(ctx);
+): Promise<string | null> {
+  const identity = await softAuth(ctx);
+  if (!identity) return null;
   const target = await ctx.db.get(staffId);
   if (!target) appError("NOT_FOUND", { reason: "MEMBERSHIP_NOT_FOUND" });
   if (target.orgId !== identity.orgId) {
@@ -324,7 +337,7 @@ async function requireOwnOrAdmin(
   }
   const { membership } = await readMembershipForQuery(ctx, identity);
   const isSelf = membership?._id === staffId;
-  const role = (await requireRole(ctx, ["superAdmin", "admin", "staff"])).role;
+  const role = mapClerkOrgRole(identity.orgRole);
   if (!isSelf && role === "staff") {
     appError("FORBIDDEN", { reason: "STAFF_CAN_ONLY_VIEW_OWN" });
   }

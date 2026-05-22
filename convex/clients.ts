@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { appError } from "./lib/errors";
 import { requireRole } from "./lib/rbac";
+import { softAuth } from "./lib/tenant";
 
 const MAX_RESULTS = 200;
 
@@ -27,7 +28,9 @@ export const list = query({
     includeArchived: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    const identity = await softAuth(ctx);
+    if (!identity) return [];
+    const orgId = identity.orgId;
     const search = args.search?.trim();
 
     if (search && search.length > 0) {
@@ -77,8 +80,9 @@ export const list = query({
 export const get = query({
   args: { id: v.id("clients") },
   handler: async (ctx, args) => {
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
-    return await loadOwnClient(ctx, args.id, orgId);
+    const identity = await softAuth(ctx);
+    if (!identity) return null;
+    return await loadOwnClient(ctx, args.id, identity.orgId);
   },
 });
 

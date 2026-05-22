@@ -50,3 +50,19 @@ export async function requireAuth(
   if (!claims) appError("FORBIDDEN", { reason: "NO_ORG_CONTEXT" });
   return Object.assign(identity, claims) as AuthedIdentity;
 }
+
+/**
+ * Read-side variant: returns `null` instead of throwing when the JWT hasn't
+ * caught up yet (sign-out in flight, org switch in progress, etc.). Live
+ * queries naturally re-fire when the auth state settles. Mutations should
+ * still use `requireAuth` to refuse without ambiguity.
+ */
+export async function softAuth(
+  ctx: QueryCtx | MutationCtx,
+): Promise<AuthedIdentity | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+  const claims = readOrgClaims(identity);
+  if (!claims) return null;
+  return Object.assign(identity, claims) as AuthedIdentity;
+}

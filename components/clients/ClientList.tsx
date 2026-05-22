@@ -1,16 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
-import { ChevronRight, Mail, Phone } from "lucide-react";
+import { CalendarPlus, ChevronRight, Mail, Phone } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { formatPhone } from "@/lib/phone";
+import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
 
 export function ClientList({ search }: { search: string }) {
   const clients = useQuery(api.clients.list, {
     search: search || undefined,
   });
+  const [bookingClientId, setBookingClientId] = useState<Id<"clients"> | null>(
+    null,
+  );
 
   if (clients === undefined) return <ListSkeleton />;
   if (clients.length === 0) {
@@ -24,20 +29,39 @@ export function ClientList({ search }: { search: string }) {
   }
 
   return (
-    <ul className="flex flex-col gap-2">
-      {clients.map((client) => (
-        <ClientRow key={client._id} client={client} />
-      ))}
-    </ul>
+    <>
+      <ul className="flex flex-col gap-2">
+        {clients.map((client) => (
+          <ClientRow
+            key={client._id}
+            client={client}
+            onBook={() => setBookingClientId(client._id)}
+          />
+        ))}
+      </ul>
+      {bookingClientId && (
+        <AppointmentDialog
+          appointmentId="new"
+          initialClientId={bookingClientId}
+          onClose={() => setBookingClientId(null)}
+        />
+      )}
+    </>
   );
 }
 
-function ClientRow({ client }: { client: Doc<"clients"> }) {
+function ClientRow({
+  client,
+  onBook,
+}: {
+  client: Doc<"clients">;
+  onBook: () => void;
+}) {
   return (
-    <li>
+    <li className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white pr-3 transition-colors hover:border-blue-300 hover:bg-blue-50/40 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-blue-900 dark:hover:bg-blue-950/20">
       <Link
         href={`/clients/${client._id}`}
-        className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 transition-colors hover:border-blue-300 hover:bg-blue-50/40 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-blue-900 dark:hover:bg-blue-950/20"
+        className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3"
       >
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
@@ -67,6 +91,15 @@ function ClientRow({ client }: { client: Doc<"clients"> }) {
           aria-hidden
         />
       </Link>
+      <button
+        type="button"
+        onClick={onBook}
+        aria-label={`Book appointment for ${client.fullName}`}
+        className="inline-flex shrink-0 items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-blue-300 dark:hover:bg-blue-950/30"
+      >
+        <CalendarPlus size={12} />
+        Book
+      </button>
     </li>
   );
 }

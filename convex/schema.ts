@@ -120,6 +120,47 @@ export default defineSchema({
     .index("by_org_staff", ["orgId", "staffId"])
     .index("by_org_staff_weekday", ["orgId", "staffId", "weekday"]),
 
+  // Bookings. `startTime`/`endTime` are ms-since-epoch (UTC). The org timezone
+  // is applied at the UI layer when rendering. `clientUuid` is the offline-queue
+  // idempotency key (any future replay finds the existing row and no-ops).
+  appointments: defineTable({
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    petId: v.id("pets"),
+    staffId: v.id("memberships"),
+    serviceId: v.id("services"),
+    startTime: v.number(),
+    endTime: v.number(),
+    status: v.union(
+      v.literal("pendingApproval"),
+      // Groomer declined an admin-booked appointment; sits in an admin queue
+      // until reassigned (→ pendingApproval) or cancelled (→ cancelled).
+      v.literal("declined"),
+      v.literal("scheduled"),
+      v.literal("checkedIn"),
+      v.literal("inProgress"),
+      v.literal("completed"),
+      v.literal("noShow"),
+      v.literal("cancelled"),
+    ),
+    priceCentsSnapshot: v.number(),
+    paymentStatus: v.union(
+      v.literal("unpaid"),
+      v.literal("paid"),
+      v.literal("refunded"),
+    ),
+    paymentIntentId: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    clientUuid: v.string(),
+    createdBy: v.id("memberships"),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_start", ["orgId", "startTime"])
+    .index("by_staff_start", ["staffId", "startTime"])
+    .index("by_client", ["clientId"])
+    .index("by_clientUuid", ["clientUuid"]),
+
   // Per-day override for the next ~60 days: PTO, extra shifts, holiday closures.
   // `date` is ISO YYYY-MM-DD in the org's timezone. `kind="off"` means the day
   // is unavailable; `kind="custom"` means `slots` replaces the weekly pattern

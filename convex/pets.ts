@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { appError } from "./lib/errors";
 import { requireRole } from "./lib/rbac";
+import { softAuth } from "./lib/tenant";
 import { sexValidator, speciesValidator, vaccinationValidator } from "./schema";
 
 const MAX_PETS_PER_CLIENT = 200;
@@ -26,10 +27,11 @@ export const listForClient = query({
     includeArchived: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    const identity = await softAuth(ctx);
+    if (!identity) return [];
     const client = await ctx.db.get(args.clientId);
     if (!client) appError("NOT_FOUND", { reason: "CLIENT_NOT_FOUND" });
-    if (client.orgId !== orgId) appError("FORBIDDEN", { reason: "WRONG_ORG" });
+    if (client.orgId !== identity.orgId) appError("FORBIDDEN", { reason: "WRONG_ORG" });
     const rows = await ctx.db
       .query("pets")
       .withIndex("by_client", (index) => index.eq("clientId", args.clientId))
@@ -49,8 +51,9 @@ export const listForClient = query({
 export const get = query({
   args: { id: v.id("pets") },
   handler: async (ctx, args) => {
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
-    const pet = await loadOwnPet(ctx, args.id, orgId);
+    const identity = await softAuth(ctx);
+    if (!identity) return null;
+    const pet = await loadOwnPet(ctx, args.id, identity.orgId);
     return await withImageUrl(ctx, pet);
   },
 });

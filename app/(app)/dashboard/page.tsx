@@ -1,5 +1,8 @@
 import { Suspense } from "react";
 import { currentUser } from "@clerk/nextjs/server";
+import { DeclinedQueueList } from "@/components/dashboard/DeclinedQueueList";
+import { PendingApprovalsList } from "@/components/dashboard/PendingApprovalsList";
+import { TodayList } from "@/components/dashboard/TodayList";
 
 export default function DashboardPage() {
   return (
@@ -7,9 +10,11 @@ export default function DashboardPage() {
       <Suspense fallback={<DashboardSkeleton />}>
         <WelcomeHeader />
       </Suspense>
-      <p className="mt-6 text-zinc-600 dark:text-zinc-400">
-        Today&apos;s appointments will appear here. Coming in Phase 5.
-      </p>
+      <div className="mt-6 flex flex-col gap-6">
+        <PendingApprovalsList />
+        <DeclinedQueueList />
+        <TodayList />
+      </div>
     </section>
   );
 }

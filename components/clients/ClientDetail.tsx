@@ -9,6 +9,7 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { formatPhone } from "@/lib/phone";
 import { ClientFormDialog } from "./ClientFormDialog";
+import { ClientAppointmentsSection } from "./ClientAppointmentsSection";
 import { PetList } from "@/components/pets/PetList";
 
 export function ClientDetail({
@@ -128,14 +129,7 @@ export function ClientDetail({
           canArchive={canArchive}
         />
       </section>
-      <section className="mt-8">
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          Appointment history
-        </h2>
-        <p className="mt-2 rounded-lg border border-dashed border-zinc-200 px-4 py-6 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-          Coming in Phase 5.
-        </p>
-      </section>
+      <ClientAppointmentsSection clientId={clientId} />
 
       {editing && (
         <ClientFormDialog clientId={clientId} onClose={() => setEditing(false)} />

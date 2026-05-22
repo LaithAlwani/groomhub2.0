@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useOrganization } from "@clerk/nextjs";
 import {
   CalendarClock,
+  CalendarDays,
   LayoutDashboard,
   PawPrint,
   Scissors,
@@ -23,6 +24,7 @@ type NavLink = {
 
 const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/clients", label: "Clients", icon: PawPrint },
   { href: "/services", label: "Services", icon: Scissors },
   { href: "/availability", label: "My availability", icon: CalendarClock },

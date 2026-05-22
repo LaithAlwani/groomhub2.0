@@ -3,6 +3,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { appError } from "./lib/errors";
 import { requireRole } from "./lib/rbac";
+import { softAuth } from "./lib/tenant";
 import { speciesValidator } from "./schema";
 
 /**
@@ -13,10 +14,11 @@ import { speciesValidator } from "./schema";
 export const list = query({
   args: { includeArchived: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    const identity = await softAuth(ctx);
+    if (!identity) return [];
     const rows = await ctx.db
       .query("services")
-      .withIndex("by_org", (index) => index.eq("orgId", orgId))
+      .withIndex("by_org", (index) => index.eq("orgId", identity.orgId))
       .collect();
     const filtered = args.includeArchived
       ? rows

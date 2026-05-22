@@ -72,3 +72,27 @@ export function addDaysIso(date: string, days: number): string {
   const next = new Date(year, month - 1, day + days);
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
 }
+
+/** YYYY-MM-DD (in local TZ) from a Date instance. */
+export function isoDateFromDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** HH:MM (in local TZ) from a Date instance. */
+export function isoTimeFromDate(date: Date): string {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+/** Combine a YYYY-MM-DD + HH:MM (interpreted in local TZ) into ms-since-epoch. */
+export function combineLocalIso(date: string, time: string): number {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0, 0).getTime();
+}
+
+/** Now, rounded up to the next 15-minute mark. */
+export function roundedNow(): Date {
+  const now = new Date();
+  now.setMinutes(Math.ceil(now.getMinutes() / QUARTER_HOUR) * QUARTER_HOUR, 0, 0);
+  return now;
+}
