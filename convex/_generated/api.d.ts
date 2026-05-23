@@ -13,6 +13,7 @@ import type * as availability from "../availability.js";
 import type * as clerkSync from "../clerkSync.js";
 import type * as clients from "../clients.js";
 import type * as email from "../email.js";
+import type * as emailPayloads from "../emailPayloads.js";
 import type * as http from "../http.js";
 import type * as invitations from "../invitations.js";
 import type * as lib_appointmentChecks from "../lib/appointmentChecks.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   clerkSync: typeof clerkSync;
   clients: typeof clients;
   email: typeof email;
+  emailPayloads: typeof emailPayloads;
   http: typeof http;
   invitations: typeof invitations;
   "lib/appointmentChecks": typeof lib_appointmentChecks;

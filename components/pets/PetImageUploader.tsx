@@ -5,6 +5,7 @@ import { useMutation } from "convex/react";
 import { Camera, Trash2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { compressImage } from "@/lib/imageCompress";
 import { PetImage } from "./PetImage";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -58,17 +59,21 @@ export function PetImageUploader({
     setError(null);
     setBusy(true);
     try {
+      // Compress before upload — pet photos are displayed at avatar sizes
+      // (≤ 96px), so 512px @ 0.85 quality is plenty. A 4 MB phone photo
+      // lands around 50–80 KB after this.
+      const compressed = await compressImage(file, { maxDim: 512, quality: 0.85 });
       const uploadUrl = await generateUploadUrl();
       const response = await fetch(uploadUrl, {
         method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
+        headers: { "Content-Type": compressed.type || file.type },
+        body: compressed,
       });
       if (!response.ok) throw new Error("Upload failed");
       const { storageId } = (await response.json()) as {
         storageId: Id<"_storage">;
       };
-      const localPreviewUrl = URL.createObjectURL(file);
+      const localPreviewUrl = URL.createObjectURL(compressed);
       // Edit mode: commit the new image to the pet right now. The mutation
       // also deletes the previous file in the same call.
       if (petId) {

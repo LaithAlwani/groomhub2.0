@@ -29,8 +29,16 @@ export default defineSchema({
     timezone: v.string(),
     currency: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro")),
-    logoUrl: v.optional(v.string()),
+    // Convex storage id for the shop's logo. UI resolves the URL via
+    // `ctx.storage.getUrl(...)` (e.g. in `organizations.bySlug` for the public
+    // portal). Uploaded during onboarding from `NewShopForm`.
+    logoStorageId: v.optional(v.id("_storage")),
     primaryColor: v.optional(v.string()),
+    // Shop contact info — used as the Reply-To header and the footer of every
+    // transactional email. Both optional so onboarding doesn't require them up
+    // front; the shop owner fills them in via /settings/shop.
+    contactEmail: v.optional(v.string()),
+    contactPhone: v.optional(v.string()),
     stripeCustomerId: v.optional(v.string()),
     createdAt: v.number(),
   })

@@ -3,18 +3,23 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useOrganization, useOrganizationList } from "@clerk/nextjs";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { useQuery } from "convex/react";
+import { ChevronDown, Store } from "lucide-react";
+import { api } from "@/convex/_generated/api";
+import { SwitcherMenu } from "./OrgSwitcherMenus";
 
 /**
- * Custom replacement for Clerk's `<OrganizationSwitcher />`.
- * Shows the active shop, lets the user switch or create a new one, styled
- * to match the rest of the app.
+ * Sidebar header that identifies the active shop and toggles a dropdown of
+ * other shops the user is a member of (+ Create new shop).
+ *
+ * Editing shop info lives on the Settings sidebar link — no per-row gear here.
  */
 export function OrgSwitcher() {
   const { organization, isLoaded: orgLoaded } = useOrganization();
   const { userMemberships, setActive, isLoaded: listLoaded } =
     useOrganizationList({ userMemberships: { infinite: false } });
   const router = useRouter();
+  const liveOrg = useQuery(api.organizations.getCurrent);
 
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -64,72 +69,71 @@ export function OrgSwitcher() {
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div
+      ref={containerRef}
+      className={`relative ${switching ? "opacity-50" : ""}`}
+    >
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         disabled={switching}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+        aria-label="Switch shop"
+        className="flex w-full items-center gap-3 rounded-lg p-1 text-left transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed dark:hover:bg-zinc-900"
       >
-        <span className="min-w-0 flex-1 truncate text-left">{organization.name}</span>
-        <ChevronsUpDown
-          size={14}
+        <ShopAvatar logoUrl={liveOrg?.logoUrl ?? null} />
+        <span className="min-w-0 flex-1 truncate text-base font-semibold capitalize text-zinc-900 dark:text-zinc-100">
+          {organization.name}
+        </span>
+        <ChevronDown
+          size={16}
           className="shrink-0 text-zinc-400 dark:text-zinc-500"
+          aria-hidden
         />
       </button>
-
       {open && (
-        <div
-          role="menu"
-          className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950"
-        >
-          <ul className="max-h-72 overflow-y-auto py-1">
-            {memberships.map((membership) => {
-              const target = membership.organization;
-              const isCurrent = target.id === organization.id;
-              return (
-                <li key={target.id}>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => handleSelect(target.id)}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-zinc-800 transition-colors hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                  >
-                    <span className="flex flex-col">
-                      <span className="truncate font-medium">{target.name}</span>
-                      <span className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                        {membership.role.replace("org:", "")}
-                      </span>
-                    </span>
-                    {isCurrent && (
-                      <Check size={16} className="text-emerald-600 dark:text-emerald-400" />
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="border-t border-zinc-200 dark:border-zinc-800">
-            <button
-              type="button"
-              role="menuitem"
-              onClick={handleCreate}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-900"
-            >
-              <Plus size={16} />
-              Create new shop
-            </button>
-          </div>
-        </div>
+        <SwitcherMenu
+          memberships={memberships.map((row) => ({
+            id: row.organization.id,
+            name: row.organization.name,
+            role: row.role,
+          }))}
+          currentId={organization.id}
+          onSelect={handleSelect}
+          onCreate={handleCreate}
+        />
       )}
     </div>
   );
 }
 
+function ShopAvatar({ logoUrl }: { logoUrl: string | null }) {
+  if (logoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={logoUrl}
+        alt=""
+        className="h-10 w-10 shrink-0 rounded-lg border border-zinc-200 object-cover dark:border-zinc-800"
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300"
+    >
+      <Store size={20} />
+    </span>
+  );
+}
+
 function SwitcherSkeleton() {
   return (
-    <div className="h-9 w-full animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800" />
+    <div className="flex items-center gap-3">
+      <div className="h-10 w-10 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800" />
+      <div className="h-5 flex-1 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+    </div>
   );
 }

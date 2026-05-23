@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { appError } from "./lib/errors";
+import { requireRole } from "./lib/rbac";
+import { softAuth } from "./lib/tenant";
 import { validateSlugShape } from "./lib/reservedSlugs";
 
 /**
@@ -16,12 +18,15 @@ export const bySlug = query({
       .withIndex("by_slug", (index) => index.eq("slug", slug))
       .unique();
     if (!org) return null;
+    const logoUrl = org.logoStorageId
+      ? await ctx.storage.getUrl(org.logoStorageId)
+      : null;
     return {
       name: org.name,
       slug: org.slug,
       timezone: org.timezone,
       currency: org.currency,
-      logoUrl: org.logoUrl ?? null,
+      logoUrl,
       primaryColor: org.primaryColor ?? null,
     };
   },
@@ -70,6 +75,8 @@ export const seedFromClerk = mutation({
     slug: v.string(),
     timezone: v.string(),
     currency: v.string(),
+    logoStorageId: v.optional(v.id("_storage")),
+    contactEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -116,6 +123,8 @@ export const seedFromClerk = mutation({
         slug: lowerSlug,
         timezone: args.timezone,
         currency: args.currency,
+        logoStorageId: args.logoStorageId ?? existing.logoStorageId,
+        contactEmail: args.contactEmail?.trim() || existing.contactEmail,
       });
       return existing._id;
     }
@@ -130,7 +139,77 @@ export const seedFromClerk = mutation({
       timezone: args.timezone,
       currency: args.currency,
       plan: "free",
+      logoStorageId: args.logoStorageId,
+      contactEmail: args.contactEmail?.trim() || undefined,
       createdAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Generates a one-shot Convex Storage upload URL for the shop logo during
+ * onboarding. Requires only that the caller be signed in to Clerk — they
+ * don't have an org context yet (that's what we're creating). The returned
+ * URL is short-lived; the storageId returned to the client gets handed to
+ * `seedFromClerk` on org creation.
+ */
+export const generateLogoUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) appError("UNAUTHENTICATED");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/**
+ * Returns the active org row for the caller, or null while auth is in flight
+ * (e.g. org switch). Used by `/settings/shop` to prefill the form.
+ */
+export const getCurrent = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await softAuth(ctx);
+    if (!identity) return null;
+    const org = await ctx.db
+      .query("organizations")
+      .withIndex("by_clerkOrgId", (index) =>
+        index.eq("clerkOrgId", identity.orgId),
+      )
+      .unique();
+    if (!org) return null;
+    const logoUrl = org.logoStorageId
+      ? await ctx.storage.getUrl(org.logoStorageId)
+      : null;
+    return { ...org, logoUrl };
+  },
+});
+
+/**
+ * Update the shop's customer-facing contact info. Admin / superAdmin only.
+ * Values are written as digits-only (phone) or trimmed (email); blank strings
+ * clear the field so the email footer / Reply-To header omit it.
+ */
+export const updateContact = mutation({
+  args: {
+    contactEmail: v.optional(v.string()),
+    contactPhone: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const org = await ctx.db
+      .query("organizations")
+      .withIndex("by_clerkOrgId", (index) => index.eq("clerkOrgId", orgId))
+      .unique();
+    if (!org) appError("NOT_FOUND", { reason: "ORG_NOT_FOUND" });
+    const trimmedEmail = args.contactEmail?.trim() ?? "";
+    if (trimmedEmail.length > 0 && !trimmedEmail.includes("@")) {
+      appError("VALIDATION", { field: "contactEmail", reason: "INVALID" });
+    }
+    const digitsOnly = (args.contactPhone ?? "").replace(/\D/g, "");
+    await ctx.db.patch(org._id, {
+      contactEmail: trimmedEmail || undefined,
+      contactPhone: digitsOnly || undefined,
     });
   },
 });

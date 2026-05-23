@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth, useClerk, useOrganizationList } from "@clerk/nextjs";
+import { useAuth, useOrganizationList } from "@clerk/nextjs";
 import { ExistingShopList } from "@/components/onboarding/ExistingShopList";
 import {
   NewShopForm,
@@ -14,7 +14,6 @@ export default function CreateShopPage() {
     userMemberships: { infinite: false },
   });
   const { orgId: activeOrgId } = useAuth();
-  const clerk = useClerk();
 
   const [submitting, setSubmitting] = useState(false);
   const [autoJoining, setAutoJoining] = useState(false);
@@ -96,14 +95,6 @@ export default function CreateShopPage() {
           <NewShopFormError message={serverError} />
         </div>
       )}
-
-      <button
-        type="button"
-        onClick={() => clerk.signOut(() => window.location.assign("/"))}
-        className="mt-8 text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-      >
-        Sign out
-      </button>
     </section>
   );
 }

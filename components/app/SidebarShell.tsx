@@ -69,14 +69,10 @@ export function SidebarShell({
             >
               <Menu size={20} />
             </button>
-            <span className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 text-white">
-                <Scissors size={14} strokeWidth={2.25} />
-              </span>
-              <span className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-                GroomHub
-              </span>
-            </span>
+            <BrandMark />
+          </div>
+          <div className="hidden md:flex">
+            <BrandMark />
           </div>
           <div className="ml-auto flex items-center gap-3">{topbarRight}</div>
         </header>
@@ -84,5 +80,18 @@ export function SidebarShell({
         <main className="flex flex-1 flex-col">{children}</main>
       </div>
     </div>
+  );
+}
+
+function BrandMark() {
+  return (
+    <span className="flex items-center gap-2">
+      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 text-white">
+        <Scissors size={14} strokeWidth={2.25} />
+      </span>
+      <span className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+        GroomHub
+      </span>
+    </span>
   );
 }

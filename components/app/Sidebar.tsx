@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   PawPrint,
   Scissors,
+  Settings,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -29,6 +30,12 @@ const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: "/services", label: "Services", icon: Scissors },
   { href: "/availability", label: "My availability", icon: CalendarClock },
   { href: "/staff", label: "Team", icon: Users, visibleTo: ["admin", "superAdmin"] },
+  {
+    href: "/settings/shop",
+    label: "Settings",
+    icon: Settings,
+    visibleTo: ["admin", "superAdmin"],
+  },
 ];
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -38,21 +45,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="flex items-center gap-3 px-5 pt-5 pb-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
-          <Scissors size={18} strokeWidth={2.25} />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            GroomHub
-          </p>
-          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-            Grooming workspace
-          </p>
-        </div>
-      </div>
-
-      <div className="px-3 pb-3">
+      <div className="px-3 pt-5 pb-3">
         <OrgSwitcher />
       </div>
 

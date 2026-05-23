@@ -18,6 +18,7 @@ import { requireRole } from "./lib/rbac";
 import { requireAuth, softAuth } from "./lib/tenant";
 
 const MAX_RESULTS = 500;
+const REMINDER_LEAD_MS = 24 * 60 * 60 * 1000;
 const APPOINTMENT_STATUSES = [
   "pendingApproval",
   "declined",
@@ -224,6 +225,14 @@ export const create = mutation({
       await ctx.scheduler.runAfter(0, internal.email.sendBookingConfirmation, {
         appointmentId: insertedId,
       });
+      await scheduleReminderIfFarEnough(ctx, insertedId, args.startTime);
+    } else {
+      // pendingApproval — alert the assigned groomer by email.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.email.sendPendingApprovalToGroomer,
+        { appointmentId: insertedId },
+      );
     }
     return insertedId;
   },
@@ -287,6 +296,7 @@ export const reschedule = mutation({
     // told about the booking. Pending approvals are still private.
     if (
       existing.status !== "pendingApproval" &&
+      existing.status !== "declined" &&
       !TERMINAL_STATUSES.includes(existing.status) &&
       args.startTime !== existing.startTime
     ) {
@@ -294,6 +304,9 @@ export const reschedule = mutation({
         appointmentId: existing._id,
         previousStartTime: existing.startTime,
       });
+      // Schedule a fresh reminder for the new time. The stale one will fire at
+      // its old time and no-op via the expectedStartTime guard.
+      await scheduleReminderIfFarEnough(ctx, existing._id, args.startTime);
     }
   },
 });
@@ -320,6 +333,13 @@ export const updateStatus = mutation({
     // pendingApproval → scheduled is the confirmation moment.
     if (previousStatus === "pendingApproval" && args.status === "scheduled") {
       await ctx.scheduler.runAfter(0, internal.email.sendBookingConfirmation, {
+        appointmentId: existing._id,
+      });
+      await scheduleReminderIfFarEnough(ctx, existing._id, existing.startTime);
+    }
+    // pendingApproval → declined: alert admins so they can reassign/cancel.
+    if (previousStatus === "pendingApproval" && args.status === "declined") {
+      await ctx.scheduler.runAfter(0, internal.email.sendDeclinedToAdmins, {
         appointmentId: existing._id,
       });
     }
@@ -409,6 +429,12 @@ export const reassign = mutation({
       staffId: args.staffId,
       status: "pendingApproval",
     });
+    // Alert the newly-assigned groomer that they have a booking awaiting them.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.email.sendPendingApprovalToGroomer,
+      { appointmentId: existing._id },
+    );
   },
 });
 
@@ -554,4 +580,24 @@ async function loadRefs(
     appError("VALIDATION", { field: "staffId", reason: "INACTIVE_STAFF" });
   }
   return { client, pet, service, staff, org };
+}
+
+/**
+ * Schedule the 24-hour reminder if the appointment is far enough out that a
+ * "tomorrow" reminder still makes sense. If it's closer than 24h we skip —
+ * the confirmation we just sent already serves as the heads-up. The action's
+ * own fire-time guard handles cancellations + reschedules, so callers don't
+ * need to track or cancel the scheduled invocation.
+ */
+async function scheduleReminderIfFarEnough(
+  ctx: MutationCtx,
+  appointmentId: Id<"appointments">,
+  startTime: number,
+): Promise<void> {
+  const fireAt = startTime - REMINDER_LEAD_MS;
+  if (fireAt <= Date.now()) return;
+  await ctx.scheduler.runAt(fireAt, internal.email.sendBookingReminder, {
+    appointmentId,
+    expectedStartTime: startTime,
+  });
 }

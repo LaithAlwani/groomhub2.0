@@ -1,92 +1,45 @@
+"use node";
+
 /**
- * Transactional email pipeline.
+ * Transactional email pipeline (Node runtime — uses nodemailer for SMTP).
  *
- * Mutations schedule one of the three `send*` internal actions via
- * `ctx.scheduler.runAfter(0, internal.email.sendBookingConfirmation, …)`.
- * The action loads everything it needs through `loadEmailPayload` (an
- * internal query — actions can't read the DB directly), renders an inline
- * HTML email, and POSTs it to Resend.
+ * The "use node" directive opts every action in this file into Convex's Node
+ * runtime, which means we can import npm packages like nodemailer. The
+ * trade-off: Node-runtime files cannot contain queries — all internal queries
+ * live in `convex/emailPayloads.ts` (V8) and we reach them via
+ * `ctx.runQuery(internal.emailPayloads.X)`.
  *
  * Env vars (set in the Convex dashboard, not the app's `.env.local`):
- *   - RESEND_API_KEY      — required to actually send. If missing the action
- *                           logs a warning and no-ops, so dev still works.
- *   - RESEND_FROM_ADDRESS — optional; defaults to onboarding@resend.dev which
- *                           only delivers back to the Resend account owner.
- *                           Real shops must verify a domain in Resend and
- *                           point this at e.g. "Posh Paws <hello@poshpaws.app>".
+ *   - SMTP_HOST           — e.g. smtp.zeptomail.com, smtp-relay.brevo.com
+ *   - SMTP_PORT           — 587 (STARTTLS) or 465 (TLS)
+ *   - SMTP_USER           — provider-issued
+ *   - SMTP_PASS           — provider-issued (secret)
+ *   - EMAIL_FROM_ADDRESS  — verified sender, e.g. bookings@groomhub.app
+ *   - EMAIL_FROM_NAME     — optional fallback display name (defaults "GroomHub")
+ *
+ * If any of the SMTP envs is missing the action logs a warning and no-ops,
+ * so dev / local can run without email setup.
  */
 
 import { v } from "convex/values";
+import nodemailer, { type Transporter } from "nodemailer";
 import { internal } from "./_generated/api";
-import { internalAction, internalQuery } from "./_generated/server";
+import { internalAction } from "./_generated/server";
+import type {
+  ClientEmailPayload,
+  StaffEmailPayload,
+} from "./emailPayloads";
 
-type EmailPayload = {
-  clientEmail: string | null;
-  clientFirstName: string;
-  petName: string;
-  serviceName: string;
-  staffName: string;
-  shopName: string;
-  dateLabel: string;
-  timeLabel: string;
-  previousDateLabel?: string;
-  previousTimeLabel?: string;
-};
-
-export const loadEmailPayload = internalQuery({
-  args: {
-    appointmentId: v.id("appointments"),
-    previousStartTime: v.optional(v.number()),
-  },
-  handler: async (ctx, args): Promise<EmailPayload | null> => {
-    const appointment = await ctx.db.get(args.appointmentId);
-    if (!appointment) return null;
-    const [client, pet, service, staff, org] = await Promise.all([
-      ctx.db.get(appointment.clientId),
-      ctx.db.get(appointment.petId),
-      ctx.db.get(appointment.serviceId),
-      ctx.db.get(appointment.staffId),
-      ctx.db
-        .query("organizations")
-        .withIndex("by_clerkOrgId", (index) =>
-          index.eq("clerkOrgId", appointment.orgId),
-        )
-        .unique(),
-    ]);
-    if (!client || !pet || !service || !staff || !org) return null;
-    const staffUser = await ctx.db.get(staff.userId);
-    const staffName = staffUser
-      ? [staffUser.firstName, staffUser.lastName].filter(Boolean).join(" ") ||
-        "your groomer"
-      : "your groomer";
-    return {
-      clientEmail: client.email ?? null,
-      clientFirstName: client.fullName.split(" ")[0] || "there",
-      petName: pet.name,
-      serviceName: service.name,
-      staffName,
-      shopName: org.name,
-      dateLabel: formatDateInTz(appointment.startTime, org.timezone),
-      timeLabel: formatTimeInTz(appointment.startTime, org.timezone),
-      previousDateLabel:
-        args.previousStartTime !== undefined
-          ? formatDateInTz(args.previousStartTime, org.timezone)
-          : undefined,
-      previousTimeLabel:
-        args.previousStartTime !== undefined
-          ? formatTimeInTz(args.previousStartTime, org.timezone)
-          : undefined,
-    };
-  },
-});
+/* ───────────────────────── Client-facing emails ───────────────────────── */
 
 export const sendBookingConfirmation = internalAction({
   args: { appointmentId: v.id("appointments") },
   handler: async (ctx, args) => {
-    const payload = await ctx.runQuery(internal.email.loadEmailPayload, {
-      appointmentId: args.appointmentId,
-    });
-    await deliver(payload, {
+    const payload = await ctx.runQuery(
+      internal.emailPayloads.loadClientEmailPayload,
+      { appointmentId: args.appointmentId },
+    );
+    await deliverToClient(payload, {
       subject: (p) => `Your appointment at ${p.shopName} is confirmed`,
       headline: "You're booked! 🐾",
       body: (p) =>
@@ -99,10 +52,11 @@ export const sendBookingConfirmation = internalAction({
 export const sendBookingCancellation = internalAction({
   args: { appointmentId: v.id("appointments") },
   handler: async (ctx, args) => {
-    const payload = await ctx.runQuery(internal.email.loadEmailPayload, {
-      appointmentId: args.appointmentId,
-    });
-    await deliver(payload, {
+    const payload = await ctx.runQuery(
+      internal.emailPayloads.loadClientEmailPayload,
+      { appointmentId: args.appointmentId },
+    );
+    await deliverToClient(payload, {
       subject: (p) => `Your appointment at ${p.shopName} was cancelled`,
       headline: "Appointment cancelled",
       body: (p) =>
@@ -113,34 +67,20 @@ export const sendBookingCancellation = internalAction({
   },
 });
 
-export const sendPetReady = internalAction({
-  args: { appointmentId: v.id("appointments") },
-  handler: async (ctx, args) => {
-    const payload = await ctx.runQuery(internal.email.loadEmailPayload, {
-      appointmentId: args.appointmentId,
-    });
-    await deliver(payload, {
-      subject: (p) => `${p.petName} is all done at ${p.shopName}! 🐾`,
-      headline: (p) => `${p.petName} is ready for pickup`,
-      body: (p) =>
-        `<p style="margin:0 0 12px;">Hi ${escape(p.clientFirstName)},</p>` +
-        `<p style="margin:0 0 12px;">Good news — <strong>${escape(p.petName)}</strong>'s ${escape(p.serviceName)} is all done. They're freshly groomed and waiting for you whenever you're ready to swing by.</p>` +
-        `<p style="margin:0 0 12px;">Thanks for trusting us with ${escape(p.petName)} today — give them a big head-scratch from ${escape(p.staffName)}.</p>`,
-    });
-  },
-});
-
 export const sendBookingReschedule = internalAction({
   args: {
     appointmentId: v.id("appointments"),
     previousStartTime: v.number(),
   },
   handler: async (ctx, args) => {
-    const payload = await ctx.runQuery(internal.email.loadEmailPayload, {
-      appointmentId: args.appointmentId,
-      previousStartTime: args.previousStartTime,
-    });
-    await deliver(payload, {
+    const payload = await ctx.runQuery(
+      internal.emailPayloads.loadClientEmailPayload,
+      {
+        appointmentId: args.appointmentId,
+        previousStartTime: args.previousStartTime,
+      },
+    );
+    await deliverToClient(payload, {
       subject: (p) => `Your appointment at ${p.shopName} was rescheduled`,
       headline: "New time for your appointment",
       body: (p) =>
@@ -153,64 +93,207 @@ export const sendBookingReschedule = internalAction({
   },
 });
 
-type Template = {
-  subject: (payload: EmailPayload) => string;
-  headline: string | ((payload: EmailPayload) => string);
-  body: (payload: EmailPayload) => string;
+export const sendPetReady = internalAction({
+  args: { appointmentId: v.id("appointments") },
+  handler: async (ctx, args) => {
+    const payload = await ctx.runQuery(
+      internal.emailPayloads.loadClientEmailPayload,
+      { appointmentId: args.appointmentId },
+    );
+    await deliverToClient(payload, {
+      subject: (p) => `${p.petName} is all done at ${p.shopName}! 🐾`,
+      headline: (p) => `${p.petName} is ready for pickup`,
+      body: (p) =>
+        `<p style="margin:0 0 12px;">Hi ${escape(p.clientFirstName)},</p>` +
+        `<p style="margin:0 0 12px;">Good news — <strong>${escape(p.petName)}</strong>'s ${escape(p.serviceName)} is all done. They're freshly groomed and waiting for you whenever you're ready to swing by.</p>` +
+        `<p style="margin:0 0 12px;">Thanks for trusting us with ${escape(p.petName)} today — give them a big head-scratch from ${escape(p.staffName)}.</p>`,
+    });
+  },
+});
+
+/**
+ * 24-hour reminder. Scheduled on confirm / reschedule with the booking's
+ * `startTime` baked into `expectedStartTime`. Self-validates at fire time so
+ * cancellations and reschedules don't need to track cancellation handles.
+ */
+export const sendBookingReminder = internalAction({
+  args: {
+    appointmentId: v.id("appointments"),
+    expectedStartTime: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const payload = await ctx.runQuery(
+      internal.emailPayloads.loadClientEmailPayload,
+      { appointmentId: args.appointmentId },
+    );
+    if (!payload) return;
+    // Reschedule moved the appointment — a newer reminder is scheduled.
+    if (payload.actualStartTime !== args.expectedStartTime) return;
+    // Cancelled / no-show / completed / etc — skip.
+    if (payload.status !== "scheduled" && payload.status !== "checkedIn") return;
+    await deliverToClient(payload, {
+      subject: (p) => `Reminder: ${p.petName}'s appointment tomorrow at ${p.shopName}`,
+      headline: "See you tomorrow! 🐾",
+      body: (p) =>
+        `<p style="margin:0 0 12px;">Hi ${escape(p.clientFirstName)},</p>` +
+        `<p style="margin:0 0 12px;">Just a friendly reminder that ${escape(p.petName)}'s <strong>${escape(p.serviceName)}</strong> with ${escape(p.staffName)} is coming up on ${escape(p.dateLabel)} at ${escape(p.timeLabel)}.</p>` +
+        `<p style="margin:0 0 12px;">Need to change anything? Reply to this email or call us and we'll sort it out.</p>`,
+    });
+  },
+});
+
+/* ───────────────────────── Staff-facing emails ────────────────────────── */
+
+export const sendPendingApprovalToGroomer = internalAction({
+  args: { appointmentId: v.id("appointments") },
+  handler: async (ctx, args) => {
+    const payload = await ctx.runQuery(
+      internal.emailPayloads.loadStaffEmailPayload,
+      { appointmentId: args.appointmentId },
+    );
+    if (!payload || !payload.staffEmail) {
+      console.warn("email: staff has no email; skipping pending approval ping");
+      return;
+    }
+    const html = renderStaffEmail({
+      headline: "New booking needs your approval",
+      body:
+        `<p style="margin:0 0 12px;">Hi ${escape(payload.staffFirstName)},</p>` +
+        `<p style="margin:0 0 12px;"><strong>${escape(payload.clientName)}</strong> just booked ${escape(payload.petName)} for <strong>${escape(payload.serviceName)}</strong> on ${escape(payload.dateLabel)} at ${escape(payload.timeLabel)}.</p>` +
+        `<p style="margin:0 0 12px;">Open GroomHub to confirm or decline.</p>`,
+      shopName: payload.shopName,
+    });
+    await sendRaw({
+      to: payload.staffEmail,
+      fromDisplayName: payload.shopName,
+      subject: `New booking needs your approval at ${payload.shopName}`,
+      html,
+    });
+  },
+});
+
+export const sendDeclinedToAdmins = internalAction({
+  args: { appointmentId: v.id("appointments") },
+  handler: async (ctx, args) => {
+    const payload = await ctx.runQuery(
+      internal.emailPayloads.loadAdminEmails,
+      { appointmentId: args.appointmentId },
+    );
+    if (!payload) return;
+    if (payload.adminEmails.length === 0) {
+      console.warn("email: no admin emails on file; skipping decline alert");
+      return;
+    }
+    const html = renderStaffEmail({
+      headline: "A booking was declined",
+      body:
+        `<p style="margin:0 0 12px;"><strong>${escape(payload.declinedByName)}</strong> declined ${escape(payload.clientName)}'s booking for ${escape(payload.petName)} on ${escape(payload.dateLabel)} at ${escape(payload.timeLabel)}.</p>` +
+        `<p style="margin:0 0 12px;">Reassign or cancel it from your dashboard's declined queue.</p>`,
+      shopName: payload.shopName,
+    });
+    await Promise.all(
+      payload.adminEmails.map((to) =>
+        sendRaw({
+          to,
+          fromDisplayName: payload.shopName,
+          subject: `${payload.declinedByName} declined a booking at ${payload.shopName}`,
+          html,
+        }),
+      ),
+    );
+  },
+});
+
+/* ──────────────────────────── Transport ───────────────────────────────── */
+
+let cachedTransporter: Transporter | null = null;
+
+function getTransporter(): Transporter | null {
+  if (cachedTransporter) return cachedTransporter;
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || "");
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!host || !port || !user || !pass) return null;
+  cachedTransporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+  return cachedTransporter;
+}
+
+async function sendRaw(params: {
+  to: string;
+  fromDisplayName: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+}): Promise<void> {
+  const transporter = getTransporter();
+  if (!transporter) {
+    console.warn("email: SMTP not configured; skipping send");
+    return;
+  }
+  const fromAddress =
+    process.env.EMAIL_FROM_ADDRESS ?? "no-reply@groomhub.local";
+  const fallbackName = process.env.EMAIL_FROM_NAME ?? "GroomHub";
+  const displayName = params.fromDisplayName || fallbackName;
+  const from = `"${displayName.replace(/"/g, "")}" <${fromAddress}>`;
+  try {
+    await transporter.sendMail({
+      from,
+      to: params.to,
+      replyTo: params.replyTo,
+      subject: params.subject,
+      html: params.html,
+    });
+  } catch (caught) {
+    console.error("email: SMTP send failed", caught);
+  }
+}
+
+type ClientTemplate = {
+  subject: (payload: ClientEmailPayload) => string;
+  headline: string | ((payload: ClientEmailPayload) => string);
+  body: (payload: ClientEmailPayload) => string;
 };
 
-async function deliver(
-  payload: EmailPayload | null,
-  template: Template,
+async function deliverToClient(
+  payload: ClientEmailPayload | null,
+  template: ClientTemplate,
 ): Promise<void> {
   if (!payload) return;
   if (!payload.clientEmail) {
     console.warn("email: client has no email on file; skipping");
     return;
   }
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn("email: RESEND_API_KEY not set; skipping send");
-    return;
-  }
-  const from =
-    process.env.RESEND_FROM_ADDRESS ?? "GroomHub <onboarding@resend.dev>";
   const subject = template.subject(payload);
   const headline =
     typeof template.headline === "function"
       ? template.headline(payload)
       : template.headline;
-  const html = renderEmailHtml({
+  const html = renderClientEmail({
     headline,
     body: template.body(payload),
     payload,
   });
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: payload.clientEmail,
-      subject,
-      html,
-    }),
+  await sendRaw({
+    to: payload.clientEmail,
+    fromDisplayName: payload.shopName,
+    subject,
+    html,
+    replyTo: payload.contactEmail ?? undefined,
   });
-  if (!response.ok) {
-    console.error(
-      "email: Resend send failed",
-      response.status,
-      await response.text(),
-    );
-  }
 }
 
-function renderEmailHtml(input: {
+/* ──────────────────────── HTML templates ──────────────────────────────── */
+
+function renderClientEmail(input: {
   headline: string;
   body: string;
-  payload: EmailPayload;
+  payload: ClientEmailPayload;
 }): string {
   const { headline, body, payload } = input;
   const details =
@@ -220,16 +303,51 @@ function renderEmailHtml(input: {
     `<div>${escape(payload.dateLabel)} at ${escape(payload.timeLabel)}</div>` +
     `<div>with ${escape(payload.staffName)}</div>` +
     `</td></tr></table>`;
+  const contactLines: string[] = [];
+  if (payload.contactPhone)
+    contactLines.push(`Call us at ${escape(formatPhoneForEmail(payload.contactPhone))}`);
+  if (payload.contactEmail)
+    contactLines.push(`Email us at ${escape(payload.contactEmail)}`);
+  const contactRow =
+    contactLines.length > 0
+      ? `<p style="margin:0 0 4px;color:#52525b;font-size:13px;">${contactLines.join(" · ")}</p>`
+      : "";
+  return wrapShell({ accent: payload.shopName, headline, body, details, contactRow, signoff: payload.shopName });
+}
+
+function renderStaffEmail(input: {
+  headline: string;
+  body: string;
+  shopName: string;
+}): string {
+  return wrapShell({
+    accent: input.shopName,
+    headline: input.headline,
+    body: input.body,
+    details: "",
+    contactRow: "",
+    signoff: input.shopName,
+  });
+}
+
+function wrapShell(input: {
+  accent: string;
+  headline: string;
+  body: string;
+  details: string;
+  contactRow: string;
+  signoff: string;
+}): string {
   return (
     `<!doctype html><html><body style="margin:0;padding:24px;background:#fafafa;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#27272a;">` +
     `<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;padding:28px;border:1px solid #e4e4e7;">` +
     `<tr><td>` +
-    `<div style="font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#2563eb;margin-bottom:6px;">${escape(payload.shopName)}</div>` +
-    `<h1 style="margin:0 0 16px;font-size:22px;color:#18181b;">${escape(headline)}</h1>` +
-    body +
-    details +
-    `<p style="margin:0 0 4px;color:#52525b;font-size:13px;">If anything's wrong, just reply to this email and we'll sort it.</p>` +
-    `<p style="margin:24px 0 0;color:#a1a1aa;font-size:12px;">— ${escape(payload.shopName)}</p>` +
+    `<div style="font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#2563eb;margin-bottom:6px;">${escape(input.accent)}</div>` +
+    `<h1 style="margin:0 0 16px;font-size:22px;color:#18181b;">${escape(input.headline)}</h1>` +
+    input.body +
+    input.details +
+    input.contactRow +
+    `<p style="margin:24px 0 0;color:#a1a1aa;font-size:12px;">— ${escape(input.signoff)}</p>` +
     `</td></tr></table></body></html>`
   );
 }
@@ -243,21 +361,13 @@ function escape(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function formatDateInTz(timestamp: number, timezone: string): string {
-  return new Date(timestamp).toLocaleDateString("en-US", {
-    timeZone: timezone,
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatTimeInTz(timestamp: number, timezone: string): string {
-  return new Date(timestamp).toLocaleTimeString("en-US", {
-    timeZone: timezone,
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+function formatPhoneForEmail(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `${digits.slice(1, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return digits;
 }
