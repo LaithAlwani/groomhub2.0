@@ -21,7 +21,7 @@ export function ClientCards({
   onBook: (clientId: Doc<"clients">["_id"]) => void;
 }) {
   return (
-    <ul className="flex flex-col gap-4 md:hidden">
+    <ul className="flex flex-col gap-4 min-[874px]:hidden">
       {rows.map((row) => (
         <ClientCard key={row.client._id} row={row} onBook={onBook} />
       ))}
@@ -39,12 +39,14 @@ function ClientCard({
   const { client, pets, lastAppointment } = row;
   const memberSince = new Date(client._creationTime).getFullYear();
   return (
-    <li className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="flex items-start justify-between gap-3">
-        <Link
-          href={`/clients/${client._id}`}
-          className="flex min-w-0 flex-1 items-center gap-3"
-        >
+    <li className="relative rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-colors hover:bg-zinc-50 focus-within:ring-2 focus-within:ring-[#00273c] dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900/60">
+      <Link
+        href={`/clients/${client._id}`}
+        aria-label={`Open ${client.fullName}`}
+        className="absolute inset-0 rounded-2xl focus:outline-none"
+      />
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <ClientRowAvatar client={client} size="lg" />
           <div className="min-w-0">
             <p className="truncate text-base font-semibold text-[#00273c] dark:text-zinc-50">
@@ -54,11 +56,11 @@ function ClientCard({
               Member since {memberSince}
             </p>
           </div>
-        </Link>
+        </div>
         <ClientStatusPill status={lastAppointment?.status} />
       </div>
 
-      <div className="mt-4 flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-200">
+      <div className="relative mt-4 flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-200">
         {client.phone && (
           <span className="inline-flex items-center gap-2">
             <Phone size={14} className="text-zinc-400" aria-hidden />
@@ -78,14 +80,14 @@ function ClientCard({
         )}
       </div>
 
-      <div className="mt-4">
+      <div className="relative mt-4">
         <ClientPetPills pets={pets} />
       </div>
 
       <button
         type="button"
         onClick={() => onBook(client._id)}
-        className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#00273c] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#013a58]"
+        className="relative mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#00273c] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#013a58]"
       >
         <CalendarPlus size={14} />
         Book

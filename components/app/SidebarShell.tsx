@@ -32,7 +32,7 @@ export function SidebarShell({
 
   return (
     <div className="flex min-h-screen bg-white dark:bg-zinc-950">
-      <div className="hidden border-r border-zinc-200 md:flex md:shrink-0 dark:border-zinc-800">
+      <div className="sticky top-0 hidden h-screen border-r border-zinc-200 md:flex md:shrink-0 dark:border-zinc-800">
         <Sidebar />
       </div>
 

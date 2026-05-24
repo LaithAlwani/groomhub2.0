@@ -12,11 +12,13 @@ export function ClientsPagination({
   pageSize,
   total,
   onPage,
+  trailingSlot,
 }: {
   page: number;
   pageSize: number;
   total: number;
   onPage: (next: number) => void;
+  trailingSlot?: React.ReactNode;
 }) {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -36,29 +38,32 @@ export function ClientsPagination({
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
         Showing {from} to {to} of {total} clients
       </p>
-      <div className="flex items-center gap-2">
-        <PageButton
-          onClick={() => onPage(page - 1)}
-          disabled={page <= 1}
-          ariaLabel="Previous page"
-        >
-          <ChevronLeft size={14} />
-        </PageButton>
-        {visiblePages.map((number) => (
-          <PageChip
-            key={number}
-            number={number}
-            active={number === page}
-            onClick={() => onPage(number)}
-          />
-        ))}
-        <PageButton
-          onClick={() => onPage(page + 1)}
-          disabled={page >= pageCount}
-          ariaLabel="Next page"
-        >
-          <ChevronRight size={14} />
-        </PageButton>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex items-center gap-2">
+          <PageButton
+            onClick={() => onPage(page - 1)}
+            disabled={page <= 1}
+            ariaLabel="Previous page"
+          >
+            <ChevronLeft size={14} />
+          </PageButton>
+          {visiblePages.map((number) => (
+            <PageChip
+              key={number}
+              number={number}
+              active={number === page}
+              onClick={() => onPage(number)}
+            />
+          ))}
+          <PageButton
+            onClick={() => onPage(page + 1)}
+            disabled={page >= pageCount}
+            ariaLabel="Next page"
+          >
+            <ChevronRight size={14} />
+          </PageButton>
+        </div>
+        {trailingSlot}
       </div>
     </div>
   );

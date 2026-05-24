@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CalendarPlus, ChevronRight, Mail, Phone } from "lucide-react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { formatPhone } from "@/lib/phone";
@@ -30,7 +31,7 @@ export function ClientsTable({
   onBook: (clientId: Doc<"clients">["_id"]) => void;
 }) {
   return (
-    <div className="hidden overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm md:block dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="hidden overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm min-[874px]:block dark:border-zinc-800 dark:bg-zinc-950">
       <table className="w-full min-w-240 table-fixed text-left">
         <colgroup>
           <col className="w-64" />
@@ -85,15 +86,21 @@ function ClientTableRow({
 }) {
   const { client, pets, lastAppointment } = row;
   const memberSince = new Date(client._creationTime).getFullYear();
+  const router = useRouter();
+  const href = `/clients/${client._id}`;
 
   return (
-    <tr className="bg-white align-middle transition-colors hover:bg-zinc-50 dark:bg-zinc-950 dark:hover:bg-zinc-900/60">
+    <tr
+      onClick={() => router.push(href)}
+      className="cursor-pointer bg-white align-middle transition-colors hover:bg-zinc-50 dark:bg-zinc-950 dark:hover:bg-zinc-900/60"
+    >
       <td className="px-6 py-5">
         <div className="flex items-center gap-3">
           <ClientRowAvatar client={client} />
           <div className="min-w-0">
             <Link
-              href={`/clients/${client._id}`}
+              href={href}
+              onClick={(event) => event.stopPropagation()}
               className="block truncate text-sm font-semibold text-[#00273c] hover:underline dark:text-zinc-50"
             >
               {client.fullName}
@@ -138,7 +145,10 @@ function ClientTableRow({
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={() => onBook(client._id)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onBook(client._id);
+            }}
             aria-label={`Book appointment for ${client.fullName}`}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#00273c] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#013a58]"
           >
@@ -146,7 +156,8 @@ function ClientTableRow({
             Book
           </button>
           <Link
-            href={`/clients/${client._id}`}
+            href={href}
+            onClick={(event) => event.stopPropagation()}
             aria-label={`Open ${client.fullName}`}
             className="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-[#00273c] dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
           >

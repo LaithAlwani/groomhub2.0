@@ -1,0 +1,120 @@
+/*
+ * Visual overrides for react-big-calendar to match the GroomHub design.
+ * Imported AFTER `react-big-calendar/lib/css/react-big-calendar.css` so these
+ * selectors win without `!important`. Scoped under `.rbc-wrapper` so we never
+ * leak styles into any other RBC instance.
+ */
+
+.rbc-wrapper .rbc-calendar {
+  font-family: inherit;
+  color: #00273c;
+}
+
+/* Hide RBC's default toolbar — we render our own via the `components.toolbar`
+   prop. Without this RBC paints both. */
+.rbc-wrapper .rbc-toolbar {
+  display: none;
+}
+
+/* Day-of-week header row: lighten the border, give the row a subtle tint. */
+.rbc-wrapper .rbc-time-header,
+.rbc-wrapper .rbc-time-header-content,
+.rbc-wrapper .rbc-time-header-cell {
+  border-color: #e4e4e7;
+  background-color: #f9fafb;
+}
+.rbc-wrapper .rbc-header {
+  border-color: #e4e4e7;
+  padding: 0;
+}
+.rbc-wrapper .rbc-allday-cell {
+  display: none; /* hide the empty all-day row */
+}
+
+/* Time gutter: thinner border, smaller muted label. */
+.rbc-wrapper .rbc-time-gutter,
+.rbc-wrapper .rbc-time-content > * + * > * {
+  border-color: #e4e4e7;
+}
+.rbc-wrapper .rbc-time-slot {
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 500;
+}
+.rbc-wrapper .rbc-label {
+  padding: 4px 8px;
+}
+
+/* Hour rows: thin top border, no border on intra-hour slots so the half-hour
+   lines disappear (matches the reference's hourly grid). */
+.rbc-wrapper .rbc-timeslot-group {
+  border-color: #e4e4e7;
+  min-height: 64px;
+}
+.rbc-wrapper .rbc-time-slot + .rbc-time-slot {
+  border-top: none;
+}
+
+/* Day columns: remove the heavy vertical border, leave a hairline. */
+.rbc-wrapper .rbc-day-slot,
+.rbc-wrapper .rbc-time-content {
+  border-color: #f3f4f6;
+}
+.rbc-wrapper .rbc-time-content > * + * > * {
+  border-left-color: #f3f4f6;
+}
+
+/* Drop RBC's default 10px right margin on the events column so cards extend
+   to the column edge. */
+.rbc-wrapper .rbc-events-container {
+  margin-right: 0;
+}
+
+/* Event wrapper: transparent shell — our `CalendarEventCard` paints itself. */
+.rbc-wrapper .rbc-event {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: none;
+}
+.rbc-wrapper .rbc-event.rbc-selected {
+  background: transparent !important;
+}
+.rbc-wrapper .rbc-event-content {
+  height: 100%;
+}
+
+/* Current-time indicator: red line with no offset. */
+.rbc-wrapper .rbc-current-time-indicator {
+  background-color: #ef4444;
+  height: 2px;
+}
+
+/* Dark mode adjustments. */
+@media (prefers-color-scheme: dark) {
+  .rbc-wrapper .rbc-calendar {
+    color: #f4f4f5;
+  }
+  .rbc-wrapper .rbc-time-header,
+  .rbc-wrapper .rbc-time-header-content,
+  .rbc-wrapper .rbc-time-header-cell {
+    background-color: #18181b;
+    border-color: #27272a;
+  }
+  .rbc-wrapper .rbc-header,
+  .rbc-wrapper .rbc-timeslot-group,
+  .rbc-wrapper .rbc-time-gutter,
+  .rbc-wrapper .rbc-time-content > * + * > * {
+    border-color: #27272a;
+  }
+  .rbc-wrapper .rbc-day-slot,
+  .rbc-wrapper .rbc-time-content {
+    border-color: #27272a;
+  }
+  .rbc-wrapper .rbc-time-content > * + * > * {
+    border-left-color: #1f1f23;
+  }
+  .rbc-wrapper .rbc-time-slot {
+    color: #71717a;
+  }
+}

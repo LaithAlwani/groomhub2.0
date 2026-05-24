@@ -10,6 +10,8 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { mapClerkOrgRole } from "@/convex/lib/roles";
 import { Calendar, type CalendarEvent } from "@/components/calendar/Calendar";
 import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
+import { CalendarBentoCards } from "@/components/calendar/CalendarBentoCards";
+import { CalendarHeader } from "@/components/calendar/CalendarHeader";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
 export function CalendarPageBody() {
@@ -85,60 +87,50 @@ export function CalendarPageBody() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        {!isStaffOnly && allStaff && (
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-zinc-600 dark:text-zinc-400">Show:</span>
-            <select
-              value={filterStaffId}
-              onChange={(event) =>
-                setFilterStaffId(
-                  event.target.value === "all"
-                    ? "all"
-                    : (event.target.value as Id<"memberships">),
-                )
-              }
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-            >
-              <option value="all">All groomers</option>
-              {allStaff.map((row) => (
-                <option key={row.membership._id} value={row.membership._id}>
-                  {row.user.firstName} {row.user.lastName}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <button
-          type="button"
-          onClick={() => setDialog({ mode: "new", start: roundedNow() })}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-        >
-          <Plus size={14} />
-          New appointment
-        </button>
-      </div>
-      {dropError && <ErrorBanner>{dropError}</ErrorBanner>}
-      <Calendar
-        events={events}
-        availabilityByDate={availability ?? {}}
-        view={view}
-        date={date}
-        onViewChange={setView}
-        onDateChange={setDate}
-        onSelectSlot={(info) =>
-          setDialog({
-            mode: "new",
-            start: info.start,
-            staffId: effectiveStaffId ?? undefined,
-          })
-        }
-        onSelectEvent={(event) =>
-          setDialog({ mode: "edit", id: event.id as Id<"appointments"> })
-        }
-        onEventDrop={handleEventDrop}
+    <div className="flex flex-1 flex-col gap-6">
+      <CalendarHeader
+        isStaffOnly={isStaffOnly}
+        allStaff={allStaff}
+        filterStaffId={filterStaffId}
+        onFilterStaffId={setFilterStaffId}
+        onNewAppointment={() => setDialog({ mode: "new", start: roundedNow() })}
       />
+
+      {dropError && <ErrorBanner>{dropError}</ErrorBanner>}
+
+      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <Calendar
+          events={events}
+          availabilityByDate={availability ?? {}}
+          view={view}
+          date={date}
+          onViewChange={setView}
+          onDateChange={setDate}
+          onSelectSlot={(info) =>
+            setDialog({
+              mode: "new",
+              start: info.start,
+              staffId: effectiveStaffId ?? undefined,
+            })
+          }
+          onSelectEvent={(event) =>
+            setDialog({ mode: "edit", id: event.id as Id<"appointments"> })
+          }
+          onEventDrop={handleEventDrop}
+        />
+      </div>
+
+      <CalendarBentoCards />
+
+      <button
+        type="button"
+        onClick={() => setDialog({ mode: "new", start: roundedNow() })}
+        aria-label="New appointment"
+        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-b from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 min-[874px]:hidden"
+      >
+        <Plus size={24} />
+      </button>
+
       {dialog?.mode === "new" && (
         <AppointmentDialog
           appointmentId="new"
@@ -172,4 +164,3 @@ function roundedNow(): Date {
 function isoDate(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
-

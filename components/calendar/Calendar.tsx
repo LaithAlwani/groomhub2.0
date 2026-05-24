@@ -7,7 +7,12 @@ import { format, getDay, parse, startOfWeek } from "date-fns";
 import { enUS } from "date-fns/locale/en-US";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
+import "./calendarTheme.css";
 import { ThreeDayView } from "./ThreeDayView";
+import { CalendarDayHeader } from "./CalendarDayHeader";
+import { CalendarEventCard } from "./CalendarEventCard";
+import { CalendarToolbar } from "./CalendarToolbar";
+import { MobileCalendarTimeline } from "./MobileCalendarTimeline";
 import {
   computeBounds,
   eventStyle,
@@ -44,6 +49,16 @@ const MESSAGES = {
   threeDay: "3 days",
 } as const;
 
+const FORMATS = {
+  // Hour gutter labels: "08:00 AM" / "01:00 PM"
+  timeGutterFormat: (date: Date) =>
+    date.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }),
+};
+
 export function Calendar({
   events,
   availabilityByDate,
@@ -65,7 +80,10 @@ export function Calendar({
   onSelectEvent: (event: CalendarEvent) => void;
   onEventDrop: (info: { id: string; start: Date }) => void;
 }) {
-  const bounds = useMemo(() => computeBounds(availabilityByDate), [availabilityByDate]);
+  const bounds = useMemo(
+    () => computeBounds(availabilityByDate),
+    [availabilityByDate],
+  );
   const now = useMemo(() => Date.now(), [date]);
 
   const slotPropGetter = useMemo(
@@ -97,37 +115,62 @@ export function Calendar({
   );
 
   return (
-    <div className="rbc-wrapper rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950">
-      <DnDCalendar
-        localizer={localizer}
-        events={events as unknown as object[]}
-        view={view as never}
-        date={date}
-        onView={(next) => onViewChange(next as string)}
-        onNavigate={onDateChange}
-        defaultView="week"
-        views={VIEWS as never}
-        messages={MESSAGES as never}
-        step={15}
-        timeslots={4}
-        min={bounds.min}
-        max={bounds.max}
-        selectable={true}
-        longPressThreshold={100}
-        resizable={false}
-        onSelectSlot={(info) => {
-          if (info.start.getTime() < Date.now()) return;
-          onSelectSlot({ start: info.start, end: info.end });
-        }}
-        onSelectEvent={(event) => onSelectEvent(event as CalendarEvent)}
-        onEventDrop={({ event, start }) =>
-          onEventDrop({ id: (event as CalendarEvent).id, start: new Date(start) })
-        }
-        slotPropGetter={slotPropGetter}
-        dayPropGetter={dayPropGetter}
-        eventPropGetter={(event) => eventStyle(event as CalendarEvent)}
-        style={{ height: "70vh" }}
-      />
-    </div>
+    <>
+      <div className="min-[874px]:hidden">
+        <MobileCalendarTimeline
+          events={events}
+          availabilityByDate={availabilityByDate}
+          date={date}
+          onDateChange={onDateChange}
+          onSelectEvent={onSelectEvent}
+          onSelectSlot={onSelectSlot}
+        />
+      </div>
+      <div className="rbc-wrapper hidden min-[874px]:block">
+        <DnDCalendar
+          localizer={localizer}
+          events={events as unknown as object[]}
+          view={view as never}
+          date={date}
+          onView={(next) => onViewChange(next as string)}
+          onNavigate={onDateChange}
+          defaultView="week"
+          views={VIEWS as never}
+          messages={MESSAGES as never}
+          formats={FORMATS as never}
+          components={
+            {
+              toolbar: CalendarToolbar,
+              event: CalendarEventCard,
+              week: { header: CalendarDayHeader },
+              day: { header: CalendarDayHeader },
+              threeDay: { header: CalendarDayHeader },
+            } as never
+          }
+          step={15}
+          timeslots={4}
+          min={bounds.min}
+          max={bounds.max}
+          selectable={true}
+          longPressThreshold={100}
+          resizable={false}
+          onSelectSlot={(info) => {
+            if (info.start.getTime() < Date.now()) return;
+            onSelectSlot({ start: info.start, end: info.end });
+          }}
+          onSelectEvent={(event) => onSelectEvent(event as CalendarEvent)}
+          onEventDrop={({ event, start }) =>
+            onEventDrop({
+              id: (event as CalendarEvent).id,
+              start: new Date(start),
+            })
+          }
+          slotPropGetter={slotPropGetter}
+          dayPropGetter={dayPropGetter}
+          eventPropGetter={(event) => eventStyle(event as CalendarEvent)}
+          style={{ height: "70vh" }}
+        />
+      </div>
+    </>
   );
 }

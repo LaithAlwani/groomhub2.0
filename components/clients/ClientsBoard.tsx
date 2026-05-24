@@ -70,7 +70,7 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <header className="flex flex-col gap-4 min-[874px]:flex-row min-[874px]:items-end min-[874px]:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-[#00273c] dark:text-zinc-50">
             Clients
@@ -79,27 +79,16 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
             Manage pet owners and their grooming history.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        {canEdit && (
           <button
             type="button"
-            onClick={handleExport}
-            disabled={total === 0}
-            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3.5 py-2 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/60"
+            onClick={() => setCreating(true)}
+            className="hidden items-center gap-2 rounded-lg bg-linear-to-b from-orange-500 to-orange-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow min-[874px]:inline-flex"
           >
-            <Download size={14} />
-            Export CSV
+            <Plus size={14} />
+            New client
           </button>
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => setCreating(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-linear-to-b from-orange-500 to-orange-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow"
-            >
-              <Plus size={14} />
-              New client
-            </button>
-          )}
-        </div>
+        )}
       </header>
 
       <ClientsToolbar
@@ -122,6 +111,17 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
             pageSize={PAGE_SIZE}
             total={total}
             onPage={setPage}
+            trailingSlot={
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={total === 0}
+                className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3.5 py-2 text-sm font-semibold text-sky-800 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/60"
+              >
+                <Download size={14} />
+                Export CSV
+              </button>
+            }
           />
         </>
       )}
@@ -135,7 +135,7 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
           type="button"
           onClick={() => setCreating(true)}
           aria-label="New client"
-          className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-b from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 md:hidden"
+          className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-b from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 min-[874px]:hidden"
         >
           <Plus size={24} />
         </button>
