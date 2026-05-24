@@ -9,12 +9,19 @@ import { api } from "@/convex/_generated/api";
 import { SwitcherMenu } from "./OrgSwitcherMenus";
 
 /**
- * Sidebar header that identifies the active shop and toggles a dropdown of
- * other shops the user is a member of (+ Create new shop).
+ * Sidebar / topbar header that identifies the active shop and toggles a
+ * dropdown of other shops the user is a member of (+ Create new shop). Only
+ * the trailing chevron is clickable — the name and logo are display-only.
+ * Editing shop info lives on the Settings sidebar link.
  *
- * Editing shop info lives on the Settings sidebar link — no per-row gear here.
+ * `hideLogo` skips the shop avatar — used in the mobile topbar where the
+ * centered brand mark already provides visual identity.
  */
-export function OrgSwitcher() {
+export function OrgSwitcher({
+  hideLogo = false,
+}: {
+  hideLogo?: boolean;
+} = {}) {
   const { organization, isLoaded: orgLoaded } = useOrganization();
   const { userMemberships, setActive, isLoaded: listLoaded } =
     useOrganizationList({ userMemberships: { infinite: false } });
@@ -71,8 +78,12 @@ export function OrgSwitcher() {
   return (
     <div
       ref={containerRef}
-      className={`relative ${switching ? "opacity-50" : ""}`}
+      className={`relative flex w-full items-center gap-2 ${switching ? "opacity-50" : ""}`}
     >
+      {!hideLogo && <ShopAvatar logoUrl={liveOrg?.logoUrl ?? null} />}
+      <span className="min-w-0 flex-1 truncate text-base font-semibold capitalize text-zinc-900 dark:text-zinc-100">
+        {organization.name}
+      </span>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -80,17 +91,9 @@ export function OrgSwitcher() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Switch shop"
-        className="flex w-full items-center gap-3 rounded-lg p-1 text-left transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed dark:hover:bg-zinc-900"
+        className="shrink-0 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
       >
-        <ShopAvatar logoUrl={liveOrg?.logoUrl ?? null} />
-        <span className="min-w-0 flex-1 truncate text-base font-semibold capitalize text-zinc-900 dark:text-zinc-100">
-          {organization.name}
-        </span>
-        <ChevronDown
-          size={16}
-          className="shrink-0 text-zinc-400 dark:text-zinc-500"
-          aria-hidden
-        />
+        <ChevronDown size={16} aria-hidden />
       </button>
       {open && (
         <SwitcherMenu
