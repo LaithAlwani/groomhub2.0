@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import type { useSignUp } from "@clerk/nextjs";
-import { Field } from "@/components/forms/Field";
+import { KeyRound } from "lucide-react";
+import { AuthInput } from "@/components/auth/AuthInput";
+import { AuthPrimaryButton } from "@/components/auth/AuthPrimaryButton";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { landingPage } from "@/lib/landingPage";
 
 type SignUpResource = ReturnType<typeof useSignUp>["signUp"];
 
@@ -41,29 +44,29 @@ export function SignUpVerifyStep({
     onVerified();
   }
 
+  const copy = landingPage.auth.verify;
+
   return (
-    <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-      <Field
-        label="Verification code"
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <AuthInput
+        label="Verification Code"
+        icon={KeyRound}
         value={code}
         onChange={setCode}
         autoComplete="one-time-code"
         inputMode="numeric"
+        placeholder="123456"
       />
       {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
-      <button
-        type="submit"
-        disabled={busy || !signUp}
-        className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-      >
-        {busy ? "Verifying…" : "Verify and continue"}
-      </button>
+      <AuthPrimaryButton disabled={busy || !signUp}>
+        {busy ? "Verifying…" : copy.submitLabel}
+      </AuthPrimaryButton>
       <button
         type="button"
         onClick={onBack}
-        className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+        className="block w-full text-center text-xs font-semibold text-zinc-500 transition-colors hover:text-orange-700 dark:hover:text-orange-400"
       >
-        ← Use a different email
+        ← {copy.backLabel}
       </button>
     </form>
   );

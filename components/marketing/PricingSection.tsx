@@ -36,7 +36,7 @@ function PricingCard({ tier }: { tier: PricingTier }) {
     ? "relative flex flex-col overflow-hidden rounded-2xl border-2 border-orange-500 bg-white shadow-xl dark:bg-zinc-900"
     : "relative flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
   const ctaClassName = recommended
-    ? "mt-6 inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-orange-600 to-orange-500 px-5 py-3 text-sm font-medium text-white shadow-sm transition-transform hover:scale-[1.01] hover:shadow"
+    ? "mt-6 inline-flex w-full items-center justify-center rounded-full bg-linear-to-r from-orange-600 to-orange-500 px-5 py-3 text-sm font-medium text-white shadow-sm transition-transform hover:scale-[1.01] hover:shadow"
     : "mt-6 inline-flex w-full items-center justify-center rounded-full border border-zinc-300 px-5 py-3 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800";
 
   return (

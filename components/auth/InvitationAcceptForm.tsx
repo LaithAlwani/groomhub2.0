@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAction } from "convex/react";
 import { useSignUp } from "@clerk/nextjs";
+import { User } from "lucide-react";
 import { z } from "zod";
 import { api } from "@/convex/_generated/api";
-import { Field } from "@/components/forms/Field";
+import { AuthInput } from "@/components/auth/AuthInput";
+import { AuthPrimaryButton } from "@/components/auth/AuthPrimaryButton";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
 const schema = z.object({
@@ -134,7 +136,7 @@ export function InvitationAcceptForm({
 
   if (accountExists) {
     return (
-      <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
           You already have an account
         </h2>
@@ -157,7 +159,7 @@ export function InvitationAcceptForm({
         )}
         <Link
           href="/sign-in"
-          className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+          className="mt-4 inline-flex items-center justify-center rounded-lg bg-linear-to-b from-orange-500 to-orange-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow"
         >
           Sign in
         </Link>
@@ -166,7 +168,7 @@ export function InvitationAcceptForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {invitedEmail && (
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Joining as{" "}
@@ -176,15 +178,17 @@ export function InvitationAcceptForm({
         </p>
       )}
       <div className="grid grid-cols-2 gap-3">
-        <Field
-          label="First name"
+        <AuthInput
+          label="First Name"
+          icon={User}
           value={firstName}
           onChange={setFirstName}
           error={fieldErrors.firstName}
           autoComplete="given-name"
         />
-        <Field
-          label="Last name"
+        <AuthInput
+          label="Last Name"
+          icon={User}
           value={lastName}
           onChange={setLastName}
           error={fieldErrors.lastName}
@@ -193,13 +197,9 @@ export function InvitationAcceptForm({
       </div>
       <div id="clerk-captcha" />
       {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
-      <button
-        type="submit"
-        disabled={submitting || busy || !signUp}
-        className="mt-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-      >
+      <AuthPrimaryButton disabled={submitting || busy || !signUp}>
         {submitting || busy ? "Joining…" : "Join shop"}
-      </button>
+      </AuthPrimaryButton>
     </form>
   );
 }

@@ -74,7 +74,7 @@ export function ContactSection() {
             </label>
             <button
               type="submit"
-              className="mt-2 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-orange-600 to-orange-500 px-5 py-3 text-sm font-medium text-white shadow-sm transition-transform hover:scale-[1.01] hover:shadow"
+              className="mt-2 inline-flex items-center justify-center rounded-full bg-linear-to-r from-orange-600 to-orange-500 px-5 py-3 text-sm font-medium text-white shadow-sm transition-transform hover:scale-[1.01] hover:shadow"
             >
               {contact.submitLabel}
             </button>

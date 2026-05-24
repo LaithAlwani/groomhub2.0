@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import type { useSignUp } from "@clerk/nextjs";
+import { User } from "lucide-react";
 import { z } from "zod";
-import { Field } from "@/components/forms/Field";
+import { AuthInput } from "@/components/auth/AuthInput";
+import { AuthPrimaryButton } from "@/components/auth/AuthPrimaryButton";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { landingPage } from "@/lib/landingPage";
 
 type SignUpResource = ReturnType<typeof useSignUp>["signUp"];
 
@@ -17,16 +20,8 @@ type ProfileInput = z.infer<typeof profileSchema>;
 type FieldErrors = Partial<Record<keyof ProfileInput, string>>;
 
 /**
- * Renders only the missing-name fields on a partial sign-up.
- *
- * Two flows feed this step:
- * - OAuth gap (Google profile lacked a last name): `invitationTicket` is null
- *   and we submit via `signUp.update({firstName, lastName})`.
- * - Invitation acceptance: `invitationTicket` is the JWT from the email link.
- *   We re-apply the ticket WITH the names in a single call
- *   (`signUp.ticket({ticket, firstName, lastName})`) so the ticket context
- *   stays attached. A separate `update` after `ticket` has been observed to
- *   drop the invitation on some Clerk versions.
+ * Renders only the missing-name fields on a partial sign-up. See header
+ * comment in the previous revision for the two flows that feed this step.
  */
 export function SignUpCompleteStep({
   signUp,
@@ -66,8 +61,6 @@ export function SignUpCompleteStep({
     setFieldErrors({});
 
     if (invitationTicket) {
-      // Re-apply the ticket with the names in one call so the invitation
-      // context isn't lost between API hops.
       const ticketResult = await signUp.ticket({
         ticket: invitationTicket,
         firstName: parsed.data.firstName,
@@ -92,18 +85,22 @@ export function SignUpCompleteStep({
     onCompleted();
   }
 
+  const submitLabel = landingPage.auth.completeProfile.submitLabel;
+
   return (
-    <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
-        <Field
-          label="First name"
+        <AuthInput
+          label="First Name"
+          icon={User}
           value={firstName}
           onChange={setFirstName}
           error={fieldErrors.firstName}
           autoComplete="given-name"
         />
-        <Field
-          label="Last name"
+        <AuthInput
+          label="Last Name"
+          icon={User}
           value={lastName}
           onChange={setLastName}
           error={fieldErrors.lastName}
@@ -112,13 +109,9 @@ export function SignUpCompleteStep({
       </div>
       <div id="clerk-captcha" />
       {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
-      <button
-        type="submit"
-        disabled={busy}
-        className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-      >
-        {busy ? "Finishing up…" : "Continue"}
-      </button>
+      <AuthPrimaryButton disabled={busy}>
+        {busy ? "Finishing up…" : submitLabel}
+      </AuthPrimaryButton>
     </form>
   );
 }

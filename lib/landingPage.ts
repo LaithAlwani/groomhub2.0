@@ -187,6 +187,52 @@ export const landingPage = {
     submitLabel: "Send message",
   },
 
+  auth: {
+    signIn: {
+      title: "Welcome Back",
+      subtitle: "Log in to manage your grooming business",
+      submitLabel: "Sign In",
+      forgotPasswordLabel: "Forgot Password?",
+      forgotPasswordHref: "#",
+      switchPrompt: "Don't have an account?",
+      switchLabel: "Sign Up",
+      switchHref: "/sign-up",
+      policyText:
+        "By signing in, you agree to GroomHub's Terms of Service and Privacy Policy. Professional grooming management made simple.",
+    },
+    signUp: {
+      title: "Create Account",
+      subtitle: "Join the professional pet grooming network",
+      submitLabel: "Create Account",
+      switchPrompt: "Already have an account?",
+      switchLabel: "Sign In",
+      switchHref: "/sign-in",
+      policyText:
+        "By creating an account, you agree to GroomHub's Terms of Service and Privacy Policy.",
+    },
+    verify: {
+      title: "Verify your email",
+      subtitleTemplate: "We sent a 6-digit code to {email}.",
+      submitLabel: "Verify and continue",
+      backLabel: "Use a different email",
+    },
+    completeProfile: {
+      title: "One more thing",
+      subtitle: "Your Google account is missing a couple of details.",
+      submitLabel: "Continue",
+    },
+    invitation: {
+      title: "Finish joining your shop",
+      subtitle:
+        "You've been invited to GroomHub. Confirm your details and you're in.",
+    },
+    dividerLabel: "Or continue with",
+    socials: {
+      googleLabel: "Google",
+      appleLabel: "Apple",
+    },
+  },
+
   footer: {
     tagline: "Built by groomers, for groomers.",
     columns: [

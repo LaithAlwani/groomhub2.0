@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import type { useSignUp } from "@clerk/nextjs";
+import { Lock, Mail, User } from "lucide-react";
 import { z } from "zod";
-import { Field } from "@/components/forms/Field";
+import { AuthInput } from "@/components/auth/AuthInput";
+import { AuthPrimaryButton } from "@/components/auth/AuthPrimaryButton";
+import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
-import { OrDivider } from "@/components/ui/OrDivider";
-import { GoogleButton } from "@/components/auth/GoogleButton";
+import { landingPage } from "@/lib/landingPage";
 
 type SignUpResource = ReturnType<typeof useSignUp>["signUp"];
 
@@ -31,12 +33,9 @@ export function SignUpDetailsStep({
 }: {
   signUp: SignUpResource;
   busy: boolean;
-  /** Pre-fill + lock the email field. Null until Clerk applies the ticket. */
   invitedEmail: string | null;
-  /** True the moment we detect an invitation ticket in the URL, even before it resolves. */
   isInvitation: boolean;
   onCodeSent: (email: string) => void;
-  /** Called when sign-up is already complete (e.g. invitation pre-verified the email). */
   onAlreadyComplete: () => void;
   onError: (message: string) => void;
 }) {
@@ -81,9 +80,6 @@ export function SignUpDetailsStep({
       return;
     }
 
-    // Invitation tickets pre-verify the invited email address, so the sign-up
-    // is already complete the moment a password is attached — no code email
-    // needed. Trying to send one would discard the invitation context.
     if (signUp.status === "complete") {
       onAlreadyComplete();
       return;
@@ -112,10 +108,12 @@ export function SignUpDetailsStep({
     }
   }
 
+  const submitLabel = landingPage.auth.signUp.submitLabel;
+
   return (
     <>
       {isInvitation && (
-        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-200">
+        <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-200">
           You&apos;ve been invited to GroomHub
           {invitedEmail ? (
             <>
@@ -126,61 +124,58 @@ export function SignUpDetailsStep({
         </div>
       )}
 
-      {!isInvitation && (
-        <>
-          <GoogleButton
-            onClick={handleGoogle}
-            disabled={busy || !signUp}
-            label="Continue with Google"
-          />
-          <OrDivider />
-        </>
-      )}
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div className="grid grid-cols-2 gap-3">
-          <Field
-            label="First name"
+          <AuthInput
+            label="First Name"
+            icon={User}
             value={firstName}
             onChange={setFirstName}
             error={fieldErrors.firstName}
             autoComplete="given-name"
+            placeholder="Alex"
           />
-          <Field
-            label="Last name"
+          <AuthInput
+            label="Last Name"
+            icon={User}
             value={lastName}
             onChange={setLastName}
             error={fieldErrors.lastName}
             autoComplete="family-name"
+            placeholder="Johnson"
           />
         </div>
-        <Field
-          label="Email"
+        <AuthInput
+          label="Email Address"
+          icon={Mail}
           type="email"
           value={email}
           onChange={invitedEmail ? () => {} : setEmail}
           error={fieldErrors.email}
           autoComplete="email"
+          placeholder="alex@example.com"
           readOnly={Boolean(invitedEmail)}
         />
-        <Field
+        <AuthInput
           label="Password"
+          icon={Lock}
           type="password"
           value={password}
           onChange={setPassword}
           error={fieldErrors.password}
           autoComplete="new-password"
+          placeholder="At least 8 characters"
         />
         <div id="clerk-captcha" />
         {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
-        <button
-          type="submit"
-          disabled={busy || !signUp}
-          className="mt-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-        >
-          {busy ? "Creating account…" : "Create account"}
-        </button>
+        <AuthPrimaryButton disabled={busy || !signUp}>
+          {busy ? "Creating account…" : submitLabel}
+        </AuthPrimaryButton>
       </form>
+
+      {!isInvitation && (
+        <SocialAuthButtons onGoogle={handleGoogle} disabled={busy || !signUp} />
+      )}
     </>
   );
 }

@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth, useSignIn } from "@clerk/nextjs";
+import { Lock, Mail } from "lucide-react";
 import { z } from "zod";
-import { Field } from "@/components/forms/Field";
+import { AuthCard } from "@/components/auth/AuthCard";
+import { AuthInput } from "@/components/auth/AuthInput";
+import { AuthPrimaryButton } from "@/components/auth/AuthPrimaryButton";
+import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
-import { OrDivider } from "@/components/ui/OrDivider";
-import { GoogleButton } from "@/components/auth/GoogleButton";
 import { SignInProgress } from "@/components/ui/SignInProgress";
+import { landingPage } from "@/lib/landingPage";
 
 const credentialsSchema = z.object({
   email: z.string().trim().email("Enter a valid email"),
@@ -38,6 +41,7 @@ export default function SignInPage() {
   }, [authLoaded, isSignedIn, redirecting, router]);
 
   const busy = fetchStatus === "fetching" || redirecting;
+  const copy = landingPage.auth.signIn;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -67,8 +71,6 @@ export default function SignInPage() {
 
     setRedirecting(true);
     const finalizeResult = await signIn.finalize({
-      // No-op navigate so Clerk doesn't try to route us through its hosted
-      // portal or session-tasks flow. We control the destination ourselves.
       navigate: () => undefined,
     });
     if (finalizeResult.error) {
@@ -98,54 +100,56 @@ export default function SignInPage() {
   if (redirecting) return <SignInProgress message="Signing you in…" />;
 
   return (
-    <section className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Sign in to your GroomHub account.
-      </p>
-
-      <div className="mt-6">
-        <GoogleButton
-          onClick={handleGoogle}
-          disabled={busy || !signIn}
-          label="Continue with Google"
-        />
-      </div>
-      <OrDivider />
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Field
-          label="Email"
+    <AuthCard
+      title={copy.title}
+      subtitle={copy.subtitle}
+      policyText={copy.policyText}
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <AuthInput
+          label="Email Address"
+          icon={Mail}
           type="email"
           value={email}
           onChange={setEmail}
           error={fieldErrors.email}
           autoComplete="email"
+          placeholder="name@company.com"
         />
-        <Field
+        <AuthInput
           label="Password"
+          icon={Lock}
           type="password"
           value={password}
           onChange={setPassword}
           error={fieldErrors.password}
           autoComplete="current-password"
+          trailingSlot={
+            <Link
+              href={copy.forgotPasswordHref}
+              className="text-xs font-semibold text-orange-700 hover:underline dark:text-orange-400"
+            >
+              {copy.forgotPasswordLabel}
+            </Link>
+          }
         />
         {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
-        <button
-          type="submit"
-          disabled={busy || !signIn}
-          className="mt-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-        >
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
+        <AuthPrimaryButton disabled={busy || !signIn}>
+          {busy ? "Signing in…" : copy.submitLabel}
+        </AuthPrimaryButton>
       </form>
 
+      <SocialAuthButtons onGoogle={handleGoogle} disabled={busy || !signIn} />
+
       <p className="mt-8 text-center text-sm text-zinc-600 dark:text-zinc-400">
-        New to GroomHub?{" "}
-        <Link href="/sign-up" className="font-medium underline-offset-2 hover:underline">
-          Create an account
+        {copy.switchPrompt}{" "}
+        <Link
+          href={copy.switchHref}
+          className="font-semibold text-orange-700 hover:underline dark:text-orange-400"
+        >
+          {copy.switchLabel}
         </Link>
       </p>
-    </section>
+    </AuthCard>
   );
 }
