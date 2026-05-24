@@ -4,7 +4,7 @@ import { EnsureMe } from "@/components/auth/EnsureMe";
 import { RequireOrgContext } from "@/components/auth/RequireOrgContext";
 import { PendingInvitationsBanner } from "@/components/app/PendingInvitationsBanner";
 import { SidebarShell } from "@/components/app/SidebarShell";
-import { UserMenu } from "@/components/app/UserMenu";
+import { TopbarActions } from "@/components/app/TopbarActions";
 
 export default async function AppLayout({
   children,
@@ -17,7 +17,7 @@ export default async function AppLayout({
 
   return (
     <>
-      <SidebarShell topbarRight={<UserMenu />}>
+      <SidebarShell topbarRight={<TopbarActions />}>
         <PendingInvitationsBanner />
         {children}
       </SidebarShell>

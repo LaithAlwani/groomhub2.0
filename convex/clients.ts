@@ -75,6 +75,103 @@ export const list = query({
 });
 
 /**
+ * Returns every client in the org enriched with their pets and the most-recent
+ * appointment, for the clients board table. Bounded at `MAX_RESULTS` clients
+ * and each row's pets / last-appointment lookups use indexes, so the worst-case
+ * shape is `MAX_RESULTS × 2` indexed reads — fine for the dashboard scale we
+ * target. UI is responsible for the search filter (we already debounce there).
+ *
+ * Search rules mirror `list()` so the same search box drives the same matching:
+ * digit-only queries match phone digits; text queries use the fuzzy name index.
+ */
+export const listWithPets = query({
+  args: {
+    search: v.optional(v.string()),
+    includeArchived: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await softAuth(ctx);
+    if (!identity) return [];
+    const orgId = identity.orgId;
+    const search = args.search?.trim();
+
+    let clients: Array<Doc<"clients">>;
+    if (search && search.length > 0) {
+      const digitsOnly = search.replace(/\D/g, "");
+      const isDigitQuery = digitsOnly.length > 0 && digitsOnly === search;
+      if (isDigitQuery) {
+        const rows = await ctx.db
+          .query("clients")
+          .withIndex("by_org", (index) => index.eq("orgId", orgId))
+          .take(MAX_RESULTS);
+        clients = rows
+          .filter((row) =>
+            args.includeArchived ? true : row.deletedAt === undefined,
+          )
+          .filter((row) => {
+            const phoneDigits = (row.phone ?? "").replace(/\D/g, "");
+            return phoneDigits.includes(digitsOnly);
+          })
+          .sort((a, b) => a.fullName.localeCompare(b.fullName));
+      } else {
+        clients = await ctx.db
+          .query("clients")
+          .withSearchIndex("search_name", (index) =>
+            args.includeArchived
+              ? index.search("fullName", search).eq("orgId", orgId)
+              : index
+                  .search("fullName", search)
+                  .eq("orgId", orgId)
+                  .eq("deletedAt", undefined),
+          )
+          .take(MAX_RESULTS);
+      }
+    } else {
+      const rows = await ctx.db
+        .query("clients")
+        .withIndex("by_org", (index) => index.eq("orgId", orgId))
+        .take(MAX_RESULTS);
+      const filtered = args.includeArchived
+        ? rows
+        : rows.filter((row) => row.deletedAt === undefined);
+      clients = filtered.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    }
+
+    return await Promise.all(
+      clients.map(async (client) => {
+        const pets = await ctx.db
+          .query("pets")
+          .withIndex("by_client", (index) => index.eq("clientId", client._id))
+          .take(20);
+        const visiblePets = pets.filter((pet) => pet.deletedAt === undefined);
+
+        // Most recent appointment for the client. `by_client` isn't ordered by
+        // time, so we cap a recent window and pick the latest in JS — keeps the
+        // scan bounded.
+        const recentAppointments = await ctx.db
+          .query("appointments")
+          .withIndex("by_client", (index) => index.eq("clientId", client._id))
+          .take(50);
+        const lastAppointment = recentAppointments
+          .sort((a, b) => b.startTime - a.startTime)
+          .find(() => true) ?? null;
+
+        return {
+          client,
+          pets: visiblePets,
+          lastAppointment: lastAppointment
+            ? {
+                startTime: lastAppointment.startTime,
+                status: lastAppointment.status,
+              }
+            : null,
+        };
+      }),
+    );
+  },
+});
+
+/**
  * Fetch a single client by id. Refuses cross-org IDs.
  */
 export const get = query({

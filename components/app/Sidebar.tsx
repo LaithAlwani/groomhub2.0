@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useOrganization } from "@clerk/nextjs";
@@ -8,13 +9,15 @@ import {
   CalendarDays,
   LayoutDashboard,
   PawPrint,
+  Plus,
   Scissors,
   Settings,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import { mapClerkOrgRole, type Role } from "@/convex/lib/roles";
-import { OrgSwitcher } from "./OrgSwitcher";
+import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
+import { SidebarBrand } from "./SidebarBrand";
 
 type NavLink = {
   href: string;
@@ -42,14 +45,15 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { membership } = useOrganization();
   const role = mapClerkOrgRole(membership?.role ?? null);
+  const [bookingOpen, setBookingOpen] = useState(false);
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="px-3 pt-5 pb-3">
-        <OrgSwitcher />
+    <aside className="flex h-full w-64 shrink-0 flex-col bg-zinc-50 dark:bg-zinc-950">
+      <div className="border-b border-zinc-200 px-5 py-5 dark:border-zinc-800">
+        <SidebarBrand />
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto border-t border-zinc-200 px-3 py-3 dark:border-zinc-800">
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
         {NAV_LINKS.filter(
           (link) => !link.visibleTo || link.visibleTo.includes(role),
         ).map((link) => (
@@ -61,6 +65,27 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           />
         ))}
       </nav>
+
+      <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
+        <button
+          type="button"
+          onClick={() => {
+            setBookingOpen(true);
+            onNavigate?.();
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#00273c] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#013a58] hover:shadow"
+        >
+          <Plus size={16} />
+          New appointment
+        </button>
+      </div>
+
+      {bookingOpen && (
+        <AppointmentDialog
+          appointmentId="new"
+          onClose={() => setBookingOpen(false)}
+        />
+      )}
     </aside>
   );
 }
@@ -78,10 +103,10 @@ function SidebarLink({
     pathname === link.href || pathname.startsWith(`${link.href}/`);
   const Icon = link.icon;
   const className = active
-    ? "flex items-center gap-3 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
-    : "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100";
+    ? "flex items-center gap-3 rounded-lg bg-linear-to-r from-orange-500 to-orange-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm"
+    : "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-white hover:text-[#00273c] dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-50";
   const iconClassName = active
-    ? "text-blue-600 dark:text-blue-400"
+    ? "text-white"
     : "text-zinc-400 dark:text-zinc-500";
 
   return (

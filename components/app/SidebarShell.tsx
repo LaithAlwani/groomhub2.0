@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useOrganization } from "@clerk/nextjs";
-import { Menu } from "lucide-react";
+import { Menu, PawPrint } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 
 export function SidebarShell({
@@ -33,8 +31,8 @@ export function SidebarShell({
   }, [open]);
 
   return (
-    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      <div className="hidden md:flex md:shrink-0">
+    <div className="flex min-h-screen bg-white dark:bg-zinc-950">
+      <div className="hidden border-r border-zinc-200 md:flex md:shrink-0 dark:border-zinc-800">
         <Sidebar />
       </div>
 
@@ -53,71 +51,39 @@ export function SidebarShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="relative flex h-16 items-center border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950 md:px-6">
-          {/* Left cluster mobile: burger + store name (both open the drawer); desktop: BrandMark */}
-          <div className="flex min-w-0 flex-1 items-center gap-2 pr-16 md:flex-none md:pr-0">
+        <header className="flex h-16 items-center border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950 md:px-8">
+          {/* Mobile-only left cluster: burger + paw + shop name, all open the drawer. */}
+          <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
             <button
               type="button"
               onClick={() => setOpen(true)}
               aria-label="Open menu"
-              className="shrink-0 rounded-md p-1.5 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 md:hidden"
+              className="shrink-0 rounded-md p-1.5 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
             >
               <Menu size={20} />
             </button>
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="min-w-0 flex-1 truncate text-left text-base font-semibold capitalize text-zinc-900 transition-colors hover:text-zinc-600 dark:text-zinc-100 dark:hover:text-zinc-300 md:hidden"
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
             >
-              {organization?.name ?? ""}
+              <span
+                aria-hidden
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00273c] text-white"
+              >
+                <PawPrint size={16} />
+              </span>
+              <span className="min-w-0 truncate text-base font-semibold capitalize text-[#00273c] dark:text-zinc-50">
+                {organization?.name ?? ""}
+              </span>
             </button>
-            <div className="hidden md:flex">
-              <BrandMark />
-            </div>
           </div>
-          {/* Center (mobile only): GroomHub logo → Dashboard. Floats over the
-              topbar's bottom edge — half of it sits below the border for a
-              floating-action-button feel. Transparent background + drop shadow. */}
-          <Link
-            href="/dashboard"
-            aria-label="Dashboard"
-            className="absolute bottom-0 left-1/2 z-50 -translate-x-1/2 translate-y-1/2 transition-transform hover:scale-105 md:hidden"
-          >
-            <Image
-              src="/logo_new.webp"
-              alt="GroomHub"
-              width={56}
-              height={56}
-              priority
-              className="h-14 w-14 object-contain drop-shadow-xl"
-            />
-          </Link>
-          {/* Right: UserMenu */}
-          <div className="ml-auto flex items-center gap-3 pl-16 md:pl-0">
-            {topbarRight}
-          </div>
+
+          <div className="ml-auto flex items-center gap-3">{topbarRight}</div>
         </header>
 
         <main className="flex flex-1 flex-col">{children}</main>
       </div>
     </div>
-  );
-}
-
-function BrandMark() {
-  return (
-    <span className="flex items-center gap-2">
-      <Image
-        src="/logo_new.webp"
-        alt=""
-        width={56}
-        height={56}
-        priority
-        className="h-14 w-14 object-contain"
-      />
-      <span className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-        GroomHub
-      </span>
-    </span>
   );
 }
