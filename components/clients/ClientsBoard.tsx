@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useConvexCachedQuery } from "@/lib/offline/useConvexCachedQuery";
 import { Download, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -27,7 +27,7 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
   );
   const debouncedSearch = useDebouncedValue(search, 200);
 
-  const rows = useQuery(api.clients.listWithPets, {
+  const rows = useConvexCachedQuery(api.clients.listWithPets, {
     search: debouncedSearch || undefined,
   });
 

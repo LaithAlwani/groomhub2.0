@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "convex/react";
 import { ArrowRight, Clock } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useConvexCachedQuery } from "@/lib/offline/useConvexCachedQuery";
 
 const STATUS_TONE: Record<string, string> = {
   pendingApproval:
@@ -21,7 +21,7 @@ const STATUS_TONE: Record<string, string> = {
 export function TodayList() {
   const start = todayStartMs();
   const end = start + 24 * 60 * 60 * 1000;
-  const appointments = useQuery(api.appointments.listInRange, {
+  const appointments = useConvexCachedQuery(api.appointments.listInRange, {
     fromTime: start,
     toTime: end,
   });

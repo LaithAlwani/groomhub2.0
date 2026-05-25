@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useConvexCachedQuery } from "@/lib/offline/useConvexCachedQuery";
 import { Check, Clock, PhoneCall, X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -11,7 +12,7 @@ import { formatAppointmentError } from "@/lib/appointmentErrors";
 import { formatPhone } from "@/lib/phone";
 
 export function PendingApprovalsList() {
-  const pending = useQuery(api.appointments.pendingForMe);
+  const pending = useConvexCachedQuery(api.appointments.pendingForMe);
   const updateStatus = useMutation(api.appointments.updateStatus);
 
   const [busyId, setBusyId] = useState<Id<"appointments"> | null>(null);

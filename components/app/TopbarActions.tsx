@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useOrganization, useUser } from "@clerk/nextjs";
 import { Bell, HelpCircle } from "lucide-react";
 import { mapClerkOrgRole } from "@/convex/lib/roles";
+import { OfflineIndicator } from "./OfflineIndicator";
 import { UserMenu } from "./UserMenu";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -28,7 +29,8 @@ export function TopbarActions() {
     [user?.firstName, user?.lastName].filter(Boolean).join(" ") || null;
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2 md:gap-3">
+      <OfflineIndicator />
       <button
         type="button"
         aria-label="Notifications (coming soon)"
