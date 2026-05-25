@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { roleValidator } from "./schema";
 
@@ -214,10 +215,51 @@ export const deactivateUserEverywhere = internalMutation({
       .query("memberships")
       .withIndex("by_user_org", (index) => index.eq("userId", user._id))
       .collect();
+
+    // Track orgs the user was a superAdmin of so we can check whether they
+    // need cleanup. We deliberately don't react to deletions of non-
+    // superAdmin members here — if a staff or admin leaves and happens to
+    // be the last one in an empty shop, that's a weird edge case worth
+    // having support look at rather than auto-wiping the org.
+    //
+    // Add unconditionally on `isActive` since Clerk often fires
+    // `organizationMembership.deleted` before `user.deleted`, leaving rows
+    // already `isActive: false` by the time we run. The role check stays
+    // the gate.
+    const affectedOrgIds = new Set<string>();
     for (const membership of memberships) {
       if (membership.isActive) {
         await ctx.db.patch(membership._id, { isActive: false });
       }
+      if (membership.role === "superAdmin") {
+        affectedOrgIds.add(membership.orgId);
+      }
+    }
+
+    // Orphan-org cleanup: for each org the user was active in, count the
+    // remaining active members. If zero, the org has no one left to manage
+    // it — soft-delete it (frees the slug immediately) and schedule the
+    // Clerk Backend API call to wipe the Clerk dashboard entry too. The
+    // 30-day cron in `orgCleanup.sweepDeletedOrgs` hard-deletes the Convex
+    // data + storage afterwards.
+    for (const orgId of affectedOrgIds) {
+      const remaining = await ctx.db
+        .query("memberships")
+        .withIndex("by_org_active", (index) =>
+          index.eq("orgId", orgId).eq("isActive", true),
+        )
+        .take(1);
+      if (remaining.length > 0) continue;
+
+      const org = await ctx.db
+        .query("organizations")
+        .withIndex("by_clerkOrgId", (index) => index.eq("clerkOrgId", orgId))
+        .unique();
+      if (!org || org.deletedAt !== undefined) continue;
+      await ctx.db.patch(org._id, { deletedAt: Date.now() });
+      await ctx.scheduler.runAfter(0, internal.orgCleanup.deleteClerkOrg, {
+        clerkOrgId: orgId,
+      });
     }
   },
 });

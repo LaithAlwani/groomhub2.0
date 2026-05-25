@@ -6,18 +6,32 @@ import { z } from "zod";
 import { Field } from "@/components/forms/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
-const schema = z
-  .object({
-    currentPassword: z.string().min(1, "Enter your current password"),
-    newPassword: z.string().min(8, "At least 8 characters"),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    path: ["confirmPassword"],
-    message: "Passwords don't match",
-  });
+/**
+ * Schema is built per-render based on `hasExistingPassword`. When the user
+ * has no password yet (Google-only signup), the `currentPassword` field
+ * isn't shown and shouldn't be required — otherwise the form silently
+ * fails validation against an invisible field.
+ */
+function buildSchema(hasExistingPassword: boolean) {
+  return z
+    .object({
+      currentPassword: hasExistingPassword
+        ? z.string().min(1, "Enter your current password")
+        : z.string().optional(),
+      newPassword: z.string().min(8, "At least 8 characters"),
+      confirmPassword: z.string(),
+    })
+    .refine((data) => data.newPassword === data.confirmPassword, {
+      path: ["confirmPassword"],
+      message: "Passwords don't match",
+    });
+}
 
-type FormInput = z.infer<typeof schema>;
+type FormInput = {
+  currentPassword?: string;
+  newPassword: string;
+  confirmPassword: string;
+};
 type FieldErrors = Partial<Record<keyof FormInput, string>>;
 
 export function PasswordSection() {
@@ -41,7 +55,7 @@ export function PasswordSection() {
     setServerError(null);
     setSavedMessage(null);
 
-    const parsed = schema.safeParse({
+    const parsed = buildSchema(hasExistingPassword).safeParse({
       currentPassword,
       newPassword,
       confirmPassword,

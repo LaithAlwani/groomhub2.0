@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { ConnectedAccountsSection } from "@/components/account/ConnectedAccountsSection";
+import { DangerZoneSection } from "@/components/account/DangerZoneSection";
 import { EmailSection } from "@/components/account/EmailSection";
 import { PasswordSection } from "@/components/account/PasswordSection";
 import { ProfileSection } from "@/components/account/ProfileSection";
+import { SessionsSection } from "@/components/account/SessionsSection";
 
 export default function AccountPage() {
   return (
@@ -25,6 +28,9 @@ export default function AccountPage() {
         <ProfileSection />
         <EmailSection />
         <PasswordSection />
+        <ConnectedAccountsSection />
+        <SessionsSection />
+        <DangerZoneSection />
       </div>
     </section>
   );

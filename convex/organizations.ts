@@ -17,7 +17,9 @@ export const bySlug = query({
       .query("organizations")
       .withIndex("by_slug", (index) => index.eq("slug", slug))
       .unique();
-    if (!org) return null;
+    // Treat soft-deleted orgs as gone — the slug is immediately free for
+    // a new shop to claim while we wait the 30-day grace before hard-delete.
+    if (!org || org.deletedAt !== undefined) return null;
     const logoUrl = org.logoStorageId
       ? await ctx.storage.getUrl(org.logoStorageId)
       : null;
@@ -47,7 +49,11 @@ export const isSlugAvailable = query({
       .query("organizations")
       .withIndex("by_slug", (index) => index.eq("slug", lowerSlug))
       .unique();
-    if (existing) return { ok: false as const, code: "SLUG_TAKEN" as const };
+    // Soft-deleted orgs free their slug immediately (no grace period). The
+    // 30-day delay before hard-delete is purely for audit-trail latitude.
+    if (existing && existing.deletedAt === undefined) {
+      return { ok: false as const, code: "SLUG_TAKEN" as const };
+    }
     return { ok: true as const };
   },
 });
@@ -90,7 +96,20 @@ export const seedFromClerk = mutation({
       .query("organizations")
       .withIndex("by_slug", (index) => index.eq("slug", lowerSlug))
       .unique();
-    if (slugOwner && slugOwner.clerkOrgId !== args.clerkOrgId) {
+    // If the slug belongs to a soft-deleted org, treat it as free — but
+    // rename the soft-deleted row's slug so the index doesn't keep two
+    // rows pointing at the same value. The mangled name keeps support
+    // recovery possible (data is still readable by clerkOrgId) until the
+    // cron hard-deletes it after the grace period.
+    if (
+      slugOwner &&
+      slugOwner.clerkOrgId !== args.clerkOrgId &&
+      slugOwner.deletedAt !== undefined
+    ) {
+      await ctx.db.patch(slugOwner._id, {
+        slug: `deleted-${slugOwner.deletedAt}-${slugOwner.slug}`,
+      });
+    } else if (slugOwner && slugOwner.clerkOrgId !== args.clerkOrgId) {
       appError("SLUG_TAKEN");
     }
 
@@ -177,7 +196,7 @@ export const getCurrent = query({
         index.eq("clerkOrgId", identity.orgId),
       )
       .unique();
-    if (!org) return null;
+    if (!org || org.deletedAt !== undefined) return null;
     const logoUrl = org.logoStorageId
       ? await ctx.storage.getUrl(org.logoStorageId)
       : null;

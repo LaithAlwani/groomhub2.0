@@ -41,9 +41,20 @@ export default defineSchema({
     contactPhone: v.optional(v.string()),
     stripeCustomerId: v.optional(v.string()),
     createdAt: v.number(),
+    // Soft-delete timestamp. Set when the last active member of the org has
+    // their account deleted (see `convex/clerkSync.ts`). Once set:
+    //   - `bySlug` / `isSlugAvailable` / `getCurrent` treat the row as gone,
+    //     so the slug is immediately free for another shop to claim.
+    //   - The Clerk org is deleted via the Backend API in the same flow so
+    //     the Clerk dashboard stays clean.
+    //   - The Convex row + every dependent table stay around for 30 days
+    //     of audit-trail latitude, then `convex/orgCleanup.ts`'s daily cron
+    //     hard-deletes everything.
+    deletedAt: v.optional(v.number()),
   })
     .index("by_clerkOrgId", ["clerkOrgId"])
-    .index("by_slug", ["slug"]),
+    .index("by_slug", ["slug"])
+    .index("by_deletedAt", ["deletedAt"]),
 
   // One row per Clerk user — the global identity mirror.
   users: defineTable({

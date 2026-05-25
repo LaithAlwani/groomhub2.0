@@ -12,6 +12,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   tone = "default",
   busy = false,
+  disableConfirm = false,
   onConfirm,
   onCancel,
 }: {
@@ -22,6 +23,10 @@ export function ConfirmDialog({
   cancelLabel?: string;
   tone?: Tone;
   busy?: boolean;
+  /** Disable only the confirm button — cancel + escape + backdrop click still
+   * work. Use for phrase-typing gates and similar UX where the user might
+   * still want to back out. */
+  disableConfirm?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -80,7 +85,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy || disableConfirm}
             className={confirmClass}
           >
             {busy ? "Working…" : confirmLabel}
