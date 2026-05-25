@@ -209,6 +209,90 @@ export const forStaffSlotsInRange = query({
   },
 });
 
+/**
+ * Org-wide availability — the **union** of every active member's slots for
+ * each date in the range. Used by the calendar's "All groomers" view so the
+ * time axis collapses to actual working hours and gaps (e.g. shop lunch
+ * break, an early-finish day) get the same red blocked styling as a day off.
+ *
+ * Result shape matches `forStaffSlotsInRange` so the desktop `Calendar` and
+ * the mobile timeline can consume either query interchangeably. Slots within
+ * a date are sorted and merged when they touch or overlap, so the consumer
+ * sees the final unioned hours, not raw per-staff entries.
+ */
+export const forOrgSlotsInRange = query({
+  args: { fromDate: v.string(), toDate: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await softAuth(ctx);
+    if (!identity) return {};
+    if (!DATE_PATTERN.test(args.fromDate) || !DATE_PATTERN.test(args.toDate)) {
+      appError("VALIDATION", { reason: "INVALID_DATE_RANGE" });
+    }
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_org_active", (index) =>
+        index.eq("orgId", identity.orgId).eq("isActive", true),
+      )
+      .collect();
+    const result: Record<string, Array<{ startMin: number; endMin: number }>> =
+      {};
+    for (const date of datesInRange(args.fromDate, args.toDate)) {
+      result[date] = [];
+    }
+    for (const membership of memberships) {
+      const weekly = await readWeekly(ctx, identity.orgId, membership._id);
+      const overrides = await readOverridesInRange(
+        ctx,
+        identity.orgId,
+        membership._id,
+        args.fromDate,
+        args.toDate,
+      );
+      const overrideByDate = new Map(overrides.map((row) => [row.date, row]));
+      for (const date of datesInRange(args.fromDate, args.toDate)) {
+        const override = overrideByDate.get(date);
+        if (override?.kind === "off") continue;
+        if (override?.kind === "custom") {
+          for (const slot of override.slots ?? []) {
+            result[date]!.push({ ...slot });
+          }
+          continue;
+        }
+        const weekday = weekdayFromDate(date);
+        for (const row of weekly) {
+          if (row.weekday !== weekday) continue;
+          result[date]!.push({ startMin: row.startMin, endMin: row.endMin });
+        }
+      }
+    }
+    for (const date of Object.keys(result)) {
+      result[date] = mergeSlots(result[date]!);
+    }
+    return result;
+  },
+});
+
+/** Merge sorted/unsorted ranges so adjacent or overlapping ones collapse. */
+function mergeSlots(
+  slots: ReadonlyArray<{ startMin: number; endMin: number }>,
+): Array<{ startMin: number; endMin: number }> {
+  if (slots.length === 0) return [];
+  const sorted = [...slots].sort((a, b) => a.startMin - b.startMin);
+  const merged: Array<{ startMin: number; endMin: number }> = [
+    { startMin: sorted[0]!.startMin, endMin: sorted[0]!.endMin },
+  ];
+  for (let index = 1; index < sorted.length; index += 1) {
+    const last = merged[merged.length - 1]!;
+    const current = sorted[index]!;
+    if (current.startMin <= last.endMin) {
+      last.endMin = Math.max(last.endMin, current.endMin);
+    } else {
+      merged.push({ startMin: current.startMin, endMin: current.endMin });
+    }
+  }
+  return merged;
+}
+
 // Per product rule, only the schedule's owner edits their own availability.
 // No admin/superAdmin write path exists — that's intentional, not an oversight.
 // Phase 5's booking calendar still needs to *read* other staff's slots, so the

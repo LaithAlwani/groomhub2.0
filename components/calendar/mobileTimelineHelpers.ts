@@ -1,6 +1,9 @@
 import type { CalendarEvent } from "./calendarStyles";
 
-export const HOUR_HEIGHT = 88; // px per hour row in the mobile timeline
+// px per hour row in the mobile timeline. 160 → 80 px per 30-min slot, enough
+// room for the pet name + time row + service detail line in a 30-minute
+// appointment without truncation.
+export const HOUR_HEIGHT = 160;
 const DEFAULT_START_HOUR = 8;
 const DEFAULT_END_HOUR = 18;
 
@@ -55,23 +58,77 @@ export function bounds(
 }
 
 export type CardStyles = {
-  accent: string;
-  chipBg: string;
-  chipFg: string;
+  accent: string;       // 4px left strip — always the service color
+  bgClass: string;      // card background tint — status driven
+  borderClass: string;  // card outline color — status driven
+  chipBg: string;       // status pill background
+  chipFg: string;       // status pill text
 };
 
+// Status → standard pill color. Pill never inherits service color.
+const STATUS_CHIP: Record<string, { chipBg: string; chipFg: string }> = {
+  scheduled:       { chipBg: "#e0f2fe", chipFg: "#0c4a6e" }, // sky
+  checkedIn:       { chipBg: "#e0e7ff", chipFg: "#3730a3" }, // indigo
+  inProgress:      { chipBg: "#dbeafe", chipFg: "#1e3a8a" }, // deep blue
+  completed:       { chipBg: "#ecfdf5", chipFg: "#065f46" }, // emerald
+  pendingApproval: { chipBg: "#fef3c7", chipFg: "#92400e" }, // amber
+  declined:        { chipBg: "#fef3c7", chipFg: "#92400e" }, // amber
+  cancelled:       { chipBg: "#fee2e2", chipFg: "#991b1b" }, // red
+  noShow:          { chipBg: "#fee2e2", chipFg: "#991b1b" }, // red
+};
+
+const DEFAULT_CHIP = { chipBg: "#e0f2fe", chipFg: "#0c4a6e" };
+
+// Status → card background + border (Tailwind classes so dark mode handles
+// itself). The 4px left strip stays the service color regardless of status.
+function statusSurface(status: string): { bgClass: string; borderClass: string } {
+  switch (status) {
+    case "pendingApproval":
+    case "declined":
+      return {
+        bgClass: "bg-amber-50 dark:bg-amber-950/30",
+        borderClass: "border-amber-200 dark:border-amber-900/50",
+      };
+    case "cancelled":
+    case "noShow":
+      return {
+        bgClass: "bg-red-200 dark:bg-red-950/60",
+        borderClass: "border-red-300 dark:border-red-900",
+      };
+    case "completed":
+      return {
+        bgClass: "bg-emerald-50 dark:bg-emerald-950/30",
+        borderClass: "border-emerald-200 dark:border-emerald-900/50",
+      };
+    case "inProgress":
+      return {
+        bgClass: "bg-blue-100 dark:bg-blue-950/40",
+        borderClass: "border-blue-300 dark:border-blue-900/50",
+      };
+    case "checkedIn":
+      return {
+        bgClass: "bg-indigo-50 dark:bg-indigo-950/30",
+        borderClass: "border-indigo-200 dark:border-indigo-900/50",
+      };
+    case "scheduled":
+    default:
+      return {
+        bgClass: "bg-zinc-50 dark:bg-zinc-900",
+        borderClass: "border-zinc-200 dark:border-zinc-800",
+      };
+  }
+}
+
 export function cardStyles(event: CalendarEvent): CardStyles {
-  if (event.status === "pendingApproval" || event.status === "declined") {
-    return { accent: "#f97316", chipBg: "#fff7ed", chipFg: "#9a3412" };
-  }
-  if (event.status === "completed") {
-    return { accent: "#10b981", chipBg: "#ecfdf5", chipFg: "#065f46" };
-  }
-  if (event.status === "cancelled" || event.status === "noShow") {
-    return { accent: "#a1a1aa", chipBg: "#f4f4f5", chipFg: "#52525b" };
-  }
-  const accent = event.color ?? "#00273c";
-  return { accent, chipBg: `${accent}1a`, chipFg: accent };
+  const chip = STATUS_CHIP[event.status] ?? DEFAULT_CHIP;
+  const surface = statusSurface(event.status);
+  return {
+    accent: event.color ?? "#00273c",
+    bgClass: surface.bgClass,
+    borderClass: surface.borderClass,
+    chipBg: chip.chipBg,
+    chipFg: chip.chipFg,
+  };
 }
 
 export function statusLabel(status: string): string {

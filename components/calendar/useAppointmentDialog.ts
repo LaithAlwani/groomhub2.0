@@ -99,6 +99,13 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
     ? initialSnapshot === null || initialSnapshot !== JSON.stringify(state)
     : true;
 
+  // Only the assigned groomer can Approve / Decline a pending appointment —
+  // admins acting on someone else's row use Cancel / Reassign instead. This
+  // mirrors the server-side guard in `appointments.updateStatus`.
+  const isAssignedStaff = Boolean(
+    existing && me?.membership && existing.staffId === me.membership._id,
+  );
+
   function setField<K extends keyof AppointmentFormState>(
     key: K,
     value: AppointmentFormState[K],
@@ -192,6 +199,7 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
     lockedStaff,
     role,
     isDirty,
+    isAssignedStaff,
     handleSubmit,
     transitionStatus,
   };

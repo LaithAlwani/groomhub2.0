@@ -31,10 +31,19 @@
   display: none; /* hide the empty all-day row */
 }
 
-/* Time gutter: thinner border, smaller muted label. */
+/* Time gutter: thinner border, smaller muted label. Force the gutter back to
+   the calendar's neutral background so the past-time gray and the unavailable
+   red stripe (applied to day-column slots by `slotPropGetter`) don't bleed
+   into the hour labels column. */
 .rbc-wrapper .rbc-time-gutter,
 .rbc-wrapper .rbc-time-content > * + * > * {
   border-color: #e4e4e7;
+}
+.rbc-wrapper .rbc-time-gutter,
+.rbc-wrapper .rbc-time-gutter .rbc-timeslot-group,
+.rbc-wrapper .rbc-time-gutter .rbc-time-slot {
+  background-color: #ffffff !important;
+  background-image: none !important;
 }
 .rbc-wrapper .rbc-time-slot {
   color: #9ca3af;
@@ -45,11 +54,12 @@
   padding: 4px 8px;
 }
 
-/* Hour rows: thin top border, no border on intra-hour slots so the half-hour
-   lines disappear (matches the reference's hourly grid). */
+/* Hour rows: thin top border, taller min-height so 30-minute events have
+   room for two lines of text. No border on intra-hour slots so the
+   half-hour lines disappear (matches the reference's hourly grid). */
 .rbc-wrapper .rbc-timeslot-group {
   border-color: #e4e4e7;
-  min-height: 64px;
+  min-height: 96px;
 }
 .rbc-wrapper .rbc-time-slot + .rbc-time-slot {
   border-top: none;
@@ -84,6 +94,13 @@
   height: 100%;
 }
 
+/* RBC injects a "10:00 AM – 10:30 AM" label above the event content by
+   default. Our card already conveys time via vertical position on the grid,
+   so hide the label and reclaim the space. */
+.rbc-wrapper .rbc-event-label {
+  display: none;
+}
+
 /* Current-time indicator: red line with no offset. */
 .rbc-wrapper .rbc-current-time-indicator {
   background-color: #ef4444;
@@ -116,5 +133,10 @@
   }
   .rbc-wrapper .rbc-time-slot {
     color: #71717a;
+  }
+  .rbc-wrapper .rbc-time-gutter,
+  .rbc-wrapper .rbc-time-gutter .rbc-timeslot-group,
+  .rbc-wrapper .rbc-time-gutter .rbc-time-slot {
+    background-color: #09090b !important;
   }
 }

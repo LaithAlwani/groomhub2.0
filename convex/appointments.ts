@@ -329,6 +329,18 @@ export const updateStatus = mutation({
     }
     const previousStatus = existing.status;
     if (previousStatus === args.status) return;
+    // Declining is the assigned groomer's prerogative — admins can cancel or
+    // reassign, but only the staff member the booking is on can flip it to
+    // "declined" (which signals "I don't want to take this" back to admins).
+    if (args.status === "declined") {
+      if (previousStatus !== "pendingApproval") {
+        appError("VALIDATION", { reason: "CAN_ONLY_DECLINE_PENDING" });
+      }
+      const { membership } = await ensureMembership(ctx, identity);
+      if (existing.staffId !== membership._id) {
+        appError("FORBIDDEN", { reason: "ONLY_ASSIGNED_GROOMER_CAN_DECLINE" });
+      }
+    }
     await ctx.db.patch(existing._id, { status: args.status });
     // pendingApproval → scheduled is the confirmation moment.
     if (previousStatus === "pendingApproval" && args.status === "scheduled") {
@@ -387,10 +399,14 @@ export const updateNotes = mutation({
 });
 
 /**
- * Reassign a declined booking to a different groomer. Admin / superAdmin only.
- * Re-runs availability + overlap checks for the new staff at the current
- * `startTime`, then flips the row back to `pendingApproval` so the new groomer
- * sees it in their approval tile.
+ * Reassign a still-pending or declined booking to a different groomer.
+ * Admin / superAdmin only. Re-runs availability + overlap checks for the new
+ * staff at the current `startTime`, then flips the row to `pendingApproval`
+ * so the new groomer sees it in their approval tile.
+ *
+ * Allowed source states are `declined` (groomer rejected) and
+ * `pendingApproval` (admin wants to move it before the original groomer
+ * responds). Already-scheduled bookings have to be cancelled first.
  */
 export const reassign = mutation({
   args: { id: v.id("appointments"), staffId: v.id("memberships") },
@@ -398,8 +414,14 @@ export const reassign = mutation({
     const identity = await requireAuth(ctx);
     const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
     const existing = await loadOwnAppointment(ctx, args.id, identity.orgId);
-    if (existing.status !== "declined") {
-      appError("VALIDATION", { field: "status", reason: "NOT_DECLINED" });
+    if (
+      existing.status !== "declined" &&
+      existing.status !== "pendingApproval"
+    ) {
+      appError("VALIDATION", { field: "status", reason: "NOT_REASSIGNABLE" });
+    }
+    if (existing.staffId === args.staffId) {
+      appError("VALIDATION", { field: "staffId", reason: "SAME_GROOMER" });
     }
     const targetStaff = await ctx.db.get(args.staffId);
     if (!targetStaff || targetStaff.orgId !== orgId) {

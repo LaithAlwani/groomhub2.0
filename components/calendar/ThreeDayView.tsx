@@ -20,17 +20,36 @@ type ViewStatics = {
   title: (date: Date) => string;
 };
 
-const range = (date: Date): Date[] => [date, addDays(date, 1), addDays(date, 2)];
+/**
+ * RBC's TimeGrid filters events to those that fall inside `[range[0],
+ * endOfDay(range[range.length-1])]`. If `range[0]` carries a mid-day time
+ * (because the user switched views while `date` was set to a non-midnight
+ * value), every event earlier than that wall time on the first day gets
+ * silently dropped. Normalizing to start-of-day keeps the filter aligned
+ * with the user's mental "this day, that day, the next day" model.
+ */
+function startOfDay(date: Date): Date {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+const range = (date: Date): Date[] => {
+  const start = startOfDay(date);
+  return [start, addDays(start, 1), addDays(start, 2)];
+};
 
 const navigate = (date: Date, action: NavigateAction): Date => {
-  if (action === Navigate.PREVIOUS) return addDays(date, -3);
-  if (action === Navigate.NEXT) return addDays(date, 3);
-  return date;
+  const start = startOfDay(date);
+  if (action === Navigate.PREVIOUS) return addDays(start, -3);
+  if (action === Navigate.NEXT) return addDays(start, 3);
+  return start;
 };
 
 const title = (date: Date): string => {
-  const end = addDays(date, 2);
-  const startLabel = date.toLocaleDateString(undefined, {
+  const start = startOfDay(date);
+  const end = addDays(start, 2);
+  const startLabel = start.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
   });
@@ -50,6 +69,10 @@ const TimeGridComponent = TimeGrid as unknown as ComponentType<
  * Custom 3-day view for react-big-calendar. Statics `range` / `navigate` /
  * `title` are required — the calendar toolbar reads them to drive prev/next
  * and the heading. Renders the underlying TimeGrid with a 3-day window.
+ *
+ * The `range` prop passed to TimeGrid is always normalized to start-of-day so
+ * event filtering covers the full first day, not from whatever time-of-day
+ * the focused `date` happened to carry.
  */
 function ThreeDayViewFn(props: ThreeDayProps) {
   return <TimeGridComponent {...props} range={range(props.date)} eventOffset={15} />;

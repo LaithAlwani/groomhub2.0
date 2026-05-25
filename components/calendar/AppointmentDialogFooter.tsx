@@ -8,6 +8,7 @@ export function AppointmentDialogFooter({
   isEdit,
   status,
   canReassign,
+  isAssignedStaff,
   isDirty,
   submitting,
   cancelling,
@@ -20,6 +21,7 @@ export function AppointmentDialogFooter({
   isEdit: boolean;
   status: string | null;
   canReassign: boolean;
+  isAssignedStaff: boolean;
   isDirty: boolean;
   submitting: boolean;
   cancelling: boolean;
@@ -34,7 +36,10 @@ export function AppointmentDialogFooter({
   const isDeclined = status === "declined";
   const isTerminal = status !== null && TERMINAL_STATUSES.has(status);
 
-  if (isPending) {
+  // Approve / Decline are the assigned groomer's prerogative. Admins viewing
+  // someone else's pendingApproval row fall through to the declined-style
+  // Cancel + Reassign cluster instead, matching the server-side guard.
+  if (isPending && isAssignedStaff) {
     return (
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <button
@@ -69,7 +74,7 @@ export function AppointmentDialogFooter({
     );
   }
 
-  if (isDeclined && canReassign) {
+  if ((isDeclined || (isPending && !isAssignedStaff)) && canReassign) {
     return (
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <button

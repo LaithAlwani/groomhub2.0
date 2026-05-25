@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useOrganization } from "@clerk/nextjs";
 import { Plus } from "lucide-react";
@@ -24,7 +24,15 @@ export function CalendarPageBody() {
   const [filterStaffId, setFilterStaffId] = useState<Id<"memberships"> | "all">(
     "all",
   );
+  // Two-phase mount: SSR + first client paint use the safe default ("week").
+  // `useEffect` reads the persisted view and flips `hydrated`, which gates the
+  // Calendar render below — so we never paint with the wrong view first.
   const [view, setView] = useState<string>("week");
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setView(readStoredView());
+    setHydrated(true);
+  }, []);
   const [date, setDate] = useState(new Date());
   const [dialog, setDialog] = useState<
     | { mode: "new"; start: Date; staffId?: Id<"memberships"> }
@@ -45,16 +53,22 @@ export function CalendarPageBody() {
     fromTime,
     toTime,
   });
-  const availability = useQuery(
+  const fromDate = useMemo(() => isoDate(new Date(fromTime)), [fromTime]);
+  const toDate = useMemo(() => isoDate(new Date(toTime - 1)), [toTime]);
+  // Two queries (one always skipped) because Convex requires the query
+  // reference to be stable per useQuery call — we swap between staff-scoped
+  // and org-wide based on the active filter.
+  const staffAvailability = useQuery(
     api.availability.forStaffSlotsInRange,
     effectiveStaffId
-      ? {
-          staffId: effectiveStaffId,
-          fromDate: isoDate(new Date(fromTime)),
-          toDate: isoDate(new Date(toTime - 1)),
-        }
+      ? { staffId: effectiveStaffId, fromDate, toDate }
       : "skip",
   );
+  const orgAvailability = useQuery(
+    api.availability.forOrgSlotsInRange,
+    effectiveStaffId ? "skip" : { fromDate, toDate },
+  );
+  const availability = effectiveStaffId ? staffAvailability : orgAvailability;
 
   const reschedule = useMutation(api.appointments.reschedule);
 
@@ -99,25 +113,34 @@ export function CalendarPageBody() {
       {dropError && <ErrorBanner>{dropError}</ErrorBanner>}
 
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <Calendar
-          events={events}
-          availabilityByDate={availability ?? {}}
-          view={view}
-          date={date}
-          onViewChange={setView}
-          onDateChange={setDate}
-          onSelectSlot={(info) =>
-            setDialog({
-              mode: "new",
-              start: info.start,
-              staffId: effectiveStaffId ?? undefined,
-            })
-          }
-          onSelectEvent={(event) =>
-            setDialog({ mode: "edit", id: event.id as Id<"appointments"> })
-          }
-          onEventDrop={handleEventDrop}
-        />
+        {hydrated ? (
+          <Calendar
+            events={events}
+            availabilityByDate={availability ?? {}}
+            view={view}
+            date={date}
+            onViewChange={(next) => {
+              setView(next);
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+              }
+            }}
+            onDateChange={setDate}
+            onSelectSlot={(info) =>
+              setDialog({
+                mode: "new",
+                start: info.start,
+                staffId: effectiveStaffId ?? undefined,
+              })
+            }
+            onSelectEvent={(event) =>
+              setDialog({ mode: "edit", id: event.id as Id<"appointments"> })
+            }
+            onEventDrop={handleEventDrop}
+          />
+        ) : (
+          <div className="h-[70vh] animate-pulse bg-zinc-50 dark:bg-zinc-900" />
+        )}
       </div>
 
       <CalendarBentoCards />
@@ -147,6 +170,18 @@ export function CalendarPageBody() {
       )}
     </div>
   );
+}
+
+const VIEW_STORAGE_KEY = "groomhub:calendar-view";
+const VALID_VIEWS = ["day", "threeDay", "week", "agenda"] as const;
+type ViewKey = (typeof VALID_VIEWS)[number];
+
+function readStoredView(): string {
+  if (typeof window === "undefined") return "week";
+  const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
+  return (VALID_VIEWS as readonly string[]).includes(stored ?? "")
+    ? (stored as ViewKey)
+    : "week";
 }
 
 function startOfDayMs(date: Date): number {

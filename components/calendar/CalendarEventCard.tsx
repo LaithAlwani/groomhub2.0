@@ -21,23 +21,14 @@ export function CalendarEventCard({ event }: { event: CalendarEvent }) {
 
   return (
     <div
-      className="flex h-full flex-col overflow-hidden rounded-md px-2 py-1.5 text-left"
-      style={{
-        borderLeft: `4px solid ${styles.accent}`,
-        backgroundColor: `${styles.accent}1a`,
-      }}
+      className={`flex h-full flex-col overflow-hidden rounded-sm border px-2 py-1 text-left shadow-sm ${styles.bgClass} ${styles.borderClass}`}
+      style={{ borderLeft: `4px solid ${styles.accent}` }}
     >
-      <p
-        className="truncate text-[11px] font-bold leading-tight"
-        style={{ color: styles.chipFg }}
-      >
+      <p className="truncate text-[11px] font-bold leading-tight text-[#00273c] dark:text-zinc-50">
         {petName}
       </p>
       {detail && (
-        <p
-          className="truncate text-[10px] leading-tight opacity-80"
-          style={{ color: styles.chipFg }}
-        >
+        <p className="truncate text-[10px] leading-tight text-zinc-600 dark:text-zinc-400">
           {detail}
         </p>
       )}

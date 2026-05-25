@@ -28,15 +28,19 @@ export function MobileTimelineEventCard({
   const titleParts = event.title.split(" · ");
   const petName = titleParts[0] ?? event.title;
   const detail = titleParts.slice(1).join(" · ");
+  // Exact-duration height (no min, no gap) so back-to-back events render
+  // flush. RBC desktop already does this; on mobile we previously enforced a
+  // 56px floor which overlapped two adjacent 30-min slots.
+  const height = (durationMin / 60) * HOUR_HEIGHT;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="absolute left-2 right-2 overflow-hidden rounded-xl bg-white text-left shadow-sm transition-shadow hover:shadow-md dark:bg-zinc-900"
+      className={`absolute left-2 right-2 overflow-hidden rounded-md border text-left shadow-sm transition-shadow hover:shadow-md ${styles.bgClass} ${styles.borderClass}`}
       style={{
         top: (startMin / 60) * HOUR_HEIGHT,
-        height: Math.max(56, (durationMin / 60) * HOUR_HEIGHT - 6),
+        height,
         borderLeft: `4px solid ${styles.accent}`,
       }}
     >

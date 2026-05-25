@@ -31,6 +31,7 @@ export function AppointmentDialog(props: AppointmentDialogProps) {
     lockedStaff,
     role,
     isDirty,
+    isAssignedStaff,
     handleSubmit,
     transitionStatus,
   } = useAppointmentDialog(props);
@@ -68,8 +69,9 @@ export function AppointmentDialog(props: AppointmentDialogProps) {
           <>
             {existing?.status === "pendingApproval" && (
               <Banner tone="amber" icon={<Clock size={14} aria-hidden />}>
-                This booking is waiting on approval. Confirm to send the client
-                a confirmation email, or decline to send it back to admin.
+                {isAssignedStaff
+                  ? "This booking is waiting on your approval. Confirm to send the client a confirmation email, or decline to send it back to admin."
+                  : "This booking is waiting on the assigned groomer's approval. You can cancel or reassign it from here."}
               </Banner>
             )}
             {existing?.status === "declined" && canReassign && (
@@ -100,6 +102,7 @@ export function AppointmentDialog(props: AppointmentDialogProps) {
                 isEdit={isEdit}
                 status={existing?.status ?? null}
                 canReassign={canReassign}
+                isAssignedStaff={isAssignedStaff}
                 isDirty={isDirty}
                 submitting={submitting}
                 cancelling={cancelling}

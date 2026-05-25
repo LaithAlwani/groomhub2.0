@@ -151,11 +151,18 @@ export function Calendar({
           timeslots={4}
           min={bounds.min}
           max={bounds.max}
-          selectable={true}
-          longPressThreshold={100}
+          // `"ignoreEvents"` makes RBC fire onSelectSlot on a single click in
+          // the time-grid (the bare `true` setting needs a tiny drag to
+          // register a "select" gesture, which made single clicks no-op).
+          selectable="ignoreEvents"
+          longPressThreshold={50}
           resizable={false}
           onSelectSlot={(info) => {
-            if (info.start.getTime() < Date.now()) return;
+            // Allow clicks on the current 15-min slot even when its start is
+            // a few minutes in the past — the user can still book the next
+            // available time from the dialog.
+            const slotMs = info.start.getTime();
+            if (slotMs < Date.now() - 15 * 60 * 1000) return;
             onSelectSlot({ start: info.start, end: info.end });
           }}
           onSelectEvent={(event) => onSelectEvent(event as CalendarEvent)}
