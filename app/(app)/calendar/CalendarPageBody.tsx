@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useMutation } from "convex/react";
-import { useConvexCachedQuery } from "@/lib/offline/useConvexCachedQuery";
+import { useMutation, useQuery } from "convex/react";
 import { useOrganization } from "@clerk/nextjs";
 import { Plus } from "lucide-react";
 import { formatAppointmentError } from "@/lib/appointmentErrors";
@@ -16,12 +15,12 @@ import { CalendarHeader } from "@/components/calendar/CalendarHeader";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
 export function CalendarPageBody() {
-  const me = useConvexCachedQuery(api.users.me);
+  const me = useQuery(api.users.me);
   const { membership } = useOrganization();
   const role = mapClerkOrgRole(membership?.role ?? null);
   const isStaffOnly = role === "staff";
 
-  const allStaff = useConvexCachedQuery(api.memberships.forOrg);
+  const allStaff = useQuery(api.memberships.forOrg);
   const [filterStaffId, setFilterStaffId] = useState<Id<"memberships"> | "all">(
     "all",
   );
@@ -50,7 +49,7 @@ export function CalendarPageBody() {
   const effectiveStaffId =
     isStaffOnly && me ? me.membership._id : filterStaffId === "all" ? null : filterStaffId;
 
-  const appointments = useConvexCachedQuery(api.appointments.listInRange, {
+  const appointments = useQuery(api.appointments.listInRange, {
     fromTime,
     toTime,
   });
@@ -59,13 +58,13 @@ export function CalendarPageBody() {
   // Two queries (one always skipped) because Convex requires the query
   // reference to be stable per useQuery call — we swap between staff-scoped
   // and org-wide based on the active filter.
-  const staffAvailability = useConvexCachedQuery(
+  const staffAvailability = useQuery(
     api.availability.forStaffSlotsInRange,
     effectiveStaffId
       ? { staffId: effectiveStaffId, fromDate, toDate }
       : "skip",
   );
-  const orgAvailability = useConvexCachedQuery(
+  const orgAvailability = useQuery(
     api.availability.forOrgSlotsInRange,
     effectiveStaffId ? "skip" : { fromDate, toDate },
   );

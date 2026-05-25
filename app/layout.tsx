@@ -4,7 +4,6 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Geist, Geist_Mono } from "next/font/google";
 import { RegisterServiceWorker } from "@/components/app/RegisterServiceWorker";
 import { ConvexClientProvider } from "@/components/providers/ConvexClientProvider";
-import { QueryProvider } from "@/components/providers/QueryProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -49,9 +48,7 @@ export default function RootLayout({
       >
         <body className="min-h-full flex flex-col">
           <ConvexClientProvider>
-            <QueryProvider>
-              <Suspense fallback={null}>{children}</Suspense>
-            </QueryProvider>
+            <Suspense fallback={null}>{children}</Suspense>
           </ConvexClientProvider>
           <RegisterServiceWorker />
         </body>

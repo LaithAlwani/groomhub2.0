@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { useConvexCachedQuery } from "@/lib/offline/useConvexCachedQuery";
+import { useQuery } from "convex/react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -25,7 +25,7 @@ export function CalendarBentoCards() {
     end.setDate(end.getDate() + 1);
     return { fromTime: start.getTime(), toTime: end.getTime() };
   }, []);
-  const today = useConvexCachedQuery(api.appointments.listInRange, {
+  const today = useQuery(api.appointments.listInRange, {
     fromTime,
     toTime,
   });

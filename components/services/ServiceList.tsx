@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
-import { useConvexCachedQuery } from "@/lib/offline/useConvexCachedQuery";
+import { useMutation, useQuery } from "convex/react";
 import { Pencil, Trash2 } from "lucide-react";
 import { useOrganization } from "@clerk/nextjs";
 import { api } from "@/convex/_generated/api";
@@ -12,7 +11,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ServiceFormDialog } from "./ServiceFormDialog";
 
 export function ServiceList() {
-  const services = useConvexCachedQuery(api.services.list, {});
+  const services = useQuery(api.services.list, {});
   const { membership } = useOrganization();
   const archive = useMutation(api.services.archive);
 
