@@ -24,7 +24,7 @@
 import { v } from "convex/values";
 import nodemailer, { type Transporter } from "nodemailer";
 import { internal } from "./_generated/api";
-import { internalAction } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import type {
   ClientEmailPayload,
   StaffEmailPayload,
@@ -233,7 +233,9 @@ async function sendRaw(params: {
 }): Promise<void> {
   const transporter = getTransporter();
   if (!transporter) {
-    console.warn("email: SMTP not configured; skipping send");
+    console.warn(
+      "email: SMTP not configured (missing SMTP_HOST/PORT/USER/PASS); skipping send",
+    );
     return;
   }
   const fromAddress =
@@ -242,17 +244,60 @@ async function sendRaw(params: {
   const displayName = params.fromDisplayName || fallbackName;
   const from = `"${displayName.replace(/"/g, "")}" <${fromAddress}>`;
   try {
-    await transporter.sendMail({
+    const result = await transporter.sendMail({
       from,
       to: params.to,
       replyTo: params.replyTo,
       subject: params.subject,
       html: params.html,
     });
+    // `result.response` is the raw "250 OK" line from the SMTP server when
+    // delivery is accepted; `messageId` is the RFC 822 Message-ID. Logging
+    // both lets you confirm in the Convex logs that the mail was actually
+    // handed off to the provider (not just that the action ran).
+    console.info(
+      `email: sent to=${params.to} subject="${params.subject}" id=${result.messageId} response=${result.response}`,
+    );
   } catch (caught) {
-    console.error("email: SMTP send failed", caught);
+    const message = caught instanceof Error ? caught.message : String(caught);
+    console.error(
+      `email: SMTP send FAILED to=${params.to} subject="${params.subject}" error=${message}`,
+    );
   }
 }
+
+/**
+ * One-shot diagnostic action. Run from the Convex dashboard (Functions →
+ * email → sendTest → Run) or the CLI:
+ *
+ *     npx convex run email:sendTest '{"to":"support@meepletron.com"}'
+ *
+ * Sends a tiny "GroomHub SMTP test" message through the same `sendRaw`
+ * pipeline the real emails use. The Convex log will tell you exactly which
+ * leg failed (missing env vars, SMTP auth, etc.) without needing to set up
+ * a full booking. Returns the recipient so the dashboard shows a result.
+ */
+export const sendTest = action({
+  args: { to: v.string() },
+  handler: async (_ctx, args) => {
+    const config = {
+      SMTP_HOST: process.env.SMTP_HOST ?? "(unset)",
+      SMTP_PORT: process.env.SMTP_PORT ?? "(unset)",
+      SMTP_USER: process.env.SMTP_USER ?? "(unset)",
+      SMTP_PASS: process.env.SMTP_PASS ? "(set)" : "(unset)",
+      EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS ?? "(unset)",
+      EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME ?? "(unset)",
+    };
+    console.info(`email: sendTest config ${JSON.stringify(config)}`);
+    await sendRaw({
+      to: args.to,
+      fromDisplayName: "GroomHub Test",
+      subject: "GroomHub SMTP test",
+      html: `<p>If you're reading this in <strong>${args.to}</strong>, the SMTP path is healthy.</p>`,
+    });
+    return { to: args.to, config };
+  },
+});
 
 type ClientTemplate = {
   subject: (payload: ClientEmailPayload) => string;
