@@ -65,12 +65,16 @@ export default function CreateShopPage() {
   if (autoJoining) return <SignInProgress message="Opening your shop…" />;
 
   return (
-    <section className="mx-auto w-full max-w-xl px-6 py-12">
-      <h1 className="text-2xl font-semibold tracking-tight">Set up your shop</h1>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        This becomes your booking workspace. You can invite staff and configure
-        services in a moment.
-      </p>
+    <section className="mx-auto w-full max-w-2xl px-6 py-10 md:py-14">
+      <header className="text-center">
+        <h1 className="text-3xl font-semibold tracking-tight text-[#00273c] sm:text-4xl dark:text-zinc-50">
+          Set up your shop
+        </h1>
+        <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+          This becomes your booking workspace. You can invite staff and
+          configure services in a moment.
+        </p>
+      </header>
 
       <ExistingShopList
         memberships={memberships}
@@ -78,17 +82,19 @@ export default function CreateShopPage() {
         onSwitch={handleSwitchToExisting}
       />
 
-      <NewShopForm
-        submitting={submitting}
-        onSubmitStart={() => {
-          setSubmitting(true);
-          setServerError(null);
-        }}
-        onSubmitError={(message) => {
-          setSubmitting(false);
-          setServerError(message);
-        }}
-      />
+      <div className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm md:p-10 dark:border-zinc-800 dark:bg-zinc-900">
+        <NewShopForm
+          submitting={submitting}
+          onSubmitStart={() => {
+            setSubmitting(true);
+            setServerError(null);
+          }}
+          onSubmitError={(message) => {
+            setSubmitting(false);
+            setServerError(message);
+          }}
+        />
+      </div>
 
       {serverError && (
         <div className="mt-4">
@@ -101,9 +107,10 @@ export default function CreateShopPage() {
 
 function WizardSkeleton() {
   return (
-    <section className="mx-auto w-full max-w-xl px-6 py-12">
-      <div className="h-7 w-48 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-      <div className="mt-3 h-4 w-72 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+    <section className="mx-auto w-full max-w-2xl px-6 py-12">
+      <div className="mx-auto h-9 w-64 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+      <div className="mx-auto mt-3 h-4 w-80 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+      <div className="mt-8 h-96 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-900" />
     </section>
   );
 }

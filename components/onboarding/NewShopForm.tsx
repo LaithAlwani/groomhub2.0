@@ -105,7 +105,7 @@ export function NewShopForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <ShopLogoUploader
         file={form.logoFile}
         onChange={form.setLogoFile}
@@ -119,61 +119,65 @@ export function NewShopForm({
         placeholder="Posh Paws Grooming"
       />
       <SlugInput slug={form.slug} error={fieldErrors.slug} onChange={form.setSlug} />
-      <Field
-        label="Shop email"
-        type="email"
-        inputMode="email"
-        value={form.shopEmail}
-        onChange={form.setShopEmail}
-        error={fieldErrors.shopEmail}
-        placeholder="hello@yourshop.com"
-      />
-      <p className="-mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-        Clients reply to this address when they get booking confirmations. We
-        prefilled it with your own email — change it to a shared shop inbox if
-        you have one.
-      </p>
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          Timezone
-        </span>
-        <select
-          value={form.timezone}
-          onChange={(event) => form.setTimezone(event.target.value)}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-100 dark:focus:ring-zinc-100"
-        >
-          {NORTH_AMERICA_TIMEZONES.map((zone) => (
-            <option key={zone.value} value={zone.value}>
-              {zone.label}
-            </option>
-          ))}
-        </select>
-        {fieldErrors.timezone && (
-          <span className="text-xs text-red-600 dark:text-red-400">
-            {fieldErrors.timezone}
+      <div className="flex flex-col gap-1.5">
+        <Field
+          label="Shop email"
+          type="email"
+          inputMode="email"
+          value={form.shopEmail}
+          onChange={form.setShopEmail}
+          error={fieldErrors.shopEmail}
+          placeholder="hello@yourshop.com"
+        />
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Clients reply to this address when they get booking confirmations. We
+          prefilled it with your own email — change it to a shared shop inbox
+          if you have one.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-[#00273c] dark:text-zinc-100">
+            Timezone
           </span>
-        )}
-      </label>
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          Currency
-        </span>
-        <select
-          value={form.currency}
-          onChange={(event) => form.setCurrency(event.target.value as Currency)}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-100 dark:focus:ring-zinc-100"
-        >
-          {SUPPORTED_CURRENCIES.map((code) => (
-            <option key={code} value={code}>
-              {code}
-            </option>
-          ))}
-        </select>
-      </label>
+          <select
+            value={form.timezone}
+            onChange={(event) => form.setTimezone(event.target.value)}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-orange-900"
+          >
+            {NORTH_AMERICA_TIMEZONES.map((zone) => (
+              <option key={zone.value} value={zone.value}>
+                {zone.label}
+              </option>
+            ))}
+          </select>
+          {fieldErrors.timezone && (
+            <span className="text-xs text-red-600 dark:text-red-400">
+              {fieldErrors.timezone}
+            </span>
+          )}
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-[#00273c] dark:text-zinc-100">
+            Currency
+          </span>
+          <select
+            value={form.currency}
+            onChange={(event) => form.setCurrency(event.target.value as Currency)}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-orange-900"
+          >
+            {SUPPORTED_CURRENCIES.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <button
         type="submit"
         disabled={submitting || !isLoaded}
-        className="mt-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+        className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-[#00273c] px-4 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#013a58] disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
       >
         {submitting ? "Creating shop…" : "Create shop"}
       </button>

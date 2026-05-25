@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Store, Trash2 } from "lucide-react";
+import { Store, Trash2, Upload } from "lucide-react";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB raw file cap before compression
 
@@ -10,6 +10,9 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10 MB raw file cap before compression
  * the user clicks "Create shop"; we only show a preview here. No Convex
  * upload happens at this stage — that defers to submit so closing the wizard
  * never leaves an orphan file in storage.
+ *
+ * Vertical centered layout: circular avatar at the top, orange CTA below,
+ * helper text at the bottom, divider underneath separating from the form.
  */
 export function ShopLogoUploader({
   file,
@@ -53,59 +56,54 @@ export function ShopLogoUploader({
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-col items-center gap-4 border-b border-zinc-200 pb-6 dark:border-zinc-800">
       <span
         aria-hidden
-        className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-zinc-200 bg-blue-50 text-blue-600 dark:border-zinc-800 dark:bg-blue-950/40 dark:text-blue-300"
+        className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-sky-200 bg-sky-50 text-[#00273c] dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-200"
       >
         {previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={previewUrl}
-            alt=""
-            className="h-16 w-16 object-cover"
-          />
+          <img src={previewUrl} alt="" className="h-20 w-20 object-cover" />
         ) : (
-          <Store size={22} />
+          <Store size={28} />
         )}
       </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handlePick}
-          className="hidden"
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handlePick}
+        className="hidden"
+        disabled={disabled}
+      />
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
           disabled={disabled}
-        />
-        <div className="flex flex-wrap items-center gap-2">
+          className="inline-flex items-center gap-2 rounded-lg bg-linear-to-b from-orange-500 to-orange-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow disabled:cursor-not-allowed disabled:bg-none disabled:bg-zinc-200 disabled:text-zinc-500 disabled:shadow-none dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+        >
+          <Upload size={14} />
+          {file ? "Replace logo" : "Upload logo"}
+        </button>
+        {file && !disabled && (
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+            onClick={() => onChange(null)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 hover:text-red-600 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-red-400"
           >
-            <Camera size={14} />
-            {file ? "Replace logo" : "Upload logo"}
+            <Trash2 size={14} />
+            Remove
           </button>
-          {file && !disabled && (
-            <button
-              type="button"
-              onClick={() => onChange(null)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 hover:text-red-600 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:hover:text-red-400"
-            >
-              <Trash2 size={14} />
-              Remove
-            </button>
-          )}
-        </div>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Optional. We&apos;ll compress it and save when you click Create shop.
-        </p>
-        {error && (
-          <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
         )}
       </div>
+      <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+        Optional. We&apos;ll compress it and save when you click Create shop.
+      </p>
+      {error && (
+        <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+      )}
     </div>
   );
 }
