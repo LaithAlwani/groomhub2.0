@@ -47,6 +47,10 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
           { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          // Lets the SW (served at the root) claim scope over the entire
+          // origin. Without this Chrome restricts the scope to the SW's
+          // own directory.
+          { key: "Service-Worker-Allowed", value: "/" },
         ],
       },
     ];
