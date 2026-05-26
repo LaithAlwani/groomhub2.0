@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Field } from "@/components/forms/Field";
+import { ShopLogoEditor } from "@/components/settings/ShopLogoEditor";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { digitsOnly, formatPhone } from "@/lib/phone";
 
@@ -80,6 +81,7 @@ export function ShopSettingsBody() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <ShopLogoEditor logoUrl={org.logoUrl ?? null} />
       <ReadOnlyField label="Shop name" value={org.name} hint="Change this from the Manage organization menu in the top bar." />
       <Field
         label="Contact email (optional)"

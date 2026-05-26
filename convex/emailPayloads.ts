@@ -16,9 +16,16 @@ export type ClientEmailPayload = {
   clientEmail: string | null;
   clientFirstName: string;
   petName: string;
+  // Breed surfaces in the Booking Details card next to the pet name, e.g.
+  // "Cooper (Golden Retriever)". Undefined when the pet record has no
+  // breed recorded.
+  petBreed?: string;
   serviceName: string;
   staffName: string;
   shopName: string;
+  // Signed Convex storage URL for the shop logo. `null` when the shop
+  // hasn't uploaded a logo — the email template falls back to a paw glyph.
+  logoUrl: string | null;
   locationName: string;
   // Single line "123 Main St · City, State 12345" — undefined when no address.
   locationAddressLine?: string;
@@ -41,6 +48,7 @@ export type StaffEmailPayload = {
   petName: string;
   serviceName: string;
   shopName: string;
+  logoUrl: string | null;
   locationName: string;
   dateLabel: string;
   timeLabel: string;
@@ -78,13 +86,18 @@ export const loadClientEmailPayload = internalQuery({
     // schema currently only exposes phone on the location.
     const contactEmail = location.contactEmail ?? org.contactEmail ?? null;
     const contactPhone = location.phone ?? org.contactPhone ?? null;
+    const logoUrl = org.logoStorageId
+      ? await ctx.storage.getUrl(org.logoStorageId)
+      : null;
     return {
       clientEmail: client.email ?? null,
       clientFirstName: client.fullName.split(" ")[0] || "there",
       petName: pet.name,
+      petBreed: pet.breed?.trim() || undefined,
       serviceName: service.name,
       staffName,
       shopName: org.name,
+      logoUrl,
       locationName: location.name,
       locationAddressLine: formatAddressLine(location),
       contactEmail,
@@ -126,6 +139,9 @@ export const loadStaffEmailPayload = internalQuery({
     if (!client || !pet || !service || !staff || !org || !location) return null;
     const staffUser = await ctx.db.get(staff.userId);
     if (!staffUser) return null;
+    const logoUrl = org.logoStorageId
+      ? await ctx.storage.getUrl(org.logoStorageId)
+      : null;
     return {
       staffEmail: staffUser.email || null,
       staffFirstName: staffUser.firstName || staffUser.email || "there",
@@ -133,6 +149,7 @@ export const loadStaffEmailPayload = internalQuery({
       petName: pet.name,
       serviceName: service.name,
       shopName: org.name,
+      logoUrl,
       locationName: location.name,
       dateLabel: formatDateInTz(appointment.startTime, location.timezone),
       timeLabel: formatTimeInTz(appointment.startTime, location.timezone),
@@ -182,12 +199,16 @@ export const loadAdminEmails = internalQuery({
       const adminUser = await ctx.db.get(membership.userId);
       if (adminUser?.email) adminEmails.push(adminUser.email);
     }
+    const logoUrl = org.logoStorageId
+      ? await ctx.storage.getUrl(org.logoStorageId)
+      : null;
     return {
       adminEmails,
       declinedByName,
       clientName: client.fullName,
       petName: pet.name,
       shopName: org.name,
+      logoUrl,
       locationName: location.name,
       dateLabel: formatDateInTz(appointment.startTime, location.timezone),
       timeLabel: formatTimeInTz(appointment.startTime, location.timezone),

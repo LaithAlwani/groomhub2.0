@@ -243,6 +243,29 @@ export const getCurrent = query({
 });
 
 /**
+ * Atomically swap the shop's logo. Admin / superAdmin only. Pass a fresh
+ * `storageId` (obtained by uploading to `generateLogoUploadUrl`) to set the
+ * new logo, or `null` to clear the logo entirely. Either way the previous
+ * file (if any) is deleted in the same call so we don't orphan storage.
+ */
+export const setLogo = mutation({
+  args: { storageId: v.union(v.id("_storage"), v.null()) },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const org = await ctx.db
+      .query("organizations")
+      .withIndex("by_clerkOrgId", (index) => index.eq("clerkOrgId", orgId))
+      .unique();
+    if (!org) appError("NOT_FOUND", { reason: "ORG_NOT_FOUND" });
+    const nextStorageId = args.storageId ?? undefined;
+    if (org.logoStorageId && org.logoStorageId !== nextStorageId) {
+      await ctx.storage.delete(org.logoStorageId);
+    }
+    await ctx.db.patch(org._id, { logoStorageId: nextStorageId });
+  },
+});
+
+/**
  * Update the shop's customer-facing contact info. Admin / superAdmin only.
  * Values are written as digits-only (phone) or trimmed (email); blank strings
  * clear the field so the email footer / Reply-To header omit it.
