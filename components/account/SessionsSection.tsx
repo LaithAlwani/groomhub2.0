@@ -89,7 +89,7 @@ export function SessionsSection() {
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            Active sessions
+            Active Sessions
           </h2>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             Every device you&apos;re signed in on. Revoke any you don&apos;t

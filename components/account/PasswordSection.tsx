@@ -97,7 +97,7 @@ export function PasswordSection() {
     <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
       <header className="mb-6">
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          {hasExistingPassword ? "Change password" : "Set a password"}
+          Security
         </h2>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
           {hasExistingPassword
@@ -148,11 +148,11 @@ export function PasswordSection() {
             {savedMessage}
           </p>
         )}
-        <div>
+        <div className="flex justify-end">
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+            className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
           >
             {saving ? "Updating…" : hasExistingPassword ? "Update password" : "Set password"}
           </button>

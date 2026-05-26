@@ -67,7 +67,7 @@ export function DangerZoneSection() {
         </span>
         <div>
           <h2 className="text-base font-semibold text-red-900 dark:text-red-100">
-            Danger zone
+            Danger Zone
           </h2>
           <p className="mt-1 text-sm text-red-800/80 dark:text-red-200/70">
             Permanently delete your GroomHub account. This signs you out of

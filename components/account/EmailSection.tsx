@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { Mail, Plus, Trash2, X } from "lucide-react";
+import { CheckCircle2, HelpCircle, Plus, Trash2, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AddEmailForm } from "./AddEmailForm";
 
@@ -26,8 +26,15 @@ export function EmailSection() {
 
   if (!isLoaded || !user) return null;
 
-  const emails = user.emailAddresses ?? [];
   const primaryId = user.primaryEmailAddressId;
+  // Pin the primary row to the top regardless of creation order; everything
+  // else keeps Clerk's existing order (stable sort) so the list doesn't
+  // shuffle every time a user re-renders.
+  const emails = [...(user.emailAddresses ?? [])].sort((a, b) => {
+    if (a.id === primaryId) return -1;
+    if (b.id === primaryId) return 1;
+    return 0;
+  });
   const canRemoveAny = emails.length > 1;
 
   async function handleRemove() {
@@ -66,25 +73,19 @@ export function EmailSection() {
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
-      <header className="mb-6 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            Email addresses
-          </h2>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Your primary address is where notifications go and how you sign in.
-          </p>
-        </div>
-        {!adding && (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
-          >
-            <Plus size={12} />
-            Add email
-          </button>
-        )}
+      <header className="mb-4 flex items-center gap-1.5">
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          Emails
+        </h2>
+        <span
+          tabIndex={0}
+          role="img"
+          aria-label="Your primary address is where notifications go and how you sign in."
+          title="Your primary address is where notifications go and how you sign in."
+          className="inline-flex h-4 w-4 cursor-help items-center justify-center text-zinc-400 transition-colors hover:text-zinc-600 focus:outline-none focus:text-zinc-600"
+        >
+          <HelpCircle size={14} aria-hidden />
+        </span>
       </header>
 
       {adding && (
@@ -118,23 +119,33 @@ export function EmailSection() {
           return (
             <li
               key={email.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800"
+              className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2.5 dark:border-zinc-800"
             >
               <div className="flex min-w-0 items-center gap-2">
-                <Mail size={16} className="text-zinc-400" />
-                <span className="truncate text-sm text-zinc-900 dark:text-zinc-100">
-                  {email.emailAddress}
-                </span>
-                {isPrimary && (
-                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                    Primary
+                <CheckCircle2
+                  size={16}
+                  className={
+                    isVerified
+                      ? "shrink-0 text-emerald-500"
+                      : "shrink-0 text-zinc-300"
+                  }
+                  aria-hidden
+                />
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm text-zinc-900 dark:text-zinc-100">
+                    {email.emailAddress}
                   </span>
-                )}
-                {!isVerified && (
-                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                    Unverified
-                  </span>
-                )}
+                  {isPrimary && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                      Primary
+                    </span>
+                  )}
+                  {!isVerified && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                      Unverified
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {!isPrimary && isVerified && (
@@ -163,6 +174,18 @@ export function EmailSection() {
             </li>
           );
         })}
+        {!adding && (
+          <li>
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-zinc-300 px-3 py-2.5 text-xs font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-900"
+            >
+              <Plus size={12} />
+              Add alternative email
+            </button>
+          </li>
+        )}
       </ul>
 
       {serverError && (
