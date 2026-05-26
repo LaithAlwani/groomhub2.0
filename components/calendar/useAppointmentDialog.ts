@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { mapClerkOrgRole } from "@/convex/lib/roles";
 import { formatAppointmentError } from "@/lib/appointmentErrors";
+import { useCurrentLocation } from "@/lib/useCurrentLocation";
 import {
   combineLocalIso,
   isoDateFromDate,
@@ -47,6 +48,7 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
   const { membership: clerkMembership } = useOrganization();
   const role = mapClerkOrgRole(clerkMembership?.role ?? null);
   const lockedStaff = role === "staff";
+  const { current: currentLocation } = useCurrentLocation();
 
   const create = useMutation(api.appointments.create);
   const reschedule = useMutation(api.appointments.reschedule);
@@ -149,8 +151,15 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
           });
         }
       } else {
+        if (!currentLocation) {
+          setServerError(
+            "Pick a location before booking — your shop has no active location yet.",
+          );
+          return;
+        }
         await create({
           clientUuid: crypto.randomUUID(),
+          locationId: currentLocation._id,
           clientId: state.clientId!,
           petId: state.petId!,
           serviceId: state.serviceId!,

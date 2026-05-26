@@ -115,7 +115,9 @@ export const hardDeleteOrg = internalMutation({
 
     const overrides = await ctx.db
       .query("staffDayOverride")
-      .withIndex("by_org_staff_date", (index) => index.eq("orgId", orgId))
+      .withIndex("by_org_location_staff_date", (index) =>
+        index.eq("orgId", orgId),
+      )
       .collect();
     for (const row of overrides) await ctx.db.delete(row._id);
 
@@ -124,6 +126,14 @@ export const hardDeleteOrg = internalMutation({
       .withIndex("by_org_staff", (index) => index.eq("orgId", orgId))
       .collect();
     for (const row of weekly) await ctx.db.delete(row._id);
+
+    // Per-location service overrides reference the org's services + locations;
+    // wipe before the parent rows go away.
+    const serviceOverrides = await ctx.db
+      .query("serviceLocationOverrides")
+      .withIndex("by_org_location", (index) => index.eq("orgId", orgId))
+      .collect();
+    for (const row of serviceOverrides) await ctx.db.delete(row._id);
 
     const pets = await ctx.db
       .query("pets")
@@ -148,11 +158,28 @@ export const hardDeleteOrg = internalMutation({
       .collect();
     for (const row of services) await ctx.db.delete(row._id);
 
+    // Pending invite intents tied to this org never reach a webhook now —
+    // wipe them so the next time the email re-onboards as their own org
+    // they're not silently joined to a location that no longer exists.
+    const intents = await ctx.db
+      .query("staffInviteIntents")
+      .withIndex("by_org_email", (index) => index.eq("orgId", orgId))
+      .collect();
+    for (const row of intents) await ctx.db.delete(row._id);
+
     const memberships = await ctx.db
       .query("memberships")
       .withIndex("by_org_active", (index) => index.eq("orgId", orgId))
       .collect();
     for (const row of memberships) await ctx.db.delete(row._id);
+
+    // Locations go last among tenant tables — every row that references a
+    // location id was already deleted in earlier passes.
+    const locations = await ctx.db
+      .query("locations")
+      .withIndex("by_org", (index) => index.eq("orgId", orgId))
+      .collect();
+    for (const row of locations) await ctx.db.delete(row._id);
 
     if (org.logoStorageId) {
       await ctx.storage.delete(org.logoStorageId);

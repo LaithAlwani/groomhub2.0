@@ -1,10 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { TimeSelect } from "@/components/forms/TimeSelect";
 import { todayIsoDate } from "@/lib/time";
+import { useCurrentLocation } from "@/lib/useCurrentLocation";
 
 // `pendingApproval` is intentionally omitted: that status is only set when
 // admin books for another groomer, and transitions out via the Confirm /
@@ -53,7 +55,23 @@ export function SchedulingFields({
   onChangeStatus: (value: AppointmentStatus) => void;
   onChangeNotes: (value: string) => void;
 }) {
-  const staff = useQuery(api.memberships.forOrg);
+  const allStaff = useQuery(api.memberships.forOrg);
+  const { current: currentLocation } = useCurrentLocation();
+  // Hide staff whose `locationIds` doesn't include the active location. `[]`
+  // means "all locations" so those rows pass through. When the locked-staff
+  // path is in play (a staff user opening their own dialog), keep them in
+  // the list even if they happen to be scoped elsewhere — otherwise the
+  // form goes blank.
+  const staff = useMemo(() => {
+    if (!allStaff) return allStaff;
+    if (!currentLocation) return allStaff;
+    return allStaff.filter((row) => {
+      if (row.membership.locationIds.length === 0) return true;
+      if (row.membership.locationIds.includes(currentLocation._id)) return true;
+      if (lockedStaff && row.membership._id === staffId) return true;
+      return false;
+    });
+  }, [allStaff, currentLocation, lockedStaff, staffId]);
   const lockedStaffName =
     lockedStaff && staff
       ? staff.find((row) => row.membership._id === staffId)

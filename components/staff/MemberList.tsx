@@ -5,6 +5,8 @@ import { useOrganization, useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useCurrentLocation } from "@/lib/useCurrentLocation";
+import { MemberLocationsEditor } from "./MemberLocationsEditor";
 
 const ROLE_LABEL: Record<string, string> = {
   superAdmin: "Owner",
@@ -16,6 +18,8 @@ export function MemberList() {
   const members = useQuery(api.memberships.forOrg);
   const { organization } = useOrganization();
   const { user: currentClerkUser } = useUser();
+  const { locations, current: currentLocation } = useCurrentLocation();
+  const isMultiLocation = locations.length > 1;
 
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
@@ -31,6 +35,19 @@ export function MemberList() {
       </p>
     );
   }
+
+  // Filter by the sidebar's active location: members with `locationIds: []`
+  // (admins, owners, multi-location staff) always show, plus anyone whose
+  // assignment includes the current location. Single-location orgs skip the
+  // filter entirely.
+  const filteredMembers =
+    isMultiLocation && currentLocation
+      ? members.filter(
+          (row) =>
+            row.membership.locationIds.length === 0 ||
+            row.membership.locationIds.includes(currentLocation._id),
+        )
+      : members;
 
   async function confirmRemove() {
     if (!organization || !confirmTarget) return;
@@ -52,8 +69,19 @@ export function MemberList() {
 
   return (
     <div className="flex flex-col gap-2">
+      {isMultiLocation && currentLocation && (
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Showing members at <strong>{currentLocation.name}</strong>. Switch
+          locations in the sidebar to see other rosters.
+        </p>
+      )}
+      {filteredMembers.length === 0 && (
+        <p className="rounded-lg border border-zinc-200 px-4 py-6 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+          No members at this location yet.
+        </p>
+      )}
       <ul className="flex flex-col gap-2">
-        {members.map((row) => {
+        {filteredMembers.map((row) => {
           const member = row.user;
           const link = row.membership;
           const displayName = nameOrEmail(member);
@@ -81,6 +109,12 @@ export function MemberList() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {isMultiLocation && (
+                  <MemberLocationsEditor
+                    membership={link}
+                    locations={locations}
+                  />
+                )}
                 <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                   {roleLabel}
                 </span>

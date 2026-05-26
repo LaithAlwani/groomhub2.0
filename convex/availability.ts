@@ -29,34 +29,42 @@ const slotValidator = v.object({
 const overrideKindValidator = v.union(v.literal("off"), v.literal("custom"));
 
 /**
- * Returns the caller's weekly schedule (all weekdays) in their active org.
- * Sorted by `(weekday, startMin)` for stable rendering.
+ * Returns the caller's weekly schedule at a specific location (all weekdays).
+ * Sorted by `(weekday, startMin)` for stable rendering. UI passes the active
+ * location id from the sidebar switcher.
  */
 export const myWeekly = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { locationId: v.id("locations") },
+  handler: async (ctx, args) => {
     const identity = await softAuth(ctx);
     if (!identity) return [];
+    await assertLocationInOrg(ctx, args.locationId, identity.orgId);
     const { membership } = await readMembershipForQuery(ctx, identity);
     if (!membership) return [];
-    return await readWeekly(ctx, identity.orgId, membership._id);
+    return await readWeekly(ctx, identity.orgId, args.locationId, membership._id);
   },
 });
 
 /**
- * Returns the caller's overrides between `fromDate` and `toDate` (inclusive),
- * keyed by date string.
+ * Returns the caller's overrides at a location between `fromDate` and `toDate`
+ * (inclusive), keyed by date string.
  */
 export const myOverridesInRange = query({
-  args: { fromDate: v.string(), toDate: v.string() },
+  args: {
+    locationId: v.id("locations"),
+    fromDate: v.string(),
+    toDate: v.string(),
+  },
   handler: async (ctx, args) => {
     const identity = await softAuth(ctx);
     if (!identity) return [];
+    await assertLocationInOrg(ctx, args.locationId, identity.orgId);
     const { membership } = await readMembershipForQuery(ctx, identity);
     if (!membership) return [];
     return await readOverridesInRange(
       ctx,
       identity.orgId,
+      args.locationId,
       membership._id,
       args.fromDate,
       args.toDate,
@@ -65,21 +73,31 @@ export const myOverridesInRange = query({
 });
 
 /**
- * Replaces the caller's weekly schedule with the supplied ranges. Transactional
- * (delete-all + insert) so the editor saves the full grid in one shot.
+ * Replaces the caller's weekly schedule at a location with the supplied ranges.
+ * Transactional (delete-all + insert) so the editor saves the full grid in one shot.
  */
 export const upsertMyWeekly = mutation({
-  args: { ranges: v.array(rangeValidator) },
+  args: {
+    locationId: v.id("locations"),
+    ranges: v.array(rangeValidator),
+  },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
+    await assertLocationInOrg(ctx, args.locationId, identity.orgId);
     const { membership } = await ensureMembership(ctx, identity);
     validateRanges(args.ranges);
-    await replaceWeeklyForStaff(ctx, identity.orgId, membership._id, args.ranges);
+    await replaceWeeklyForStaff(
+      ctx,
+      identity.orgId,
+      args.locationId,
+      membership._id,
+      args.ranges,
+    );
   },
 });
 
 /**
- * Set or clear the caller's override for a single date.
+ * Set or clear the caller's override for a single date at a location.
  *  - `kind: "off"` — day is unavailable.
  *  - `kind: "custom"` — `slots` replaces the weekly pattern for that date.
  *  - omit body (this path passes a `kind` but the caller can also pass
@@ -87,17 +105,20 @@ export const upsertMyWeekly = mutation({
  */
 export const upsertMyOverride = mutation({
   args: {
+    locationId: v.id("locations"),
     date: v.string(),
     kind: overrideKindValidator,
     slots: v.optional(v.array(slotValidator)),
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
+    await assertLocationInOrg(ctx, args.locationId, identity.orgId);
     const { membership } = await ensureMembership(ctx, identity);
     validateOverride(args);
     await upsertOverrideForStaff(
       ctx,
       identity.orgId,
+      args.locationId,
       membership._id,
       args.date,
       args.kind,
@@ -107,12 +128,14 @@ export const upsertMyOverride = mutation({
 });
 
 /**
- * Removes the caller's override row for a date (= revert to the weekly pattern).
+ * Removes the caller's override row for a date at a location (= revert to the
+ * weekly pattern).
  */
 export const clearMyOverride = mutation({
-  args: { date: v.string() },
+  args: { locationId: v.id("locations"), date: v.string() },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
+    await assertLocationInOrg(ctx, args.locationId, identity.orgId);
     const { membership } = await ensureMembership(ctx, identity);
     if (!DATE_PATTERN.test(args.date)) {
       appError("VALIDATION", { field: "date", reason: "INVALID" });
@@ -120,6 +143,7 @@ export const clearMyOverride = mutation({
     const existing = await readOverrideRow(
       ctx,
       identity.orgId,
+      args.locationId,
       membership._id,
       args.date,
     );
@@ -128,23 +152,30 @@ export const clearMyOverride = mutation({
 });
 
 /**
- * Admin / superAdmin: read another staff member's weekly schedule. Staff can
- * still call this for their own `staffId` — the auth check enforces it.
+ * Admin / superAdmin: read another staff member's weekly schedule at a
+ * location. Staff can still call this for their own `staffId` — the auth check
+ * enforces it.
  */
 export const forStaffWeekly = query({
-  args: { staffId: v.id("memberships") },
+  args: {
+    locationId: v.id("locations"),
+    staffId: v.id("memberships"),
+  },
   handler: async (ctx, args) => {
     const orgId = await requireOwnOrAdmin(ctx, args.staffId);
     if (!orgId) return [];
-    return await readWeekly(ctx, orgId, args.staffId);
+    await assertLocationInOrg(ctx, args.locationId, orgId);
+    return await readWeekly(ctx, orgId, args.locationId, args.staffId);
   },
 });
 
 /**
- * Admin / superAdmin: read another staff member's overrides in a range.
+ * Admin / superAdmin: read another staff member's overrides at a location in a
+ * range.
  */
 export const forStaffOverridesInRange = query({
   args: {
+    locationId: v.id("locations"),
     staffId: v.id("memberships"),
     fromDate: v.string(),
     toDate: v.string(),
@@ -152,9 +183,11 @@ export const forStaffOverridesInRange = query({
   handler: async (ctx, args) => {
     const orgId = await requireOwnOrAdmin(ctx, args.staffId);
     if (!orgId) return [];
+    await assertLocationInOrg(ctx, args.locationId, orgId);
     return await readOverridesInRange(
       ctx,
       orgId,
+      args.locationId,
       args.staffId,
       args.fromDate,
       args.toDate,
@@ -163,13 +196,14 @@ export const forStaffOverridesInRange = query({
 });
 
 /**
- * Resolves concrete available slots for a staff member across a date range.
- * For each date in `[fromDate, toDate]` it picks override.slots if `kind="custom"`,
- * an empty array if `kind="off"`, or the weekly ranges otherwise. Used by the
- * booking calendar in Phase 5.
+ * Resolves concrete available slots for a staff member at a location across a
+ * date range. For each date in `[fromDate, toDate]` it picks override.slots if
+ * `kind="custom"`, an empty array if `kind="off"`, or the weekly ranges
+ * otherwise. Used by the booking calendar.
  */
 export const forStaffSlotsInRange = query({
   args: {
+    locationId: v.id("locations"),
     staffId: v.id("memberships"),
     fromDate: v.string(),
     toDate: v.string(),
@@ -177,13 +211,15 @@ export const forStaffSlotsInRange = query({
   handler: async (ctx, args) => {
     const orgId = await requireOwnOrAdmin(ctx, args.staffId);
     if (!orgId) return {};
+    await assertLocationInOrg(ctx, args.locationId, orgId);
     if (!DATE_PATTERN.test(args.fromDate) || !DATE_PATTERN.test(args.toDate)) {
       appError("VALIDATION", { reason: "INVALID_DATE_RANGE" });
     }
-    const weekly = await readWeekly(ctx, orgId, args.staffId);
+    const weekly = await readWeekly(ctx, orgId, args.locationId, args.staffId);
     const overrides = await readOverridesInRange(
       ctx,
       orgId,
+      args.locationId,
       args.staffId,
       args.fromDate,
       args.toDate,
@@ -221,10 +257,15 @@ export const forStaffSlotsInRange = query({
  * sees the final unioned hours, not raw per-staff entries.
  */
 export const forOrgSlotsInRange = query({
-  args: { fromDate: v.string(), toDate: v.string() },
+  args: {
+    locationId: v.id("locations"),
+    fromDate: v.string(),
+    toDate: v.string(),
+  },
   handler: async (ctx, args) => {
     const identity = await softAuth(ctx);
     if (!identity) return {};
+    await assertLocationInOrg(ctx, args.locationId, identity.orgId);
     if (!DATE_PATTERN.test(args.fromDate) || !DATE_PATTERN.test(args.toDate)) {
       appError("VALIDATION", { reason: "INVALID_DATE_RANGE" });
     }
@@ -240,10 +281,16 @@ export const forOrgSlotsInRange = query({
       result[date] = [];
     }
     for (const membership of memberships) {
-      const weekly = await readWeekly(ctx, identity.orgId, membership._id);
+      const weekly = await readWeekly(
+        ctx,
+        identity.orgId,
+        args.locationId,
+        membership._id,
+      );
       const overrides = await readOverridesInRange(
         ctx,
         identity.orgId,
+        args.locationId,
         membership._id,
         args.fromDate,
         args.toDate,
@@ -301,12 +348,16 @@ function mergeSlots(
 async function readWeekly(
   ctx: QueryCtx,
   orgId: string,
+  locationId: Id<"locations">,
   staffId: Id<"memberships">,
 ): Promise<Doc<"staffWeeklySchedule">[]> {
   const rows = await ctx.db
     .query("staffWeeklySchedule")
-    .withIndex("by_org_staff", (index) =>
-      index.eq("orgId", orgId).eq("staffId", staffId),
+    .withIndex("by_org_location_staff", (index) =>
+      index
+        .eq("orgId", orgId)
+        .eq("locationId", locationId)
+        .eq("staffId", staffId),
     )
     .collect();
   return rows.sort(
@@ -317,6 +368,7 @@ async function readWeekly(
 async function readOverridesInRange(
   ctx: QueryCtx,
   orgId: string,
+  locationId: Id<"locations">,
   staffId: Id<"memberships">,
   fromDate: string,
   toDate: string,
@@ -324,9 +376,10 @@ async function readOverridesInRange(
   if (!DATE_PATTERN.test(fromDate) || !DATE_PATTERN.test(toDate)) return [];
   const rows = await ctx.db
     .query("staffDayOverride")
-    .withIndex("by_org_staff_date", (index) =>
+    .withIndex("by_org_location_staff_date", (index) =>
       index
         .eq("orgId", orgId)
+        .eq("locationId", locationId)
         .eq("staffId", staffId)
         .gte("date", fromDate)
         .lte("date", toDate),
@@ -338,13 +391,18 @@ async function readOverridesInRange(
 async function readOverrideRow(
   ctx: QueryCtx,
   orgId: string,
+  locationId: Id<"locations">,
   staffId: Id<"memberships">,
   date: string,
 ): Promise<Doc<"staffDayOverride"> | null> {
   return await ctx.db
     .query("staffDayOverride")
-    .withIndex("by_org_staff_date", (index) =>
-      index.eq("orgId", orgId).eq("staffId", staffId).eq("date", date),
+    .withIndex("by_org_location_staff_date", (index) =>
+      index
+        .eq("orgId", orgId)
+        .eq("locationId", locationId)
+        .eq("staffId", staffId)
+        .eq("date", date),
     )
     .unique();
 }
@@ -352,19 +410,24 @@ async function readOverrideRow(
 async function replaceWeeklyForStaff(
   ctx: MutationCtx,
   orgId: string,
+  locationId: Id<"locations">,
   staffId: Id<"memberships">,
   ranges: ReadonlyArray<{ weekday: number; startMin: number; endMin: number }>,
 ): Promise<void> {
   const existing = await ctx.db
     .query("staffWeeklySchedule")
-    .withIndex("by_org_staff", (index) =>
-      index.eq("orgId", orgId).eq("staffId", staffId),
+    .withIndex("by_org_location_staff", (index) =>
+      index
+        .eq("orgId", orgId)
+        .eq("locationId", locationId)
+        .eq("staffId", staffId),
     )
     .collect();
   for (const row of existing) await ctx.db.delete(row._id);
   for (const range of ranges) {
     await ctx.db.insert("staffWeeklySchedule", {
       orgId,
+      locationId,
       staffId,
       weekday: range.weekday,
       startMin: range.startMin,
@@ -376,6 +439,7 @@ async function replaceWeeklyForStaff(
 async function upsertOverrideForStaff(
   ctx: MutationCtx,
   orgId: string,
+  locationId: Id<"locations">,
   staffId: Id<"memberships">,
   date: string,
   kind: "off" | "custom",
@@ -388,18 +452,39 @@ async function upsertOverrideForStaff(
           endMin: slot.endMin,
         }))
       : undefined;
-  const existing = await readOverrideRow(ctx, orgId, staffId, date);
+  const existing = await readOverrideRow(ctx, orgId, locationId, staffId, date);
   if (existing) {
     await ctx.db.patch(existing._id, { kind, slots: normalisedSlots });
     return;
   }
   await ctx.db.insert("staffDayOverride", {
     orgId,
+    locationId,
     staffId,
     date,
     kind,
     slots: normalisedSlots,
   });
+}
+
+/**
+ * Asserts a location id refers to an active (non-deleted) row in the given org.
+ * Refuses cross-org reads cleanly with FORBIDDEN. Used at the entry of every
+ * availability query/mutation that accepts a `locationId` arg.
+ */
+async function assertLocationInOrg(
+  ctx: QueryCtx,
+  locationId: Id<"locations">,
+  orgId: string,
+): Promise<void> {
+  const location = await ctx.db.get(locationId);
+  if (!location) appError("NOT_FOUND", { reason: "LOCATION_NOT_FOUND" });
+  if (location.orgId !== orgId) {
+    appError("FORBIDDEN", { reason: "LOCATION_WRONG_ORG" });
+  }
+  if (location.deletedAt !== undefined || !location.isActive) {
+    appError("NOT_FOUND", { reason: "LOCATION_INACTIVE" });
+  }
 }
 
 /**

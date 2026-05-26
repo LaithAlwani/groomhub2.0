@@ -145,13 +145,18 @@ export const seedFromClerk = mutation({
         logoStorageId: args.logoStorageId ?? existing.logoStorageId,
         contactEmail: args.contactEmail?.trim() || existing.contactEmail,
       });
+      await ensureFirstLocation(ctx, {
+        orgId: args.clerkOrgId,
+        timezone: args.timezone,
+        currency: args.currency,
+      });
       return existing._id;
     }
 
     // Org row doesn't exist yet — the Clerk webhook hasn't reached us.
     // The caller is authenticated and just created this org in Clerk; trust
     // the call. The webhook will eventually arrive and reconcile name/slug.
-    return await ctx.db.insert("organizations", {
+    const newOrgId = await ctx.db.insert("organizations", {
       clerkOrgId: args.clerkOrgId,
       name: args.name,
       slug: lowerSlug,
@@ -162,8 +167,41 @@ export const seedFromClerk = mutation({
       contactEmail: args.contactEmail?.trim() || undefined,
       createdAt: Date.now(),
     });
+    await ensureFirstLocation(ctx, {
+      orgId: args.clerkOrgId,
+      timezone: args.timezone,
+      currency: args.currency,
+    });
+    return newOrgId;
   },
 });
+
+/**
+ * Idempotently ensures the org has at least one active location named "Main"
+ * with the org's timezone + currency. Re-runnable safely: a no-op if the org
+ * already has an active location row. Called from `seedFromClerk` so every
+ * org has somewhere for appointments / availability to attach to from day one.
+ */
+async function ensureFirstLocation(
+  ctx: import("./_generated/server").MutationCtx,
+  args: { orgId: string; timezone: string; currency: string },
+): Promise<void> {
+  const existingActive = await ctx.db
+    .query("locations")
+    .withIndex("by_org_active", (index) =>
+      index.eq("orgId", args.orgId).eq("isActive", true),
+    )
+    .take(1);
+  if (existingActive.length > 0) return;
+  await ctx.db.insert("locations", {
+    orgId: args.orgId,
+    name: "Main",
+    slug: "main",
+    timezone: args.timezone,
+    currency: args.currency,
+    isActive: true,
+  });
+}
 
 /**
  * Generates a one-shot Convex Storage upload URL for the shop logo during

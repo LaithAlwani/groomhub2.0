@@ -13,14 +13,28 @@ import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
 import { CalendarBentoCards } from "@/components/calendar/CalendarBentoCards";
 import { CalendarHeader } from "@/components/calendar/CalendarHeader";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { useCurrentLocation } from "@/lib/useCurrentLocation";
 
 export function CalendarPageBody() {
   const me = useQuery(api.users.me);
   const { membership } = useOrganization();
   const role = mapClerkOrgRole(membership?.role ?? null);
   const isStaffOnly = role === "staff";
+  const { current: currentLocation } = useCurrentLocation();
+  const locationId = currentLocation?._id ?? null;
 
-  const allStaff = useQuery(api.memberships.forOrg);
+  const allOrgStaff = useQuery(api.memberships.forOrg);
+  // Filter staff dropdown by active location — `locationIds: []` rows
+  // (admins, owners, single-location staff) always pass through.
+  const allStaff = useMemo(() => {
+    if (!allOrgStaff) return allOrgStaff;
+    if (!locationId) return allOrgStaff;
+    return allOrgStaff.filter(
+      (row) =>
+        row.membership.locationIds.length === 0 ||
+        row.membership.locationIds.includes(locationId),
+    );
+  }, [allOrgStaff, locationId]);
   const [filterStaffId, setFilterStaffId] = useState<Id<"memberships"> | "all">(
     "all",
   );
@@ -49,24 +63,30 @@ export function CalendarPageBody() {
   const effectiveStaffId =
     isStaffOnly && me ? me.membership._id : filterStaffId === "all" ? null : filterStaffId;
 
-  const appointments = useQuery(api.appointments.listInRange, {
-    fromTime,
-    toTime,
-  });
+  const appointments = useQuery(
+    api.appointments.listInRange,
+    locationId
+      ? { fromTime, toTime, locationId }
+      : { fromTime, toTime },
+  );
   const fromDate = useMemo(() => isoDate(new Date(fromTime)), [fromTime]);
   const toDate = useMemo(() => isoDate(new Date(toTime - 1)), [toTime]);
   // Two queries (one always skipped) because Convex requires the query
   // reference to be stable per useQuery call — we swap between staff-scoped
-  // and org-wide based on the active filter.
+  // and org-wide based on the active filter. Both need a locationId; while
+  // the current location is still loading we skip and let the calendar
+  // render with empty availability.
   const staffAvailability = useQuery(
     api.availability.forStaffSlotsInRange,
-    effectiveStaffId
-      ? { staffId: effectiveStaffId, fromDate, toDate }
+    locationId && effectiveStaffId
+      ? { locationId, staffId: effectiveStaffId, fromDate, toDate }
       : "skip",
   );
   const orgAvailability = useQuery(
     api.availability.forOrgSlotsInRange,
-    effectiveStaffId ? "skip" : { fromDate, toDate },
+    locationId && !effectiveStaffId
+      ? { locationId, fromDate, toDate }
+      : "skip",
   );
   const availability = effectiveStaffId ? staffAvailability : orgAvailability;
 

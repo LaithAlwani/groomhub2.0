@@ -26,6 +26,7 @@ import type * as lib_reservedSlugs from "../lib/reservedSlugs.js";
 import type * as lib_roles from "../lib/roles.js";
 import type * as lib_tenant from "../lib/tenant.js";
 import type * as lib_verifyWebhook from "../lib/verifyWebhook.js";
+import type * as locations from "../locations.js";
 import type * as memberships from "../memberships.js";
 import type * as orgCleanup from "../orgCleanup.js";
 import type * as organizations from "../organizations.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "lib/roles": typeof lib_roles;
   "lib/tenant": typeof lib_tenant;
   "lib/verifyWebhook": typeof lib_verifyWebhook;
+  locations: typeof locations;
   memberships: typeof memberships;
   orgCleanup: typeof orgCleanup;
   organizations: typeof organizations;

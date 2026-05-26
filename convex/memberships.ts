@@ -1,5 +1,8 @@
-import { query } from "./_generated/server";
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import { appError } from "./lib/errors";
+import { requireRole } from "./lib/rbac";
 import { readOrgClaims, softAuth } from "./lib/tenant";
 
 /**
@@ -103,5 +106,85 @@ export const myBlockingOwnerships = query({
       });
     }
     return blocking;
+  },
+});
+
+/**
+ * Records the inviting admin's location intent for a fresh invite. Called by
+ * `InviteMemberForm` BEFORE Clerk's `organization.inviteMember()` so the
+ * subsequent `organizationMembership.created` webhook can apply these
+ * `locationIds` to the new membership row.
+ *
+ * Admin / superAdmin only. Idempotent: a second call for the same
+ * `(orgId, email)` patches the existing intent rather than duplicating.
+ * Pass `locationIds: []` to mean "all locations" (won't restrict the staff).
+ */
+export const recordInviteIntent = mutation({
+  args: {
+    email: v.string(),
+    locationIds: v.array(v.id("locations")),
+  },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const email = args.email.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      appError("VALIDATION", { field: "email", reason: "INVALID" });
+    }
+    // Validate every locationId belongs to the caller's org.
+    for (const locationId of args.locationIds) {
+      const location = await ctx.db.get(locationId);
+      if (!location || location.orgId !== orgId) {
+        appError("FORBIDDEN", { reason: "LOCATION_WRONG_ORG" });
+      }
+    }
+    const existing = await ctx.db
+      .query("staffInviteIntents")
+      .withIndex("by_org_email", (index) =>
+        index.eq("orgId", orgId).eq("email", email),
+      )
+      .unique();
+    if (existing) {
+      await ctx.db.patch(existing._id, { locationIds: args.locationIds });
+      return existing._id;
+    }
+    return await ctx.db.insert("staffInviteIntents", {
+      orgId,
+      email,
+      locationIds: args.locationIds,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Update which locations an existing membership is assigned to. Used by the
+ * `/staff` page when an admin wants to add a groomer to a second location or
+ * remove them from one. `locationIds: []` means "all locations" (default for
+ * admins and the org creator).
+ *
+ * Admin / superAdmin only. Refuses cross-org IDs and refuses to demote a
+ * superAdmin from "all locations" — superAdmins always see everything.
+ */
+export const setLocations = mutation({
+  args: {
+    membershipId: v.id("memberships"),
+    locationIds: v.array(v.id("locations")),
+  },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const target = await ctx.db.get(args.membershipId);
+    if (!target || target.orgId !== orgId) {
+      appError("NOT_FOUND", { reason: "MEMBERSHIP_NOT_FOUND" });
+    }
+    if (target.role === "superAdmin" && args.locationIds.length > 0) {
+      appError("VALIDATION", { reason: "SUPERADMIN_ALWAYS_ALL_LOCATIONS" });
+    }
+    for (const locationId of args.locationIds) {
+      const location = await ctx.db.get(locationId);
+      if (!location || location.orgId !== orgId) {
+        appError("FORBIDDEN", { reason: "LOCATION_WRONG_ORG" });
+      }
+    }
+    await ctx.db.patch(target._id, { locationIds: args.locationIds });
   },
 });

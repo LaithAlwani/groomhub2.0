@@ -129,15 +129,31 @@ export const upsertMembership = internalMutation({
       .unique();
 
     if (existing) {
+      // Re-activate / role change: don't touch locationIds — the admin's
+      // existing per-location assignment stands.
       await ctx.db.patch(existing._id, { role: args.role, isActive: true });
       return existing._id;
     }
+
+    // Fresh insert: look for a pending invite intent that was recorded when
+    // the admin clicked Send invite from a specific location. If we find one,
+    // copy its locationIds onto the new membership row and delete the intent.
+    // No matching intent → `locationIds: []` (= all locations).
+    const intent = await ctx.db
+      .query("staffInviteIntents")
+      .withIndex("by_org_email", (index) =>
+        index.eq("orgId", args.clerkOrgId).eq("email", args.email),
+      )
+      .unique();
+    const locationIds = intent?.locationIds ?? [];
+    if (intent) await ctx.db.delete(intent._id);
 
     return await ctx.db.insert("memberships", {
       userId: user._id,
       orgId: args.clerkOrgId,
       role: args.role,
       isActive: true,
+      locationIds,
     });
   },
 });

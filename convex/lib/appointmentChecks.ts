@@ -41,20 +41,26 @@ export async function findConflictForStaff(
 }
 
 /**
- * Resolves the staff member's available slots (in minutes from midnight in the
- * org's timezone) for a single calendar date. Order: per-day override wins,
- * else the weekly pattern for that weekday, else `[]`.
+ * Resolves a staff member's available slots (in minutes from midnight in the
+ * location's timezone) for a single calendar date at a single location. Order:
+ * per-day override wins, else the weekly pattern for that weekday at that
+ * location, else `[]`.
  */
 export async function getSlotsForStaffOnDate(
   ctx: QueryCtx | MutationCtx,
   orgId: string,
+  locationId: Id<"locations">,
   staffId: Id<"memberships">,
   date: string,
 ): Promise<Array<{ startMin: number; endMin: number }>> {
   const override = await ctx.db
     .query("staffDayOverride")
-    .withIndex("by_org_staff_date", (index) =>
-      index.eq("orgId", orgId).eq("staffId", staffId).eq("date", date),
+    .withIndex("by_org_location_staff_date", (index) =>
+      index
+        .eq("orgId", orgId)
+        .eq("locationId", locationId)
+        .eq("staffId", staffId)
+        .eq("date", date),
     )
     .unique();
   if (override?.kind === "off") return [];
@@ -64,8 +70,12 @@ export async function getSlotsForStaffOnDate(
   const weekday = weekdayFromDate(date);
   const rows = await ctx.db
     .query("staffWeeklySchedule")
-    .withIndex("by_org_staff_weekday", (index) =>
-      index.eq("orgId", orgId).eq("staffId", staffId).eq("weekday", weekday),
+    .withIndex("by_org_location_staff_weekday", (index) =>
+      index
+        .eq("orgId", orgId)
+        .eq("locationId", locationId)
+        .eq("staffId", staffId)
+        .eq("weekday", weekday),
     )
     .collect();
   return rows.map((row) => ({ startMin: row.startMin, endMin: row.endMin }));
@@ -73,26 +83,32 @@ export async function getSlotsForStaffOnDate(
 
 /**
  * Throws `OUTSIDE_AVAILABILITY` if [startTime, endTime] doesn't fit entirely
- * within any of the staff's available slots on `dateKey`. Times are interpreted
- * in `orgTimezone` so the dateKey + minute math line up with the staff's
- * stored schedule.
+ * within any of the staff's available slots on `dateKey` at the named location.
+ * Times are interpreted in the location's timezone.
  */
 export async function assertWithinAvailability(
   ctx: QueryCtx | MutationCtx,
   orgId: string,
+  locationId: Id<"locations">,
   staffId: Id<"memberships">,
   startTime: number,
   endTime: number,
-  orgTimezone: string,
+  locationTimezone: string,
 ): Promise<void> {
-  const dateKey = formatDateInTimezone(startTime, orgTimezone);
-  const dateKeyEnd = formatDateInTimezone(endTime - 1, orgTimezone);
+  const dateKey = formatDateInTimezone(startTime, locationTimezone);
+  const dateKeyEnd = formatDateInTimezone(endTime - 1, locationTimezone);
   if (dateKey !== dateKeyEnd) {
     appError("OUTSIDE_AVAILABILITY", { reason: "SPANS_MIDNIGHT" });
   }
-  const startMin = minutesIntoDayInTimezone(startTime, orgTimezone);
-  const endMin = minutesIntoDayInTimezone(endTime, orgTimezone);
-  const slots = await getSlotsForStaffOnDate(ctx, orgId, staffId, dateKey);
+  const startMin = minutesIntoDayInTimezone(startTime, locationTimezone);
+  const endMin = minutesIntoDayInTimezone(endTime, locationTimezone);
+  const slots = await getSlotsForStaffOnDate(
+    ctx,
+    orgId,
+    locationId,
+    staffId,
+    dateKey,
+  );
   const inSlot = slots.some(
     (slot) => slot.startMin <= startMin && endMin <= slot.endMin,
   );

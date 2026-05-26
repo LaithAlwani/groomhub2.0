@@ -47,11 +47,24 @@ const statusValidator = v.union(
 /**
  * Lists appointments overlapping `[fromTime, toTime]` in the caller's org.
  * Staff see only their own; admin/superAdmin see everyone. The two paths use
- * different indexes (`by_staff_start` vs `by_org_start`) — no `.filter()`,
- * per Convex guidelines.
+ * different indexes (`by_staff_start` vs `by_org_location_start` / `by_org_start`)
+ * — no `.filter()`, per Convex guidelines.
+ *
+ * `locationId` is optional:
+ *   - set    → admins see only appointments at that location;
+ *              staff see only their own at that location (post-fetch JS filter
+ *              against the bounded staff result).
+ *   - unset  → admins see every location; staff see their own across all
+ *              locations.
+ * UI passes the current location id from the sidebar switcher; the calendar
+ * filter dropdown can explicitly clear it for an org-wide view.
  */
 export const listInRange = query({
-  args: { fromTime: v.number(), toTime: v.number() },
+  args: {
+    fromTime: v.number(),
+    toTime: v.number(),
+    locationId: v.optional(v.id("locations")),
+  },
   handler: async (ctx, args) => {
     const identity = await softAuth(ctx);
     if (!identity) return [];
@@ -60,11 +73,25 @@ export const listInRange = query({
     let rows: Doc<"appointments">[];
     if (role === "staff") {
       if (!membership) return [];
-      rows = await ctx.db
+      const candidates = await ctx.db
         .query("appointments")
         .withIndex("by_staff_start", (index) =>
           index
             .eq("staffId", membership._id)
+            .gte("startTime", args.fromTime)
+            .lt("startTime", args.toTime),
+        )
+        .take(MAX_RESULTS);
+      rows = args.locationId
+        ? candidates.filter((row) => row.locationId === args.locationId)
+        : candidates;
+    } else if (args.locationId) {
+      rows = await ctx.db
+        .query("appointments")
+        .withIndex("by_org_location_start", (index) =>
+          index
+            .eq("orgId", identity.orgId)
+            .eq("locationId", args.locationId!)
             .gte("startTime", args.fromTime)
             .lt("startTime", args.toTime),
         )
@@ -151,6 +178,7 @@ export const get = query({
 export const create = mutation({
   args: {
     clientUuid: v.string(),
+    locationId: v.id("locations"),
     clientId: v.id("clients"),
     petId: v.id("pets"),
     staffId: v.id("memberships"),
@@ -171,7 +199,7 @@ export const create = mutation({
       .unique();
     if (existing) return existing._id;
 
-    const { client, pet, service, staff, org } = await loadRefs(
+    const { client, pet, service, staff, location } = await loadRefs(
       ctx,
       identity.orgId,
       {
@@ -179,16 +207,18 @@ export const create = mutation({
         petId: args.petId,
         staffId: args.staffId,
         serviceId: args.serviceId,
+        locationId: args.locationId,
       },
     );
     const endTime = args.startTime + service.durationMin * 60 * 1000;
     await assertWithinAvailability(
       ctx,
       identity.orgId,
+      location._id,
       staff._id,
       args.startTime,
       endTime,
-      org.timezone,
+      location.timezone,
     );
     const conflict = await findConflictForStaff(
       ctx,
@@ -207,6 +237,7 @@ export const create = mutation({
       actor._id === staff._id ? "scheduled" : "pendingApproval";
     const insertedId = await ctx.db.insert("appointments", {
       orgId: identity.orgId,
+      locationId: location._id,
       clientId: client._id,
       petId: pet._id,
       staffId: staff._id,
@@ -269,15 +300,16 @@ export const reschedule = mutation({
     }
     const service = await ctx.db.get(existing.serviceId);
     if (!service) appError("NOT_FOUND", { reason: "SERVICE_NOT_FOUND" });
-    const org = await loadOrg(ctx, identity.orgId);
+    const location = await loadLocation(ctx, existing.locationId, identity.orgId);
     const newEndTime = args.startTime + service.durationMin * 60 * 1000;
     await assertWithinAvailability(
       ctx,
       identity.orgId,
+      location._id,
       targetStaffId,
       args.startTime,
       newEndTime,
-      org.timezone,
+      location.timezone,
     );
     const conflict = await findConflictForStaff(
       ctx,
@@ -430,14 +462,15 @@ export const reassign = mutation({
     if (!targetStaff.isActive) {
       appError("VALIDATION", { field: "staffId", reason: "INACTIVE_STAFF" });
     }
-    const org = await loadOrg(ctx, orgId);
+    const location = await loadLocation(ctx, existing.locationId, orgId);
     await assertWithinAvailability(
       ctx,
       orgId,
+      location._id,
       args.staffId,
       existing.startTime,
       existing.endTime,
-      org.timezone,
+      location.timezone,
     );
     const conflict = await findConflictForStaff(
       ctx,
@@ -548,16 +581,20 @@ async function loadOwnAppointment(
   return row;
 }
 
-async function loadOrg(
+async function loadLocation(
   ctx: QueryCtx | MutationCtx,
+  locationId: Id<"locations">,
   orgId: string,
-): Promise<Doc<"organizations">> {
-  const org = await ctx.db
-    .query("organizations")
-    .withIndex("by_clerkOrgId", (index) => index.eq("clerkOrgId", orgId))
-    .unique();
-  if (!org) appError("NOT_FOUND", { reason: "ORG_NOT_FOUND" });
-  return org;
+): Promise<Doc<"locations">> {
+  const location = await ctx.db.get(locationId);
+  if (!location) appError("NOT_FOUND", { reason: "LOCATION_NOT_FOUND" });
+  if (location.orgId !== orgId) {
+    appError("FORBIDDEN", { reason: "LOCATION_WRONG_ORG" });
+  }
+  if (location.deletedAt !== undefined || !location.isActive) {
+    appError("NOT_FOUND", { reason: "LOCATION_INACTIVE" });
+  }
+  return location;
 }
 
 async function loadRefs(
@@ -568,14 +605,15 @@ async function loadRefs(
     petId: Id<"pets">;
     staffId: Id<"memberships">;
     serviceId: Id<"services">;
+    locationId: Id<"locations">;
   },
 ) {
-  const [client, pet, service, staff, org] = await Promise.all([
+  const [client, pet, service, staff, location] = await Promise.all([
     ctx.db.get(ids.clientId),
     ctx.db.get(ids.petId),
     ctx.db.get(ids.serviceId),
     ctx.db.get(ids.staffId),
-    loadOrg(ctx, orgId),
+    loadLocation(ctx, ids.locationId, orgId),
   ]);
   if (!client || client.orgId !== orgId) {
     appError("NOT_FOUND", { reason: "CLIENT_NOT_FOUND" });
@@ -601,7 +639,23 @@ async function loadRefs(
   if (!staff.isActive) {
     appError("VALIDATION", { field: "staffId", reason: "INACTIVE_STAFF" });
   }
-  return { client, pet, service, staff, org };
+  // Service must be available at this location: org-wide services pass; a
+  // location-only service must match the requested location. Per-location
+  // overrides with `isActive:false` are checked here so an "archived at this
+  // location" service can't be booked.
+  if (service.locationId && service.locationId !== location._id) {
+    appError("VALIDATION", { field: "serviceId", reason: "WRONG_LOCATION" });
+  }
+  const override = await ctx.db
+    .query("serviceLocationOverrides")
+    .withIndex("by_service_location", (index) =>
+      index.eq("serviceId", service._id).eq("locationId", location._id),
+    )
+    .unique();
+  if (override?.isActive === false) {
+    appError("VALIDATION", { field: "serviceId", reason: "ARCHIVED" });
+  }
+  return { client, pet, service, staff, location };
 }
 
 /**

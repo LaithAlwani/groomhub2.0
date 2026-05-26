@@ -100,11 +100,15 @@ async function ensureMembershipRecord(
   }
 
   const role = mapClerkOrgRole(identity.orgRole);
+  // Bootstrap path (e.g. webhook hasn't fired yet): default to all locations.
+  // The webhook's `upsertMembership` will reconcile from any matching invite
+  // intent if one was recorded.
   const insertedId = await ctx.db.insert("memberships", {
     userId,
     orgId: identity.orgId,
     role,
     isActive: true,
+    locationIds: [],
   });
   const inserted = await ctx.db.get(insertedId);
   if (!inserted) throw new Error("ensureMembershipRecord: inserted row vanished");

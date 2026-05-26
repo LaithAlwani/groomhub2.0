@@ -5,6 +5,7 @@ import { RequireOrgContext } from "@/components/auth/RequireOrgContext";
 import { PendingInvitationsBanner } from "@/components/app/PendingInvitationsBanner";
 import { SidebarShell } from "@/components/app/SidebarShell";
 import { TopbarActions } from "@/components/app/TopbarActions";
+import { CurrentLocationProvider } from "@/lib/useCurrentLocation";
 
 export default async function AppLayout({
   children,
@@ -16,13 +17,13 @@ export default async function AppLayout({
   if (!orgId) redirect("/onboarding/create-shop");
 
   return (
-    <>
+    <CurrentLocationProvider>
       <SidebarShell topbarRight={<TopbarActions />}>
         <PendingInvitationsBanner />
         {children}
       </SidebarShell>
       <EnsureMe />
       <RequireOrgContext />
-    </>
+    </CurrentLocationProvider>
   );
 }

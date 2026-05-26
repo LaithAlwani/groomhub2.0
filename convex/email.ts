@@ -155,11 +155,15 @@ export const sendPendingApprovalToGroomer = internalAction({
       console.warn("email: staff has no email; skipping pending approval ping");
       return;
     }
+    const locationFragment =
+      payload.locationName && payload.locationName !== payload.shopName
+        ? ` at ${escape(payload.locationName)}`
+        : "";
     const html = renderStaffEmail({
       headline: "New booking needs your approval",
       body:
         `<p style="margin:0 0 12px;">Hi ${escape(payload.staffFirstName)},</p>` +
-        `<p style="margin:0 0 12px;"><strong>${escape(payload.clientName)}</strong> just booked ${escape(payload.petName)} for <strong>${escape(payload.serviceName)}</strong> on ${escape(payload.dateLabel)} at ${escape(payload.timeLabel)}.</p>` +
+        `<p style="margin:0 0 12px;"><strong>${escape(payload.clientName)}</strong> just booked ${escape(payload.petName)} for <strong>${escape(payload.serviceName)}</strong>${locationFragment} on ${escape(payload.dateLabel)} at ${escape(payload.timeLabel)}.</p>` +
         `<p style="margin:0 0 12px;">Open GroomHub to confirm or decline.</p>`,
       shopName: payload.shopName,
     });
@@ -184,10 +188,14 @@ export const sendDeclinedToAdmins = internalAction({
       console.warn("email: no admin emails on file; skipping decline alert");
       return;
     }
+    const declineLocationFragment =
+      payload.locationName && payload.locationName !== payload.shopName
+        ? ` at ${escape(payload.locationName)}`
+        : "";
     const html = renderStaffEmail({
       headline: "A booking was declined",
       body:
-        `<p style="margin:0 0 12px;"><strong>${escape(payload.declinedByName)}</strong> declined ${escape(payload.clientName)}'s booking for ${escape(payload.petName)} on ${escape(payload.dateLabel)} at ${escape(payload.timeLabel)}.</p>` +
+        `<p style="margin:0 0 12px;"><strong>${escape(payload.declinedByName)}</strong> declined ${escape(payload.clientName)}'s booking for ${escape(payload.petName)}${declineLocationFragment} on ${escape(payload.dateLabel)} at ${escape(payload.timeLabel)}.</p>` +
         `<p style="margin:0 0 12px;">Reassign or cancel it from your dashboard's declined queue.</p>`,
       shopName: payload.shopName,
     });
@@ -341,12 +349,21 @@ function renderClientEmail(input: {
   payload: ClientEmailPayload;
 }): string {
   const { headline, body, payload } = input;
+  const locationLine =
+    payload.locationName !== payload.shopName
+      ? `<div>at ${escape(payload.locationName)}</div>`
+      : "";
+  const addressLine = payload.locationAddressLine
+    ? `<div style="color:#52525b;">${escape(payload.locationAddressLine)}</div>`
+    : "";
   const details =
     `<table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;border-spacing:0;background:#f4f4f5;border-radius:10px;padding:16px;margin:8px 0 16px;">` +
     `<tr><td style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px;color:#27272a;line-height:1.55;">` +
     `<div style="font-weight:600;color:#18181b;">${escape(payload.petName)} · ${escape(payload.serviceName)}</div>` +
     `<div>${escape(payload.dateLabel)} at ${escape(payload.timeLabel)}</div>` +
     `<div>with ${escape(payload.staffName)}</div>` +
+    locationLine +
+    addressLine +
     `</td></tr></table>`;
   const contactLines: string[] = [];
   if (payload.contactPhone)

@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useOrganization } from "@clerk/nextjs";
+import { useMutation } from "convex/react";
 import { z } from "zod";
+import { api } from "@/convex/_generated/api";
 import { Field } from "@/components/forms/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { useCurrentLocation } from "@/lib/useCurrentLocation";
 
 const ROLE_CHOICES = [
   { value: "org:admin", label: "Owner (full access, can delete)" },
@@ -20,6 +23,8 @@ const schema = z.object({
 
 export function InviteMemberForm({ onInvited }: { onInvited: () => void }) {
   const { organization } = useOrganization();
+  const { current: currentLocation, locations } = useCurrentLocation();
+  const recordInviteIntent = useMutation(api.memberships.recordInviteIntent);
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<ClerkRole>("org:member");
@@ -27,6 +32,13 @@ export function InviteMemberForm({ onInvited }: { onInvited: () => void }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Only the Owner role (`org:admin` → schema `superAdmin`) is unscoped —
+  // server-side `memberships.setLocations` refuses to restrict a superAdmin
+  // since they must see everything. Admins (managers) and staff both start
+  // at the inviting location; the admin can broaden them from the team list.
+  const willScopeToLocation =
+    role !== "org:admin" && currentLocation !== null && locations.length > 1;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -43,12 +55,25 @@ export function InviteMemberForm({ onInvited }: { onInvited: () => void }) {
 
     setSubmitting(true);
     try {
+      // Record the location intent BEFORE the Clerk API call. The webhook
+      // looks this up by (orgId, email) when it fires
+      // `organizationMembership.created` and applies the locationIds to
+      // the new membership row. Admins/owners get `[]` (all locations).
+      await recordInviteIntent({
+        email: parsed.data.email,
+        locationIds: willScopeToLocation ? [currentLocation._id] : [],
+      });
       await organization.inviteMember({
         emailAddress: parsed.data.email,
         role,
       });
       setEmail("");
-      setSavedMessage(`Invitation sent to ${parsed.data.email}.`);
+      const locationFragment = willScopeToLocation
+        ? ` at ${currentLocation.name}`
+        : "";
+      setSavedMessage(
+        `Invitation sent to ${parsed.data.email}${locationFragment}.`,
+      );
       onInvited();
     } catch (caught) {
       setServerError(
@@ -70,6 +95,13 @@ export function InviteMemberForm({ onInvited }: { onInvited: () => void }) {
         </h2>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
           They&apos;ll get an email with a link to join your shop.
+          {willScopeToLocation && currentLocation && (
+            <>
+              {" "}New staff invited from here join{" "}
+              <strong>{currentLocation.name}</strong>; add them to other
+              locations from the team list once they accept.
+            </>
+          )}
         </p>
       </header>
 

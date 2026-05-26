@@ -8,6 +8,7 @@ import {
   CalendarClock,
   CalendarDays,
   LayoutDashboard,
+  MapPin,
   PawPrint,
   Plus,
   Scissors,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import { mapClerkOrgRole, type Role } from "@/convex/lib/roles";
 import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
+import { LocationSwitcher } from "./LocationSwitcher";
 import { SidebarBrand } from "./SidebarBrand";
 
 type NavLink = {
@@ -33,6 +35,12 @@ const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: "/services", label: "Services", icon: Scissors },
   { href: "/availability", label: "My availability", icon: CalendarClock },
   { href: "/staff", label: "Team", icon: Users, visibleTo: ["admin", "superAdmin"] },
+  {
+    href: "/settings/locations",
+    label: "Locations",
+    icon: MapPin,
+    visibleTo: ["admin", "superAdmin"],
+  },
   {
     href: "/settings/shop",
     label: "Settings",
@@ -51,6 +59,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     <aside className="flex h-full w-64 shrink-0 flex-col bg-zinc-50 dark:bg-zinc-950">
       <div className="px-5 py-5">
         <SidebarBrand />
+        <LocationSwitcher />
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">

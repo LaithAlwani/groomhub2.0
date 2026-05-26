@@ -19,12 +19,15 @@ export type ClientEmailPayload = {
   serviceName: string;
   staffName: string;
   shopName: string;
+  locationName: string;
+  // Single line "123 Main St · City, State 12345" — undefined when no address.
+  locationAddressLine?: string;
   contactEmail: string | null;
   contactPhone: string | null;
   // Live values used for the reminder's fire-time guard.
   actualStartTime: number;
   status: string;
-  // Formatted in the org's timezone for display.
+  // Formatted in the location's timezone for display.
   dateLabel: string;
   timeLabel: string;
   previousDateLabel?: string;
@@ -38,6 +41,7 @@ export type StaffEmailPayload = {
   petName: string;
   serviceName: string;
   shopName: string;
+  locationName: string;
   dateLabel: string;
   timeLabel: string;
 };
@@ -50,7 +54,7 @@ export const loadClientEmailPayload = internalQuery({
   handler: async (ctx, args): Promise<ClientEmailPayload | null> => {
     const appointment = await ctx.db.get(args.appointmentId);
     if (!appointment) return null;
-    const [client, pet, service, staff, org] = await Promise.all([
+    const [client, pet, service, staff, org, location] = await Promise.all([
       ctx.db.get(appointment.clientId),
       ctx.db.get(appointment.petId),
       ctx.db.get(appointment.serviceId),
@@ -61,13 +65,19 @@ export const loadClientEmailPayload = internalQuery({
           index.eq("clerkOrgId", appointment.orgId),
         )
         .unique(),
+      ctx.db.get(appointment.locationId),
     ]);
-    if (!client || !pet || !service || !staff || !org) return null;
+    if (!client || !pet || !service || !staff || !org || !location) return null;
     const staffUser = await ctx.db.get(staff.userId);
     const staffName = staffUser
       ? [staffUser.firstName, staffUser.lastName].filter(Boolean).join(" ") ||
         "your groomer"
       : "your groomer";
+    // Per-location Reply-To + phone take precedence over the org-level values;
+    // location-level contactPhone reuses the org-level phone since the
+    // schema currently only exposes phone on the location.
+    const contactEmail = location.contactEmail ?? org.contactEmail ?? null;
+    const contactPhone = location.phone ?? org.contactPhone ?? null;
     return {
       clientEmail: client.email ?? null,
       clientFirstName: client.fullName.split(" ")[0] || "there",
@@ -75,19 +85,21 @@ export const loadClientEmailPayload = internalQuery({
       serviceName: service.name,
       staffName,
       shopName: org.name,
-      contactEmail: org.contactEmail ?? null,
-      contactPhone: org.contactPhone ?? null,
+      locationName: location.name,
+      locationAddressLine: formatAddressLine(location),
+      contactEmail,
+      contactPhone,
       actualStartTime: appointment.startTime,
       status: appointment.status,
-      dateLabel: formatDateInTz(appointment.startTime, org.timezone),
-      timeLabel: formatTimeInTz(appointment.startTime, org.timezone),
+      dateLabel: formatDateInTz(appointment.startTime, location.timezone),
+      timeLabel: formatTimeInTz(appointment.startTime, location.timezone),
       previousDateLabel:
         args.previousStartTime !== undefined
-          ? formatDateInTz(args.previousStartTime, org.timezone)
+          ? formatDateInTz(args.previousStartTime, location.timezone)
           : undefined,
       previousTimeLabel:
         args.previousStartTime !== undefined
-          ? formatTimeInTz(args.previousStartTime, org.timezone)
+          ? formatTimeInTz(args.previousStartTime, location.timezone)
           : undefined,
     };
   },
@@ -98,7 +110,7 @@ export const loadStaffEmailPayload = internalQuery({
   handler: async (ctx, args): Promise<StaffEmailPayload | null> => {
     const appointment = await ctx.db.get(args.appointmentId);
     if (!appointment) return null;
-    const [client, pet, service, staff, org] = await Promise.all([
+    const [client, pet, service, staff, org, location] = await Promise.all([
       ctx.db.get(appointment.clientId),
       ctx.db.get(appointment.petId),
       ctx.db.get(appointment.serviceId),
@@ -109,8 +121,9 @@ export const loadStaffEmailPayload = internalQuery({
           index.eq("clerkOrgId", appointment.orgId),
         )
         .unique(),
+      ctx.db.get(appointment.locationId),
     ]);
-    if (!client || !pet || !service || !staff || !org) return null;
+    if (!client || !pet || !service || !staff || !org || !location) return null;
     const staffUser = await ctx.db.get(staff.userId);
     if (!staffUser) return null;
     return {
@@ -120,8 +133,9 @@ export const loadStaffEmailPayload = internalQuery({
       petName: pet.name,
       serviceName: service.name,
       shopName: org.name,
-      dateLabel: formatDateInTz(appointment.startTime, org.timezone),
-      timeLabel: formatTimeInTz(appointment.startTime, org.timezone),
+      locationName: location.name,
+      dateLabel: formatDateInTz(appointment.startTime, location.timezone),
+      timeLabel: formatTimeInTz(appointment.startTime, location.timezone),
     };
   },
 });
@@ -131,7 +145,7 @@ export const loadAdminEmails = internalQuery({
   handler: async (ctx, args) => {
     const appointment = await ctx.db.get(args.appointmentId);
     if (!appointment) return null;
-    const [client, pet, declinedBy, org] = await Promise.all([
+    const [client, pet, declinedBy, org, location] = await Promise.all([
       ctx.db.get(appointment.clientId),
       ctx.db.get(appointment.petId),
       ctx.db.get(appointment.staffId),
@@ -141,8 +155,9 @@ export const loadAdminEmails = internalQuery({
           index.eq("clerkOrgId", appointment.orgId),
         )
         .unique(),
+      ctx.db.get(appointment.locationId),
     ]);
-    if (!client || !pet || !declinedBy || !org) return null;
+    if (!client || !pet || !declinedBy || !org || !location) return null;
     const declinedByUser = await ctx.db.get(declinedBy.userId);
     const declinedByName = declinedByUser
       ? [declinedByUser.firstName, declinedByUser.lastName]
@@ -173,11 +188,36 @@ export const loadAdminEmails = internalQuery({
       clientName: client.fullName,
       petName: pet.name,
       shopName: org.name,
-      dateLabel: formatDateInTz(appointment.startTime, org.timezone),
-      timeLabel: formatTimeInTz(appointment.startTime, org.timezone),
+      locationName: location.name,
+      dateLabel: formatDateInTz(appointment.startTime, location.timezone),
+      timeLabel: formatTimeInTz(appointment.startTime, location.timezone),
     };
   },
 });
+
+/**
+ * Renders a one-line address from a location row, e.g. "123 Main St ·
+ * Toronto, ON M5V 2T6". Returns undefined when no street + city/state are
+ * set so the email footer omits the row cleanly instead of showing an empty
+ * dot-separated label.
+ */
+function formatAddressLine(location: {
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+}): string | undefined {
+  const street = [location.addressLine1, location.addressLine2]
+    .filter(Boolean)
+    .join(", ");
+  const cityState = [location.city, location.state, location.postalCode]
+    .filter(Boolean)
+    .join(", ");
+  const segments = [street, cityState].filter((value) => value.length > 0);
+  if (segments.length === 0) return undefined;
+  return segments.join(" · ");
+}
 
 function formatDateInTz(timestamp: number, timezone: string): string {
   return new Date(timestamp).toLocaleDateString("en-US", {
