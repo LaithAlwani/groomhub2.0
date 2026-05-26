@@ -9,6 +9,7 @@ export type AppErrorCode =
   | "SLUG_TAKEN"
   | "SLUG_RESERVED"
   | "SLUG_INVALID"
+  | "PLAN_REQUIRED"
   | "VALIDATION";
 
 export function appError(code: AppErrorCode, detail?: Record<string, unknown>): never {

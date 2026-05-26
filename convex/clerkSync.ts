@@ -37,7 +37,7 @@ export const upsertOrganization = internalMutation({
       slug: args.slug,
       timezone: "UTC",
       currency: "USD",
-      plan: "free",
+      plan: "essential",
       createdAt: Date.now(),
     });
   },

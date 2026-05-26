@@ -28,7 +28,11 @@ export default defineSchema({
     slug: v.string(),
     timezone: v.string(),
     currency: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(
+      v.literal("essential"),
+      v.literal("professional"),
+      v.literal("enterprise"),
+    ),
     // Convex storage id for the shop's logo. UI resolves the URL via
     // `ctx.storage.getUrl(...)` (e.g. in `organizations.bySlug` for the public
     // portal). Uploaded during onboarding from `NewShopForm`.

@@ -123,7 +123,7 @@ export const landingPage = {
       "Try GroomHub free for 14 days. No credit card required. Cancel any time.",
     tiers: [
       {
-        name: "Starter",
+        name: "Essential",
         priceMonthly: 29,
         priceSuffix: "/mo",
         tagline: "Perfect for solo groomers or small salons getting organized.",
@@ -139,7 +139,7 @@ export const landingPage = {
         ctaHref: "/sign-up",
       },
       {
-        name: "Pro",
+        name: "Professional",
         priceMonthly: 79,
         priceSuffix: "/mo",
         tagline: "Most popular for growing grooming businesses.",
@@ -158,7 +158,7 @@ export const landingPage = {
         ctaHref: "/sign-up",
       },
       {
-        name: "Multi-Salon",
+        name: "Enterprise",
         priceMonthly: 149,
         priceSuffix: "/mo",
         tagline: "Built for scaling and multi-location grooming operations.",

@@ -157,7 +157,7 @@ export const seedFromClerk = mutation({
       slug: lowerSlug,
       timezone: args.timezone,
       currency: args.currency,
-      plan: "free",
+      plan: "essential",
       logoStorageId: args.logoStorageId,
       contactEmail: args.contactEmail?.trim() || undefined,
       createdAt: Date.now(),
