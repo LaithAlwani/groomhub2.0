@@ -301,7 +301,17 @@ export const reschedule = mutation({
     const service = await ctx.db.get(existing.serviceId);
     if (!service) appError("NOT_FOUND", { reason: "SERVICE_NOT_FOUND" });
     const location = await loadLocation(ctx, existing.locationId, identity.orgId);
-    const newEndTime = args.startTime + service.durationMin * 60 * 1000;
+    // Use the per-location duration override (if any) when re-deriving the
+    // new endTime — same effective values the booking flow used.
+    const rescheduleOverride = await ctx.db
+      .query("serviceLocationOverrides")
+      .withIndex("by_service_location", (index) =>
+        index.eq("serviceId", service._id).eq("locationId", location._id),
+      )
+      .unique();
+    const effectiveDuration =
+      rescheduleOverride?.durationMin ?? service.durationMin;
+    const newEndTime = args.startTime + effectiveDuration * 60 * 1000;
     await assertWithinAvailability(
       ctx,
       identity.orgId,
@@ -537,17 +547,23 @@ export type EnrichedAppointment = Doc<"appointments"> & {
   serviceName: string;
   serviceColor?: string;
   serviceDurationMin: number;
+  // Snapshot of the location row at read time. `locationName` falls back to
+  // a generic label if the location was soft-deleted so historical rows
+  // still render cleanly. UI surfaces decide whether to show it (typically
+  // only when the org has more than one location).
+  locationName: string;
 };
 
 async function enrichAppointment(
   ctx: QueryCtx,
   row: Doc<"appointments">,
 ): Promise<EnrichedAppointment> {
-  const [client, pet, service, staff] = await Promise.all([
+  const [client, pet, service, staff, location] = await Promise.all([
     ctx.db.get(row.clientId),
     ctx.db.get(row.petId),
     ctx.db.get(row.serviceId),
     ctx.db.get(row.staffId),
+    ctx.db.get(row.locationId),
   ]);
   let staffName = "Unknown";
   if (staff) {
@@ -567,6 +583,7 @@ async function enrichAppointment(
     serviceName: service?.name ?? "Removed service",
     serviceColor: service?.color,
     serviceDurationMin: service?.durationMin ?? 60,
+    locationName: location?.name ?? "Removed location",
   };
 }
 
@@ -655,7 +672,16 @@ async function loadRefs(
   if (override?.isActive === false) {
     appError("VALIDATION", { field: "serviceId", reason: "ARCHIVED" });
   }
-  return { client, pet, service, staff, location };
+  // Apply override patches so the caller sees the effective price + duration
+  // at this location. `priceCentsSnapshot` on the appointment row captures
+  // the local price so a later override change doesn't retroactively re-price
+  // historical bookings.
+  const effectiveService = {
+    ...service,
+    priceCents: override?.priceCents ?? service.priceCents,
+    durationMin: override?.durationMin ?? service.durationMin,
+  };
+  return { client, pet, service: effectiveService, staff, location };
 }
 
 /**

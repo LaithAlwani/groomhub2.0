@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { Plus } from "lucide-react";
+import { MapPin, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
+import { useCurrentLocation } from "@/lib/useCurrentLocation";
 
 const STATUS_LABEL: Record<string, string> = {
   pendingApproval: "Pending approval",
@@ -37,6 +38,10 @@ export function ClientAppointmentsSection({
   clientId: Id<"clients">;
 }) {
   const appointments = useQuery(api.appointments.listForClient, { clientId });
+  const { locations } = useCurrentLocation();
+  // Show the location chip per row only when the org has multiple locations
+  // — single-location shops would just see "Main" repeated.
+  const showLocation = locations.length > 1;
   const [dialog, setDialog] = useState<
     | { mode: "new" }
     | { mode: "edit"; id: Id<"appointments"> }
@@ -80,6 +85,12 @@ export function ClientAppointmentsSection({
                   {formatDateTime(appointment.startTime)} · with{" "}
                   {appointment.staffName}
                 </p>
+                {showLocation && (
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    <MapPin size={11} aria-hidden className="text-zinc-400" />
+                    {appointment.locationName}
+                  </p>
+                )}
               </div>
               <span
                 className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
