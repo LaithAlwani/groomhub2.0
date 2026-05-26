@@ -23,7 +23,7 @@ export function CalendarPageBody() {
   const { current: currentLocation } = useCurrentLocation();
   const locationId = currentLocation?._id ?? null;
 
-  const allOrgStaff = useQuery(api.memberships.forOrg);
+  const allOrgStaff = useQuery(api.memberships.forOrg, {});
   // Filter staff dropdown by active location — `locationIds: []` rows
   // (admins, owners, single-location staff) always pass through.
   const allStaff = useMemo(() => {

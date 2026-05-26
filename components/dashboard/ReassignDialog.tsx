@@ -20,7 +20,7 @@ export function ReassignDialog({
   previousStaffName: string;
   onClose: () => void;
 }) {
-  const staff = useQuery(api.memberships.forOrg);
+  const staff = useQuery(api.memberships.forOrg, {});
   const reassign = useMutation(api.appointments.reassign);
   const [newStaffId, setNewStaffId] = useState<Id<"memberships"> | "">("");
   const [serverError, setServerError] = useState<string | null>(null);

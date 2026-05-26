@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { ConnectedAccountsSection } from "@/components/account/ConnectedAccountsSection";
 import { DangerZoneSection } from "@/components/account/DangerZoneSection";
 import { EmailSection } from "@/components/account/EmailSection";
@@ -17,16 +16,9 @@ import { SessionsSection } from "@/components/account/SessionsSection";
 export default function AccountPage() {
   return (
     <section className="mx-auto w-full max-w-6xl px-6 py-8">
-      <Link
-        href="/dashboard"
-        className="inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
-      >
-        <ArrowLeft size={14} />
-        Back to dashboard
-      </Link>
       <nav
         aria-label="Breadcrumb"
-        className="mt-3 flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400"
+        className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400"
       >
         <span>Settings</span>
         <ChevronRight size={12} aria-hidden className="text-zinc-300" />

@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { appError } from "./lib/errors";
 import { requireRole } from "./lib/rbac";
@@ -13,33 +13,68 @@ import { readOrgClaims, softAuth } from "./lib/tenant";
  * dialogs that need a staff picker.
  */
 export const forOrg = query({
+  args: { includeInactive: v.optional(v.boolean()) },
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const claims = readOrgClaims(identity);
+    if (!claims) return [];
+    return await readMembersWithUsers(ctx, claims.orgId, true);
+  },
+});
+
+/**
+ * Same shape as `forOrg` but returns memberships where `isActive: false` too
+ * — used by the "View N more inactive members" toggle on the team page so
+ * removed staff can be re-invited or audited. Read-only; never mutates.
+ */
+export const forOrgIncludingInactive = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
     const claims = readOrgClaims(identity);
     if (!claims) return [];
-
-    const activeMemberships = await ctx.db
-      .query("memberships")
-      .withIndex("by_org_active", (index) =>
-        index.eq("orgId", claims.orgId).eq("isActive", true),
-      )
-      .collect();
-
-    const results: Array<{
-      membership: Doc<"memberships">;
-      user: Doc<"users">;
-    }> = [];
-    for (const membership of activeMemberships) {
-      const user = await ctx.db.get(membership.userId);
-      if (user && user.isActive) {
-        results.push({ membership, user });
-      }
-    }
-    return results;
+    return await readMembersWithUsers(ctx, claims.orgId, false);
   },
 });
+
+async function readMembersWithUsers(
+  ctx: QueryCtx,
+  orgId: string,
+  activeOnly: boolean,
+): Promise<Array<{ membership: Doc<"memberships">; user: Doc<"users"> }>> {
+  const rows = activeOnly
+    ? await ctx.db
+        .query("memberships")
+        .withIndex("by_org_active", (index) =>
+          index.eq("orgId", orgId).eq("isActive", true),
+        )
+        .collect()
+    : [
+        ...(await ctx.db
+          .query("memberships")
+          .withIndex("by_org_active", (index) =>
+            index.eq("orgId", orgId).eq("isActive", true),
+          )
+          .collect()),
+        ...(await ctx.db
+          .query("memberships")
+          .withIndex("by_org_active", (index) =>
+            index.eq("orgId", orgId).eq("isActive", false),
+          )
+          .collect()),
+      ];
+  const results: Array<{
+    membership: Doc<"memberships">;
+    user: Doc<"users">;
+  }> = [];
+  for (const membership of rows) {
+    const user = await ctx.db.get(membership.userId);
+    if (user) results.push({ membership, user });
+  }
+  return results;
+}
 
 /**
  * Returns the list of shops where the calling user is the **only** active

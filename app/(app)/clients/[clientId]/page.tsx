@@ -19,7 +19,7 @@ export default async function ClientDetailPage({
   const canArchive = role === "admin" || role === "superAdmin";
 
   return (
-    <section className="mx-auto w-full max-w-3xl px-6 py-10">
+    <section className="mx-auto w-full max-w-7xl px-6 py-10">
       <Link
         href="/clients"
         className="inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"

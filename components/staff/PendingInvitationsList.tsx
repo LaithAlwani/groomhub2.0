@@ -10,6 +10,17 @@ const ROLE_LABEL: Record<string, string> = {
   "org:member": "Staff",
 };
 
+// Coloured pill tone per Clerk role string. Matches the new design's
+// uppercase chip vocabulary (light blue for ADMIN/STAFF, orange for OWNER).
+const ROLE_TONE: Record<string, string> = {
+  "org:admin":
+    "bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300",
+  "org:manager":
+    "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
+  "org:member":
+    "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300",
+};
+
 export function PendingInvitationsList({ refreshKey }: { refreshKey: number }) {
   const { invitations } = useOrganization({
     invitations: { infinite: false, pageSize: 50 },
@@ -17,8 +28,7 @@ export function PendingInvitationsList({ refreshKey }: { refreshKey: number }) {
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
   // Re-fetch when an invite is sent so the new pending row appears.
-  // The query is reactive but Clerk's pagination cache sometimes lags.
-  // `refreshKey` lets the parent nudge a refetch after `inviteMember`.
+  // Clerk's pagination cache sometimes lags otherwise.
   void refreshKey;
 
   if (!invitations) return null;
@@ -53,30 +63,45 @@ export function PendingInvitationsList({ refreshKey }: { refreshKey: number }) {
         </p>
       </header>
       <ul className="flex flex-col gap-2">
-        {pending.map((invitation) => (
-          <li
-            key={invitation.id}
-            className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-800"
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <Mail size={16} className="text-zinc-400" />
-              <span className="truncate text-sm text-zinc-900 dark:text-zinc-100">
-                {invitation.emailAddress}
-              </span>
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                {ROLE_LABEL[invitation.role] ?? invitation.role}
-              </span>
-            </div>
-            <button
-              type="button"
-              disabled={revokingId === invitation.id}
-              onClick={() => handleRevoke(invitation.id)}
-              className="rounded-lg border border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+        {pending.map((invitation) => {
+          const roleLabel = ROLE_LABEL[invitation.role] ?? invitation.role;
+          const roleTone =
+            ROLE_TONE[invitation.role] ??
+            "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+          return (
+            <li
+              key={invitation.id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-800"
             >
-              {revokingId === invitation.id ? "Revoking…" : "Revoke"}
-            </button>
-          </li>
-        ))}
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  aria-hidden
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400"
+                >
+                  <Mail size={16} />
+                </span>
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {invitation.emailAddress}
+                  </span>
+                  <span
+                    className={`mt-1 inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${roleTone}`}
+                  >
+                    {roleLabel}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={revokingId === invitation.id}
+                onClick={() => handleRevoke(invitation.id)}
+                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+              >
+                {revokingId === invitation.id ? "Revoking…" : "Revoke"}
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

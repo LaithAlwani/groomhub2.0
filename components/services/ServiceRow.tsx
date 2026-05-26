@@ -3,13 +3,21 @@
 import { MapPin, Pencil, Trash2 } from "lucide-react";
 import type { Doc } from "@/convex/_generated/dataModel";
 
+const SPECIES_LABEL: Record<string, string> = {
+  dog: "Dog",
+  cat: "Cat",
+  other: "Other",
+};
+
 /**
- * Single row in the services list. Renders the effective price + duration
- * for the active location when an override is in play; shows the override
- * badge + a "Customize" button when the org has multiple locations.
+ * One row in the services table — grid layout matching the dark zinc-900
+ * header strip (NAME / DURATION / PRICE / SPECIES / ACTIONS). Whole row is
+ * clickable → edit dialog when the caller has edit rights; the pencil and
+ * trash icons are explicit affordances that stop propagation.
  *
- * Pure presentation — every action goes through callback props so the
- * parent owns the dialogs / mutations.
+ * Effective price + duration reflect any per-location override; the
+ * "Custom here" / "Hidden here" badge tells the admin why this row differs
+ * from the org-wide values.
  */
 export function ServiceRow({
   service,
@@ -37,10 +45,22 @@ export function ServiceRow({
   const hiddenHere = override?.isActive === false;
   const isLocationOnly = service.locationId !== undefined;
   const showOverride = override !== null;
+  const speciesLabel = service.species
+    .map((entry) => SPECIES_LABEL[entry] ?? entry)
+    .join(", ");
 
   return (
-    <li className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-800">
-      <div className="min-w-0 flex-1">
+    <li
+      onClick={() => {
+        if (canEdit && !isBusy) onEdit();
+      }}
+      className={`grid grid-cols-[1.6fr_0.7fr_0.8fr_1fr_auto] items-center gap-3 border-b border-zinc-100 px-4 py-3 transition-colors last:border-b-0 dark:border-zinc-900 ${
+        canEdit
+          ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+          : ""
+      }`}
+    >
+      <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           {service.color && (
             <span
@@ -53,71 +73,81 @@ export function ServiceRow({
             {service.name}
           </p>
           {showOverride && !hiddenHere && (
-            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
               Custom here
             </span>
           )}
           {hiddenHere && (
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
               Hidden here
             </span>
           )}
           {isLocationOnly && (
-            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
               Location-only
             </span>
           )}
         </div>
-        <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
-          {effectiveDuration} min · {formatPrice(effectivePriceCents, service.currency)} ·{" "}
-          {service.species.join(", ")}
-        </p>
-        {showOverride && (
-          <p className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
-            Default: {service.durationMin} min ·{" "}
-            {formatPrice(service.priceCents, service.currency)}
-          </p>
-        )}
         {service.description && (
-          <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
             {service.description}
           </p>
         )}
       </div>
-      {canEdit && (
-        <div className="flex shrink-0 items-center gap-1">
-          {multiLocation && currentLocation && !isLocationOnly && (
-            <button
-              type="button"
-              onClick={onCustomizeForLocation}
-              disabled={isBusy}
-              title={`Customize at ${currentLocation.name}`}
-              className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900"
-            >
-              <MapPin size={12} className="text-zinc-400" aria-hidden />
-              {showOverride ? "Edit local" : "Customize"}
-            </button>
-          )}
+      <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
+        {effectiveDuration} min
+      </p>
+      <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
+        {formatPrice(effectivePriceCents, service.currency)}
+      </p>
+      <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
+        {speciesLabel}
+      </p>
+      <div className="flex shrink-0 items-center justify-end gap-1">
+        {canEdit && multiLocation && currentLocation && !isLocationOnly && (
           <button
             type="button"
-            onClick={onEdit}
+            onClick={(event) => {
+              event.stopPropagation();
+              onCustomizeForLocation();
+            }}
+            disabled={isBusy}
+            title={`Customize at ${currentLocation.name}`}
+            className="hidden items-center gap-1 rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-900 md:inline-flex"
+          >
+            <MapPin size={12} className="text-zinc-400" aria-hidden />
+            {showOverride ? "Edit local" : "Customize"}
+          </button>
+        )}
+        {canEdit && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit();
+            }}
             disabled={isBusy}
             aria-label="Edit service"
-            className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-50 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
           >
-            <Pencil size={16} />
+            <Pencil size={14} />
           </button>
+        )}
+        {canEdit && (
           <button
             type="button"
-            onClick={onArchive}
+            onClick={(event) => {
+              event.stopPropagation();
+              onArchive();
+            }}
             disabled={isBusy}
             aria-label="Archive service"
-            className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-zinc-900 dark:hover:text-red-400"
+            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-red-600 disabled:opacity-50 dark:hover:bg-zinc-900 dark:hover:text-red-400"
           >
-            <Trash2 size={16} />
+            <Trash2 size={14} />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </li>
   );
 }

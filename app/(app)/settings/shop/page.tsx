@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { mapClerkOrgRole } from "@/convex/lib/roles";
 import { ShopSettingsBody } from "./ShopSettingsBody";
 
@@ -14,14 +12,7 @@ export default async function ShopSettingsPage() {
 
   return (
     <section className="mx-auto w-full max-w-2xl px-6 py-10">
-      <Link
-        href="/dashboard"
-        className="inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
-      >
-        <ArrowLeft size={14} />
-        Back to dashboard
-      </Link>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+      <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         Shop settings
       </h1>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">

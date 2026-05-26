@@ -6,16 +6,26 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
-import { MemberLocationsEditor } from "./MemberLocationsEditor";
+import { MemberLocationFilter } from "./MemberLocationFilter";
+import { MemberRow } from "./MemberRow";
 
-const ROLE_LABEL: Record<string, string> = {
-  superAdmin: "Owner",
-  admin: "Admin",
-  staff: "Staff",
-};
-
+/**
+ * Active members card on the team page. The whole card (header, subtitle,
+ * location filter chip, list of rows, "View N more inactive" toggle) lives
+ * inside this component so the parent stays a thin composition wrapper.
+ *
+ * Filter rules — single source of truth: `useCurrentLocation`. Members with
+ * `locationIds: []` (admins / owners) always pass. Inactive (removed)
+ * memberships are hidden by default; the "View N more inactive members"
+ * toggle pulls them in via the separate `forOrgIncludingInactive` query.
+ */
 export function MemberList() {
-  const members = useQuery(api.memberships.forOrg);
+  const baseMembers = useQuery(api.memberships.forOrg, {});
+  const [showInactive, setShowInactive] = useState(false);
+  const expandedMembers = useQuery(
+    api.memberships.forOrgIncludingInactive,
+    showInactive ? {} : "skip",
+  );
   const { organization } = useOrganization();
   const { user: currentClerkUser } = useUser();
   const { locations, current: currentLocation } = useCurrentLocation();
@@ -27,27 +37,40 @@ export function MemberList() {
     { clerkUserId: string; displayName: string } | null
   >(null);
 
-  if (members === undefined) return <ListSkeleton />;
-  if (members.length === 0) {
-    return (
-      <p className="rounded-lg border border-zinc-200 px-4 py-6 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-        No members yet.
-      </p>
-    );
-  }
+  if (baseMembers === undefined) return <ListSkeleton />;
 
   // Filter by the sidebar's active location: members with `locationIds: []`
-  // (admins, owners, multi-location staff) always show, plus anyone whose
-  // assignment includes the current location. Single-location orgs skip the
-  // filter entirely.
-  const filteredMembers =
+  // always show, plus anyone whose assignment includes the current location.
+  const filterByLocation = <
+    T extends { membership: { locationIds: readonly unknown[] } },
+  >(
+    rows: T[],
+  ): T[] =>
     isMultiLocation && currentLocation
-      ? members.filter(
+      ? rows.filter(
           (row) =>
             row.membership.locationIds.length === 0 ||
-            row.membership.locationIds.includes(currentLocation._id),
+            (row.membership.locationIds as string[]).includes(
+              currentLocation._id,
+            ),
         )
-      : members;
+      : rows;
+
+  const activeFiltered = filterByLocation(baseMembers);
+  const allFiltered = expandedMembers ? filterByLocation(expandedMembers) : null;
+  const inactiveFiltered = allFiltered
+    ? allFiltered.filter((row) => !row.membership.isActive)
+    : null;
+  const hiddenInactiveCount =
+    inactiveFiltered === null
+      ? // While the expanded query hasn't loaded, fall back to "?" — but we
+        // only render the "View N more" link when we know the actual count,
+        // so undefined-here just hides the link.
+        null
+      : inactiveFiltered.length;
+
+  const visibleMembers =
+    showInactive && allFiltered ? allFiltered : activeFiltered;
 
   async function confirmRemove() {
     if (!organization || !confirmTarget) return;
@@ -68,81 +91,79 @@ export function MemberList() {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {isMultiLocation && currentLocation && (
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Showing members at <strong>{currentLocation.name}</strong>. Switch
-          locations in the sidebar to see other rosters.
-        </p>
-      )}
-      {filteredMembers.length === 0 && (
-        <p className="rounded-lg border border-zinc-200 px-4 py-6 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+    <section className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <header className="flex items-start justify-between gap-3 border-b border-zinc-100 px-6 py-5 dark:border-zinc-900">
+        <div>
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            Active members
+          </h2>
+          {isMultiLocation && currentLocation ? (
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Showing members at <strong>{currentLocation.name}</strong>.
+              Switch locations in the sidebar to see other rosters.
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Everyone with access to this shop.
+            </p>
+          )}
+        </div>
+        <MemberLocationFilter />
+      </header>
+
+      {visibleMembers.length === 0 ? (
+        <p className="px-6 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">
           No members at this location yet.
         </p>
+      ) : (
+        <ul className="flex flex-col">
+          {visibleMembers.map((row) => {
+            const member = row.user;
+            const link = row.membership;
+            const isSelf = member.clerkUserId === currentClerkUser?.id;
+            const isRemoving = removingId === member.clerkUserId;
+            return (
+              <MemberRow
+                key={link._id}
+                member={member}
+                link={link}
+                locations={locations}
+                isMultiLocation={isMultiLocation}
+                isSelf={isSelf}
+                isRemoving={isRemoving}
+                canRemove={Boolean(organization)}
+                onRemove={() =>
+                  setConfirmTarget({
+                    clerkUserId: member.clerkUserId,
+                    displayName: nameOrEmail(member),
+                  })
+                }
+              />
+            );
+          })}
+        </ul>
       )}
-      <ul className="flex flex-col gap-2">
-        {filteredMembers.map((row) => {
-          const member = row.user;
-          const link = row.membership;
-          const displayName = nameOrEmail(member);
-          const roleLabel = ROLE_LABEL[link.role] ?? link.role;
-          const isSelf = member.clerkUserId === currentClerkUser?.id;
-          const isRemoving = removingId === member.clerkUserId;
-          return (
-            <li
-              key={link._id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-800"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  {displayName}
-                  {isSelf && (
-                    <span className="ml-2 text-xs font-normal text-zinc-500">
-                      (you)
-                    </span>
-                  )}
-                </p>
-                {displayName !== member.email && (
-                  <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                    {member.email}
-                  </p>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {isMultiLocation && (
-                  <MemberLocationsEditor
-                    membership={link}
-                    locations={locations}
-                  />
-                )}
-                <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                  {roleLabel}
-                </span>
-                {!isSelf && (
-                  <button
-                    type="button"
-                    disabled={isRemoving || !organization}
-                    onClick={() =>
-                      setConfirmTarget({
-                        clerkUserId: member.clerkUserId,
-                        displayName,
-                      })
-                    }
-                    className="rounded-lg border border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                  >
-                    {isRemoving ? "Removing…" : "Remove"}
-                  </button>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+
       {removeError && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
+        <p className="mx-6 mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
           {removeError}
         </p>
       )}
+
+      <button
+        type="button"
+        onClick={() => setShowInactive((value) => !value)}
+        className="block w-full rounded-b-xl bg-zinc-50 px-6 py-3 text-center text-xs font-semibold text-orange-600 transition-colors hover:bg-zinc-100 dark:bg-zinc-900 dark:text-orange-300 dark:hover:bg-zinc-900/70"
+      >
+        {showInactive
+          ? "Hide inactive members"
+          : hiddenInactiveCount === null
+            ? "View inactive members"
+            : hiddenInactiveCount === 0
+              ? "No inactive members"
+              : `View ${hiddenInactiveCount} more inactive member${hiddenInactiveCount === 1 ? "" : "s"}`}
+      </button>
+
       <ConfirmDialog
         open={confirmTarget !== null}
         title="Remove member?"
@@ -163,7 +184,7 @@ export function MemberList() {
         onConfirm={confirmRemove}
         onCancel={() => setConfirmTarget(null)}
       />
-    </div>
+    </section>
   );
 }
 
@@ -180,13 +201,18 @@ function nameOrEmail(user: {
 
 function ListSkeleton() {
   return (
-    <div className="flex flex-col gap-2">
-      {[0, 1, 2].map((index) => (
-        <div
-          key={index}
-          className="h-14 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-900"
-        />
-      ))}
+    <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="px-6 py-5">
+        <div className="h-5 w-32 animate-pulse rounded bg-zinc-100 dark:bg-zinc-900" />
+      </div>
+      <div className="flex flex-col gap-px bg-zinc-100 dark:bg-zinc-900">
+        {[0, 1, 2].map((index) => (
+          <div
+            key={index}
+            className="h-16 bg-white dark:bg-zinc-950"
+          />
+        ))}
+      </div>
     </div>
   );
 }

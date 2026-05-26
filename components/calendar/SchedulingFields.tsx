@@ -55,7 +55,7 @@ export function SchedulingFields({
   onChangeStatus: (value: AppointmentStatus) => void;
   onChangeNotes: (value: string) => void;
 }) {
-  const allStaff = useQuery(api.memberships.forOrg);
+  const allStaff = useQuery(api.memberships.forOrg, {});
   const { current: currentLocation } = useCurrentLocation();
   // Hide staff whose `locationIds` doesn't include the active location. `[]`
   // means "all locations" so those rows pass through. When the locked-staff
