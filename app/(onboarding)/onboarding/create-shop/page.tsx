@@ -7,6 +7,7 @@ import {
   NewShopForm,
   NewShopFormError,
 } from "@/components/onboarding/NewShopForm";
+import { ShopCreationLoader } from "@/components/onboarding/ShopCreationLoader";
 import { SignInProgress } from "@/components/ui/SignInProgress";
 
 export default function CreateShopPage() {
@@ -63,6 +64,11 @@ export default function CreateShopPage() {
 
   if (!isLoaded) return <WizardSkeleton />;
   if (autoJoining) return <SignInProgress message="Opening your shop…" />;
+  // Creating a new shop: show the branded loading screen instead of the
+  // form. The "Creating shop…" submit button feedback was the only signal
+  // before; this swaps in the full-page loader while logo upload +
+  // createOrganization + seedFromClerk + setActive + redirect play out.
+  if (submitting) return <ShopCreationLoader />;
 
   return (
     <section className="mx-auto w-full max-w-2xl px-6 py-10 md:py-14">
