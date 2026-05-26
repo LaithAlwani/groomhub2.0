@@ -142,7 +142,11 @@ function buildPetPatch(args: {
   temperament?: string;
   medicalConditions?: ReadonlyArray<string>;
   notes?: string;
-  vaccinations: ReadonlyArray<{ type: string; expiresOn: string; verified: boolean }>;
+  vaccinations: ReadonlyArray<{
+    vaccineId: Id<"vaccines">;
+    expiresOn: string;
+    verified: boolean;
+  }>;
   imageStorageId?: Id<"_storage">;
 }) {
   return {
@@ -273,7 +277,7 @@ async function loadOwnPet(
 function validateInput(args: {
   name: string;
   sizeLb?: number;
-  vaccinations: ReadonlyArray<{ type: string; expiresOn: string }>;
+  vaccinations: ReadonlyArray<{ vaccineId: Id<"vaccines">; expiresOn: string }>;
 }): void {
   if (args.name.trim().length === 0) {
     appError("VALIDATION", { field: "name", reason: "REQUIRED" });
@@ -282,9 +286,6 @@ function validateInput(args: {
     appError("VALIDATION", { field: "sizeLb", reason: "OUT_OF_RANGE" });
   }
   for (const vaccination of args.vaccinations) {
-    if (vaccination.type.trim().length === 0) {
-      appError("VALIDATION", { field: "vaccinations.type", reason: "REQUIRED" });
-    }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(vaccination.expiresOn)) {
       appError("VALIDATION", {
         field: "vaccinations.expiresOn",
@@ -295,10 +296,14 @@ function validateInput(args: {
 }
 
 function cleanVaccinations(
-  rows: ReadonlyArray<{ type: string; expiresOn: string; verified: boolean }>,
+  rows: ReadonlyArray<{
+    vaccineId: Id<"vaccines">;
+    expiresOn: string;
+    verified: boolean;
+  }>,
 ) {
   return rows.map((row) => ({
-    type: row.type.trim(),
+    vaccineId: row.vaccineId,
     expiresOn: row.expiresOn,
     verified: row.verified,
   }));

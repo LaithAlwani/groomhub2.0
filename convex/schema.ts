@@ -14,7 +14,9 @@ export const speciesValidator = v.union(
 );
 
 export const vaccinationValidator = v.object({
-  type: v.string(),
+  // Foreign key into the `vaccines` catalog table. Soft-deleted catalog rows
+  // stay referenceable so historical pet records render their original name.
+  vaccineId: v.id("vaccines"),
   expiresOn: v.string(), // ISO date YYYY-MM-DD in the org's timezone
   verified: v.boolean(),
 });
@@ -147,6 +149,28 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_active", ["orgId", "isActive"])
     .index("by_org_slug", ["orgId", "slug"]),
+
+  // Catalog of vaccine TYPES the shop tracks (e.g. "Rabies", "Bordetella").
+  // Pet vaccinations on `pets.vaccinations[]` reference these rows by id so
+  // groomers pick from a curated list instead of free-typing. Soft-delete
+  // via `deletedAt` so historical pet records still render the right name.
+  vaccines: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    // Which species this vaccine applies to. Empty array = all species; the
+    // pet form filters the dropdown by the pet's species, so an empty list
+    // means "show this vaccine for every pet".
+    species: v.array(speciesValidator),
+    // Used by the pet form to pre-fill `expiresOn = today + N months` when
+    // the groomer first picks a vaccine. Optional — leave blank for
+    // one-shot vaccines or when the shop manages expiry manually.
+    defaultIntervalMonths: v.optional(v.number()),
+    description: v.optional(v.string()),
+    isActive: v.boolean(),
+    deletedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_active", ["orgId", "isActive"]),
 
   // Service menu per shop. Soft-delete via `deletedAt`; superAdmin can hard-delete.
   // `priceCents` + `currency` are stored alongside payments going live (deferred);

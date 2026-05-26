@@ -13,6 +13,7 @@ import {
   Plus,
   Scissors,
   Settings,
+  Syringe,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/clients", label: "Clients", icon: PawPrint },
   { href: "/services", label: "Services", icon: Scissors },
+  { href: "/vaccines", label: "Vaccines", icon: Syringe },
   { href: "/availability", label: "My availability", icon: CalendarClock },
   { href: "/staff", label: "Team", icon: Users, visibleTo: ["admin", "superAdmin"] },
   {

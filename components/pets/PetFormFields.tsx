@@ -175,6 +175,7 @@ export function PetFormFields({
       </label>
       <VaccinationsPanel
         rows={state.vaccinations}
+        petSpecies={state.species}
         error={errors.vaccinations}
         onChange={(next) => onChange("vaccinations", next)}
       />

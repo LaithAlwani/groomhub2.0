@@ -158,6 +158,14 @@ export const hardDeleteOrg = internalMutation({
       .collect();
     for (const row of services) await ctx.db.delete(row._id);
 
+    // Catalog of vaccine types. Pets are deleted earlier in this pass so any
+    // foreign-key references on `pets.vaccinations[]` are already gone.
+    const vaccines = await ctx.db
+      .query("vaccines")
+      .withIndex("by_org", (index) => index.eq("orgId", orgId))
+      .collect();
+    for (const row of vaccines) await ctx.db.delete(row._id);
+
     // Pending invite intents tied to this org never reach a webhook now —
     // wipe them so the next time the email re-onboards as their own org
     // they're not silently joined to a location that no longer exists.

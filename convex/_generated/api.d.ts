@@ -33,6 +33,7 @@ import type * as organizations from "../organizations.js";
 import type * as pets from "../pets.js";
 import type * as services from "../services.js";
 import type * as users from "../users.js";
+import type * as vaccines from "../vaccines.js";
 
 import type {
   ApiFromModules,
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   pets: typeof pets;
   services: typeof services;
   users: typeof users;
+  vaccines: typeof vaccines;
 }>;
 
 /**
