@@ -12,6 +12,7 @@ import type * as appointments from "../appointments.js";
 import type * as availability from "../availability.js";
 import type * as clerkSync from "../clerkSync.js";
 import type * as clients from "../clients.js";
+import type * as consentForms from "../consentForms.js";
 import type * as crons from "../crons.js";
 import type * as email from "../email.js";
 import type * as emailPayloads from "../emailPayloads.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   availability: typeof availability;
   clerkSync: typeof clerkSync;
   clients: typeof clients;
+  consentForms: typeof consentForms;
   crons: typeof crons;
   email: typeof email;
   emailPayloads: typeof emailPayloads;

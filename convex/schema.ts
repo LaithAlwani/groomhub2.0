@@ -116,6 +116,39 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_org_email", ["orgId", "email"]),
 
+  // Consent-form templates curated by admins. Used to populate the dropdown
+  // in the sign-on-tablet flow. Soft-delete via `deletedAt` so historical
+  // signed records that reference an archived template still render.
+  consentTemplates: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    body: v.string(),
+    isActive: v.boolean(),
+    deletedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_active", ["orgId", "isActive"]),
+
+  // Immutable signed records — one row per signing event. We snapshot the
+  // template name + body at sign time so a later edit / archive of the
+  // template doesn't change what the customer actually agreed to.
+  // `pdfStorageId` is the assembled PDF (template text + signature image),
+  // `signatureStorageId` is the raw signature PNG for audit re-rendering.
+  signedConsents: defineTable({
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    templateId: v.id("consentTemplates"),
+    templateNameSnapshot: v.string(),
+    templateBodySnapshot: v.string(),
+    signerName: v.string(),
+    signedAt: v.number(),
+    signatureStorageId: v.id("_storage"),
+    pdfStorageId: v.id("_storage"),
+    witnessMembershipId: v.id("memberships"),
+  })
+    .index("by_client", ["clientId"])
+    .index("by_org_signed", ["orgId", "signedAt"]),
+
   // Physical locations per shop. Every org has at least one — `seedFromClerk`
   // creates a "Main" location during onboarding. Adding a *second* location
   // requires the `enterprise` plan tier (see `convex/lib/plans.ts` →

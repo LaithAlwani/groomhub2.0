@@ -40,12 +40,19 @@ function ClientCard({
   const memberSince = new Date(client._creationTime).getFullYear();
   return (
     <li className="relative rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-colors hover:bg-zinc-50 focus-within:ring-2 focus-within:ring-[#00273c] dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900/60">
+      {/* Stretched-link pattern: this invisible <Link> covers the whole
+          card so a tap anywhere on it opens the client. Inner content
+          intentionally has NO `position: relative` — otherwise those
+          blocks would sit above the link in z-order and swallow taps
+          (only the `mt-*` gaps would remain clickable, which was the
+          bug). The Book button is the only element that keeps
+          `relative`, so its own onClick wins inside its bounds. */}
       <Link
         href={`/clients/${client._id}`}
         aria-label={`Open ${client.fullName}`}
         className="absolute inset-0 rounded-2xl focus:outline-none"
       />
-      <div className="relative flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <ClientRowAvatar client={client} size="lg" />
           <div className="min-w-0">
@@ -60,7 +67,7 @@ function ClientCard({
         <ClientStatusPill status={lastAppointment?.status} />
       </div>
 
-      <div className="relative mt-4 flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-200">
+      <div className="mt-4 flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-200">
         {client.phone && (
           <span className="inline-flex items-center gap-2">
             <Phone size={14} className="text-zinc-400" aria-hidden />
@@ -80,7 +87,7 @@ function ClientCard({
         )}
       </div>
 
-      <div className="relative mt-4">
+      <div className="mt-4">
         <ClientPetPills pets={pets} />
       </div>
 

@@ -7,6 +7,7 @@ import { useOrganization } from "@clerk/nextjs";
 import {
   CalendarClock,
   CalendarDays,
+  FileSignature,
   LayoutDashboard,
   MapPin,
   PawPrint,
@@ -35,6 +36,7 @@ const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: "/clients", label: "Clients", icon: PawPrint },
   { href: "/services", label: "Services", icon: Scissors },
   { href: "/vaccines", label: "Vaccines", icon: Syringe },
+  { href: "/consent-forms", label: "Consent forms", icon: FileSignature },
   { href: "/availability", label: "My availability", icon: CalendarClock },
   { href: "/staff", label: "Team", icon: Users, visibleTo: ["admin", "superAdmin"] },
   {

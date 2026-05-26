@@ -309,6 +309,18 @@ export const hardDelete = mutation({
       }
       await ctx.db.delete(pet._id);
     }
+    // Cascade signed consent records + their PDF + signature storage files.
+    // Each row carries two `_storage` ids that must be cleaned before the
+    // row is gone or we'd orphan files in Convex storage forever.
+    const consents = await ctx.db
+      .query("signedConsents")
+      .withIndex("by_client", (index) => index.eq("clientId", existing._id))
+      .collect();
+    for (const row of consents) {
+      await ctx.storage.delete(row.signatureStorageId);
+      await ctx.storage.delete(row.pdfStorageId);
+      await ctx.db.delete(row._id);
+    }
     await ctx.db.delete(existing._id);
   },
 });

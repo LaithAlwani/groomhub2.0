@@ -146,11 +146,32 @@ export const hardDeleteOrg = internalMutation({
       await ctx.db.delete(pet._id);
     }
 
+    // Signed consents reference clients + storage objects (PDF + signature
+    // PNG). Wipe them before the clients are gone so we don't orphan storage.
+    const signedConsents = await ctx.db
+      .query("signedConsents")
+      .withIndex("by_org_signed", (index) => index.eq("orgId", orgId))
+      .collect();
+    for (const row of signedConsents) {
+      await ctx.storage.delete(row.signatureStorageId);
+      await ctx.storage.delete(row.pdfStorageId);
+      await ctx.db.delete(row._id);
+    }
+
     const clients = await ctx.db
       .query("clients")
       .withIndex("by_org", (index) => index.eq("orgId", orgId))
       .collect();
     for (const row of clients) await ctx.db.delete(row._id);
+
+    // Consent-form templates are the catalog half — drop after the signed
+    // rows that reference them (snapshot fields kept the signing record
+    // valid in the audit even though the FK is now broken).
+    const consentTemplates = await ctx.db
+      .query("consentTemplates")
+      .withIndex("by_org", (index) => index.eq("orgId", orgId))
+      .collect();
+    for (const row of consentTemplates) await ctx.db.delete(row._id);
 
     const services = await ctx.db
       .query("services")
