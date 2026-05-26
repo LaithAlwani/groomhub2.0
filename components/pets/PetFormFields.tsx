@@ -17,7 +17,7 @@ export type PetFormState = {
   isFixed: boolean;
   breed: string;
   coatType: string;
-  sizeKg: string;
+  sizeLb: string;
   birthDate: string;
   temperament: string;
   medicalConditions: string;
@@ -127,12 +127,12 @@ export function PetFormFields({
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
-          label="Size (kg, optional)"
+          label="Size (lb, optional)"
           type="number"
           inputMode="decimal"
-          value={state.sizeKg}
-          onChange={(value) => onChange("sizeKg", value)}
-          error={errors.sizeKg}
+          value={state.sizeLb}
+          onChange={(value) => onChange("sizeLb", value)}
+          error={errors.sizeLb}
         />
         <Field
           label="Birth date (optional)"

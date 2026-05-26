@@ -7,7 +7,7 @@ export const INITIAL_PET_STATE: PetFormState = {
   isFixed: false,
   breed: "",
   coatType: "",
-  sizeKg: "",
+  sizeLb: "",
   birthDate: "",
   temperament: "",
   medicalConditions: "",

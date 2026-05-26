@@ -50,7 +50,7 @@ export function PetFormDialog({
       isFixed: existing.isFixed ?? false,
       breed: existing.breed ?? "",
       coatType: existing.coatType ?? "",
-      sizeKg: existing.sizeKg !== undefined ? String(existing.sizeKg) : "",
+      sizeLb: existing.sizeLb !== undefined ? String(existing.sizeLb) : "",
       birthDate: existing.birthDate ?? "",
       temperament: existing.temperament ?? "",
       medicalConditions: (existing.medicalConditions ?? []).join(", "),
@@ -75,9 +75,9 @@ export function PetFormDialog({
     setServerError(null);
     const next: PetFormErrors = {};
     if (state.name.trim().length === 0) next.name = "Name is required";
-    const sizeKgNumber = state.sizeKg ? Number(state.sizeKg) : undefined;
-    if (sizeKgNumber !== undefined && (Number.isNaN(sizeKgNumber) || sizeKgNumber < 0)) {
-      next.sizeKg = "Must be 0 or greater";
+    const sizeLbNumber = state.sizeLb ? Number(state.sizeLb) : undefined;
+    if (sizeLbNumber !== undefined && (Number.isNaN(sizeLbNumber) || sizeLbNumber < 0)) {
+      next.sizeLb = "Must be 0 or greater";
     }
     for (const row of state.vaccinations) {
       if (row.type.trim().length === 0 || !/^\d{4}-\d{2}-\d{2}$/.test(row.expiresOn)) {
@@ -103,7 +103,7 @@ export function PetFormDialog({
         isFixed: state.isFixed,
         breed: state.breed || undefined,
         coatType: state.coatType || undefined,
-        sizeKg: sizeKgNumber,
+        sizeLb: sizeLbNumber,
         birthDate: state.birthDate || undefined,
         temperament: state.temperament || undefined,
         medicalConditions: conditions.length > 0 ? conditions : undefined,

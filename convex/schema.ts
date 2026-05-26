@@ -313,7 +313,7 @@ export default defineSchema({
     species: speciesValidator,
     breed: v.optional(v.string()),
     coatType: v.optional(v.string()),
-    sizeKg: v.optional(v.number()),
+    sizeLb: v.optional(v.number()),
     birthDate: v.optional(v.string()), // ISO date YYYY-MM-DD
     sex: v.optional(sexValidator),
     // `true` = spayed (female) or neutered (male); UI picks the label by sex.

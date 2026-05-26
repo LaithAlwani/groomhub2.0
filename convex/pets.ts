@@ -119,7 +119,7 @@ const petInputValidator = {
   species: speciesValidator,
   breed: v.optional(v.string()),
   coatType: v.optional(v.string()),
-  sizeKg: v.optional(v.number()),
+  sizeLb: v.optional(v.number()),
   birthDate: v.optional(v.string()),
   sex: v.optional(sexValidator),
   isFixed: v.optional(v.boolean()),
@@ -135,7 +135,7 @@ function buildPetPatch(args: {
   species: "dog" | "cat" | "other";
   breed?: string;
   coatType?: string;
-  sizeKg?: number;
+  sizeLb?: number;
   birthDate?: string;
   sex?: "male" | "female";
   isFixed?: boolean;
@@ -150,7 +150,7 @@ function buildPetPatch(args: {
     species: args.species,
     breed: args.breed?.trim() || undefined,
     coatType: args.coatType?.trim() || undefined,
-    sizeKg: args.sizeKg,
+    sizeLb: args.sizeLb,
     birthDate: args.birthDate?.trim() || undefined,
     sex: args.sex,
     isFixed: args.isFixed,
@@ -186,7 +186,7 @@ const petUpdateValidator = {
   species: speciesValidator,
   breed: v.optional(v.string()),
   coatType: v.optional(v.string()),
-  sizeKg: v.optional(v.number()),
+  sizeLb: v.optional(v.number()),
   birthDate: v.optional(v.string()),
   sex: v.optional(sexValidator),
   isFixed: v.optional(v.boolean()),
@@ -272,14 +272,14 @@ async function loadOwnPet(
 
 function validateInput(args: {
   name: string;
-  sizeKg?: number;
+  sizeLb?: number;
   vaccinations: ReadonlyArray<{ type: string; expiresOn: string }>;
 }): void {
   if (args.name.trim().length === 0) {
     appError("VALIDATION", { field: "name", reason: "REQUIRED" });
   }
-  if (args.sizeKg !== undefined && (args.sizeKg < 0 || args.sizeKg > 200)) {
-    appError("VALIDATION", { field: "sizeKg", reason: "OUT_OF_RANGE" });
+  if (args.sizeLb !== undefined && (args.sizeLb < 0 || args.sizeLb > 450)) {
+    appError("VALIDATION", { field: "sizeLb", reason: "OUT_OF_RANGE" });
   }
   for (const vaccination of args.vaccinations) {
     if (vaccination.type.trim().length === 0) {
