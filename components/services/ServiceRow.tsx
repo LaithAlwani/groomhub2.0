@@ -54,13 +54,13 @@ export function ServiceRow({
       onClick={() => {
         if (canEdit && !isBusy) onEdit();
       }}
-      className={`grid grid-cols-[1.6fr_0.7fr_0.8fr_1fr_auto] items-center gap-3 border-b border-zinc-100 px-4 py-3 transition-colors last:border-b-0 dark:border-zinc-900 ${
+      className={`flex items-start justify-between gap-3 border-b border-zinc-100 px-4 py-3 transition-colors last:border-b-0 dark:border-zinc-900 md:grid md:grid-cols-[1.6fr_0.7fr_0.8fr_1fr_auto] md:items-center ${
         canEdit
           ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
           : ""
       }`}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           {service.color && (
             <span
@@ -93,14 +93,20 @@ export function ServiceRow({
             {service.description}
           </p>
         )}
+        {/* Mobile-only meta line — folds duration / price / species into one
+            row so the card fits cleanly on narrow phones. */}
+        <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400 md:hidden">
+          {effectiveDuration} min ·{" "}
+          {formatPrice(effectivePriceCents, service.currency)} · {speciesLabel}
+        </p>
       </div>
-      <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
+      <p className="hidden truncate text-sm text-zinc-700 dark:text-zinc-300 md:block">
         {effectiveDuration} min
       </p>
-      <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
+      <p className="hidden truncate text-sm text-zinc-700 dark:text-zinc-300 md:block">
         {formatPrice(effectivePriceCents, service.currency)}
       </p>
-      <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
+      <p className="hidden truncate text-sm text-zinc-700 dark:text-zinc-300 md:block">
         {speciesLabel}
       </p>
       <div className="flex shrink-0 items-center justify-end gap-1">

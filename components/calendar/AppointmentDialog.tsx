@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Clock, PhoneCall } from "lucide-react";
+import { AlertTriangle, Clock, PhoneCall, X } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { ReassignDialog } from "@/components/dashboard/ReassignDialog";
 import { formatPhone } from "@/lib/phone";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { AppointmentFormFields } from "./AppointmentFormFields";
 import { AppointmentDialogFooter } from "./AppointmentDialogFooter";
 import { AppointmentDialogSkeleton } from "./AppointmentDialogSkeleton";
@@ -17,6 +18,7 @@ import {
 } from "./useAppointmentDialog";
 
 export function AppointmentDialog(props: AppointmentDialogProps) {
+  useBodyScrollLock();
   const {
     isEdit,
     existing,
@@ -53,16 +55,28 @@ export function AppointmentDialog(props: AppointmentDialogProps) {
     <div
       role="dialog"
       aria-modal
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 px-4"
+      className="fixed inset-0 z-40 flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-6"
       onClick={submitting || cancelling ? undefined : props.onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-950 sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          {isEdit ? "Edit appointment" : "New appointment"}
-        </h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            {isEdit ? "Edit appointment" : "New appointment"}
+          </h2>
+          <button
+            type="button"
+            onClick={() =>
+              !(submitting || cancelling) && props.onClose()
+            }
+            aria-label="Close"
+            className="-mt-1 rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
+          >
+            <X size={16} />
+          </button>
+        </div>
         {isLoading ? (
           <AppointmentDialogSkeleton onClose={props.onClose} />
         ) : (

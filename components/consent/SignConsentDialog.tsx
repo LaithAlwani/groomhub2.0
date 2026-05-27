@@ -9,6 +9,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { Field } from "@/components/forms/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { buildConsentPdf } from "@/lib/consent/buildConsentPdf";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 /**
  * The tablet-friendly signing modal. Staff opens it from the client detail
@@ -37,6 +38,7 @@ export function SignConsentDialog({
   const generateUploadUrl = useMutation(api.consentForms.generateUploadUrl);
   const recordSigning = useMutation(api.consentForms.recordSigning);
   const deleteOrphan = useMutation(api.consentForms.deleteOrphanStorage);
+  useBodyScrollLock();
 
   const padRef = useRef<SignaturePad | null>(null);
   const [templateId, setTemplateId] = useState<Id<"consentTemplates"> | "">("");

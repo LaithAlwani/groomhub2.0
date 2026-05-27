@@ -46,9 +46,9 @@ export function VaccineRow({
       onClick={() => {
         if (!busy) onEdit();
       }}
-      className="grid cursor-pointer grid-cols-[1.5fr_1.2fr_1fr_auto] items-center gap-3 border-b border-zinc-100 px-4 py-3 transition-colors last:border-b-0 hover:bg-zinc-50 dark:border-zinc-900 dark:hover:bg-zinc-900/60"
+      className="flex cursor-pointer items-start justify-between gap-3 border-b border-zinc-100 px-4 py-3 transition-colors last:border-b-0 hover:bg-zinc-50 dark:border-zinc-900 dark:hover:bg-zinc-900/60 md:grid md:grid-cols-[1.5fr_1.2fr_1fr_auto] md:items-center"
     >
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
           {vaccine.name}
         </p>
@@ -57,11 +57,16 @@ export function VaccineRow({
             {vaccine.description}
           </p>
         )}
+        {/* Mobile-only meta line — combines the species + interval columns
+            so the row fits cleanly under ~400px without truncating. */}
+        <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400 md:hidden">
+          {speciesLabel} · {intervalLabel}
+        </p>
       </div>
-      <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
+      <p className="hidden truncate text-sm text-zinc-700 dark:text-zinc-300 md:block">
         {speciesLabel}
       </p>
-      <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
+      <p className="hidden truncate text-sm text-zinc-700 dark:text-zinc-300 md:block">
         {intervalLabel}
       </p>
       <div className="flex shrink-0 items-center justify-end gap-1">

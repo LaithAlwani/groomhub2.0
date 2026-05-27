@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 type Props = {
   service: Doc<"services">;
@@ -28,6 +29,7 @@ export function ServiceLocationOverrideDialog({
 }: Props) {
   const set = useMutation(api.services.setLocationOverride);
   const clear = useMutation(api.services.clearLocationOverride);
+  useBodyScrollLock();
 
   // Empty string = "no override on this field" (fall back to default).
   // Avoid coercing 0 to empty so admin can intentionally set $0 if needed.
@@ -217,7 +219,7 @@ export function ServiceLocationOverrideDialog({
               <button
                 type="submit"
                 disabled={saving || removing}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
               >
                 {saving ? "Saving…" : "Save"}
               </button>

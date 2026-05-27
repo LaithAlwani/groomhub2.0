@@ -15,6 +15,7 @@ import {
   Scissors,
   Settings,
   Syringe,
+  Upload,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -43,6 +44,12 @@ const NAV_LINKS: ReadonlyArray<NavLink> = [
     href: "/settings/locations",
     label: "Locations",
     icon: MapPin,
+    visibleTo: ["admin", "superAdmin"],
+  },
+  {
+    href: "/settings/import",
+    label: "Import data",
+    icon: Upload,
     visibleTo: ["admin", "superAdmin"],
   },
   {

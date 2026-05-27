@@ -158,6 +158,13 @@ export const hardDeleteOrg = internalMutation({
       await ctx.db.delete(row._id);
     }
 
+    // Legacy / imported appointment history (audit rows, no storage objects).
+    const legacyAppointments = await ctx.db
+      .query("legacyAppointments")
+      .withIndex("by_org_imported", (index) => index.eq("orgId", orgId))
+      .collect();
+    for (const row of legacyAppointments) await ctx.db.delete(row._id);
+
     const clients = await ctx.db
       .query("clients")
       .withIndex("by_org", (index) => index.eq("orgId", orgId))

@@ -321,6 +321,12 @@ export const hardDelete = mutation({
       await ctx.storage.delete(row.pdfStorageId);
       await ctx.db.delete(row._id);
     }
+    // Cascade legacy / imported appointment history rows.
+    const legacy = await ctx.db
+      .query("legacyAppointments")
+      .withIndex("by_client", (index) => index.eq("clientId", existing._id))
+      .collect();
+    for (const row of legacy) await ctx.db.delete(row._id);
     await ctx.db.delete(existing._id);
   },
 });

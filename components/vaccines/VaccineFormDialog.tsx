@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Field } from "@/components/forms/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 const SPECIES_OPTIONS = ["dog", "cat", "other"] as const;
 type Species = (typeof SPECIES_OPTIONS)[number];
@@ -47,6 +48,7 @@ export function VaccineFormDialog({
 
   const create = useMutation(api.vaccines.create);
   const update = useMutation(api.vaccines.update);
+  useBodyScrollLock();
 
   const [name, setName] = useState("");
   const [species, setSpecies] = useState<Species[]>([]);

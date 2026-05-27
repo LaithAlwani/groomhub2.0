@@ -17,6 +17,7 @@ import type * as crons from "../crons.js";
 import type * as email from "../email.js";
 import type * as emailPayloads from "../emailPayloads.js";
 import type * as http from "../http.js";
+import type * as imports from "../imports.js";
 import type * as invitations from "../invitations.js";
 import type * as lib_appointmentChecks from "../lib/appointmentChecks.js";
 import type * as lib_ensureMembership from "../lib/ensureMembership.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   email: typeof email;
   emailPayloads: typeof emailPayloads;
   http: typeof http;
+  imports: typeof imports;
   invitations: typeof invitations;
   "lib/appointmentChecks": typeof lib_appointmentChecks;
   "lib/ensureMembership": typeof lib_ensureMembership;

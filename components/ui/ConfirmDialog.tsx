@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 type Tone = "default" | "danger";
 
@@ -31,6 +33,7 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;
@@ -47,26 +50,36 @@ export function ConfirmDialog({
   const confirmClass =
     tone === "danger"
       ? "rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-      : "rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500";
+      : "rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500";
 
   return (
     <div
       role="dialog"
       aria-modal
       aria-labelledby="confirm-dialog-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 px-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-6"
       onClick={() => !busy && onCancel()}
     >
       <div
-        className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
+        className="w-full max-w-sm rounded-t-2xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-950 sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2
-          id="confirm-dialog-title"
-          className="text-base font-semibold text-zinc-900 dark:text-zinc-100"
-        >
-          {title}
-        </h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2
+            id="confirm-dialog-title"
+            className="text-base font-semibold text-zinc-900 dark:text-zinc-100"
+          >
+            {title}
+          </h2>
+          <button
+            type="button"
+            onClick={() => !busy && onCancel()}
+            aria-label="Close"
+            className="-mt-1 rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
+          >
+            <X size={16} />
+          </button>
+        </div>
         {description && (
           <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             {description}

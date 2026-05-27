@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Field } from "@/components/forms/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80, "Name is too long"),
@@ -46,6 +47,7 @@ export function ConsentTemplateFormDialog({
 
   const create = useMutation(api.consentForms.createTemplate);
   const update = useMutation(api.consentForms.updateTemplate);
+  useBodyScrollLock();
 
   const [name, setName] = useState("");
   const [body, setBody] = useState("");

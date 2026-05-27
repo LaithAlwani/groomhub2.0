@@ -149,6 +149,29 @@ export default defineSchema({
     .index("by_client", ["clientId"])
     .index("by_org_signed", ["orgId", "signedAt"]),
 
+  // Read-only audit of historical appointments imported from a competitor
+  // system (Pawfinity, Gingr, Petstor, etc.). Stored as text because we
+  // can't reliably map foreign service / staff / location values into our
+  // operational tables — the shop just wants the customer's history visible
+  // on the client profile. No FKs to services/staff/locations on purpose.
+  legacyAppointments: defineTable({
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    petName: v.optional(v.string()),
+    serviceName: v.optional(v.string()),
+    staffName: v.optional(v.string()),
+    dateLabel: v.optional(v.string()),
+    timeLabel: v.optional(v.string()),
+    priceLabel: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    sourceSystem: v.optional(v.string()),
+    importedAt: v.number(),
+    importBatchId: v.string(),
+  })
+    .index("by_client", ["clientId"])
+    .index("by_org_imported", ["orgId", "importedAt"])
+    .index("by_org_batch", ["orgId", "importBatchId"]),
+
   // Physical locations per shop. Every org has at least one — `seedFromClerk`
   // creates a "Main" location during onboarding. Adding a *second* location
   // requires the `enterprise` plan tier (see `convex/lib/plans.ts` →

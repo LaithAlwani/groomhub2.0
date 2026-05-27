@@ -115,7 +115,7 @@ export function ServicesPageBody({ canEdit }: { canEdit: boolean }) {
       </header>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="grid grid-cols-[1.6fr_0.7fr_0.8fr_1fr_auto] items-center gap-3 border-b border-zinc-200 bg-zinc-900 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 dark:border-zinc-800">
+        <div className="hidden grid-cols-[1.6fr_0.7fr_0.8fr_1fr_auto] items-center gap-3 border-b border-zinc-200 bg-zinc-900 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 dark:border-zinc-800 md:grid">
           <span>Name</span>
           <span>Duration</span>
           <span>Price</span>
