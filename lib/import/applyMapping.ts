@@ -122,7 +122,10 @@ export type ImportRow = {
 
 type BuiltClient = {
   fullName: string;
+  firstName?: string;
+  lastName?: string;
   phone?: string;
+  altPhones?: string[];
   email?: string;
   addressLine1?: string;
   city?: string;
@@ -461,41 +464,38 @@ export function buildPreview(args: {
       if (!fullName) issues.push("missing-client-name");
       const email = get(source, args.mapping, "client.email")?.toLowerCase();
       const phone = phoneDigits(get(source, args.mapping, "client.phone"));
-      // Secondary phones — kept raw (not digit-stripped) so the user can
-      // see formatting in the notes line at the bottom of the client card.
-      const phone2Raw = get(source, args.mapping, "client.phone2");
-      const phone3Raw = get(source, args.mapping, "client.phone3");
+      const phone2 = phoneDigits(get(source, args.mapping, "client.phone2"));
+      const phone3 = phoneDigits(get(source, args.mapping, "client.phone3"));
       if (email && args.knownEmails.has(email)) issues.push("duplicate-email");
       if (phone && args.knownPhones.has(phone)) issues.push("duplicate-phone");
-      const userNotes = get(source, args.mapping, "client.notes");
-      // Append alt phones onto notes so nothing's lost — clients table only
-      // has one phone column. Duplicate-checked against the primary so we
-      // don't write "Alt phone: 555-1212" when 555-1212 is already saved.
-      const altPhoneLines: string[] = [];
-      if (phone2Raw && phoneDigits(phone2Raw) !== phone) {
-        altPhoneLines.push(`Alt phone: ${phone2Raw.trim()}`);
-      }
-      if (phone3Raw && phoneDigits(phone3Raw) !== phone) {
-        altPhoneLines.push(`Alt phone: ${phone3Raw.trim()}`);
-      }
       // Pre-split the user's notes on date boundaries so contact-export
       // blobs with many past visits packed into one paragraph become one
       // visit per line in the stored value.
+      const userNotes = get(source, args.mapping, "client.notes");
       const splitNotes = userNotes ? splitByDates(userNotes.trim()) : undefined;
-      const composedNotes = [splitNotes, ...altPhoneLines]
-        .filter((part): part is string => Boolean(part && part.length > 0))
-        .join("\n");
+      // De-dupe alt phones against the primary so the same number doesn't
+      // appear twice on the client record.
+      const altPhones = Array.from(
+        new Set(
+          [phone2, phone3].filter(
+            (value): value is string => Boolean(value) && value !== phone,
+          ),
+        ),
+      );
       const clientData: BuiltClient | null = fullName
         ? {
             fullName,
+            firstName,
+            lastName,
             email,
             phone,
+            altPhones: altPhones.length > 0 ? altPhones : undefined,
             addressLine1: get(source, args.mapping, "client.addressLine1"),
             city: get(source, args.mapping, "client.city"),
             state: get(source, args.mapping, "client.state"),
             postalCode: get(source, args.mapping, "client.postalCode"),
             country: get(source, args.mapping, "client.country"),
-            notes: composedNotes.length > 0 ? composedNotes : undefined,
+            notes: splitNotes,
           }
         : null;
       const pets: BuiltPet[] = [];

@@ -10,10 +10,12 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { digitsOnly, formatPhone } from "@/lib/phone";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { AddressFields } from "./AddressFields";
+import { PhonesField } from "./PhonesField";
 
 type ClientFormState = {
-  fullName: string;
-  phone: string;
+  firstName: string;
+  lastName: string;
+  phones: string[];
   email: string;
   addressLine1: string;
   addressLine2: string;
@@ -24,11 +26,12 @@ type ClientFormState = {
   notes: string;
 };
 
-type FieldErrors = Partial<Record<keyof ClientFormState, string>>;
+type FieldErrors = Partial<Record<keyof ClientFormState | "fullName", string>>;
 
 const INITIAL_STATE: ClientFormState = {
-  fullName: "",
-  phone: "",
+  firstName: "",
+  lastName: "",
+  phones: [""],
   email: "",
   addressLine1: "",
   addressLine2: "",
@@ -38,6 +41,26 @@ const INITIAL_STATE: ClientFormState = {
   country: "",
   notes: "",
 };
+
+/**
+ * Split a legacy single-field name on the first space so older clients
+ * (only `fullName` is set, no firstName/lastName) load reasonably into the
+ * new two-field form. "Mary Jo Smith" becomes first="Mary", last="Jo Smith"
+ * — the user can correct if needed.
+ */
+function splitLegacyName(fullName: string): {
+  firstName: string;
+  lastName: string;
+} {
+  const trimmed = fullName.trim();
+  if (!trimmed) return { firstName: "", lastName: "" };
+  const spaceAt = trimmed.indexOf(" ");
+  if (spaceAt < 0) return { firstName: trimmed, lastName: "" };
+  return {
+    firstName: trimmed.slice(0, spaceAt),
+    lastName: trimmed.slice(spaceAt + 1).trim(),
+  };
+}
 
 export function ClientFormDialog({
   clientId,
@@ -64,9 +87,14 @@ export function ClientFormDialog({
 
   useEffect(() => {
     if (!existing) return;
+    const fallback = splitLegacyName(existing.fullName);
+    const allPhones = [existing.phone, ...(existing.altPhones ?? [])]
+      .map((value) => formatPhone(value ?? ""))
+      .filter((value) => value.length > 0);
     const next: ClientFormState = {
-      fullName: existing.fullName,
-      phone: formatPhone(existing.phone),
+      firstName: existing.firstName ?? fallback.firstName,
+      lastName: existing.lastName ?? fallback.lastName,
+      phones: allPhones.length > 0 ? allPhones : [""],
       email: existing.email ?? "",
       addressLine1: existing.addressLine1 ?? "",
       addressLine2: existing.addressLine2 ?? "",
@@ -84,7 +112,10 @@ export function ClientFormDialog({
     ? initialSnapshot === null || initialSnapshot !== JSON.stringify(state)
     : true;
 
-  function setField<K extends keyof ClientFormState>(key: K, value: ClientFormState[K]) {
+  function setField<K extends keyof ClientFormState>(
+    key: K,
+    value: ClientFormState[K],
+  ) {
     setState((current) => ({ ...current, [key]: value }));
   }
 
@@ -92,7 +123,9 @@ export function ClientFormDialog({
     event.preventDefault();
     setServerError(null);
     const next: FieldErrors = {};
-    if (state.fullName.trim().length === 0) next.fullName = "Name is required";
+    if (state.firstName.trim().length === 0 && state.lastName.trim().length === 0) {
+      next.firstName = "First or last name is required";
+    }
     if (state.email.trim() && !state.email.includes("@"))
       next.email = "Looks like an invalid email";
     if (Object.keys(next).length > 0) {
@@ -102,9 +135,18 @@ export function ClientFormDialog({
     setFieldErrors({});
     setSubmitting(true);
     try {
+      // Split the phones list: first non-empty entry = primary; rest = alts.
+      // De-dupe digits-only so the same number can't sit in both positions.
+      const phoneDigitsList = state.phones
+        .map((value) => digitsOnly(value))
+        .filter((value) => value.length > 0);
+      const uniquePhones = Array.from(new Set(phoneDigitsList));
+      const [primary, ...alts] = uniquePhones;
       const payload = {
-        fullName: state.fullName.trim(),
-        phone: digitsOnly(state.phone) || undefined,
+        firstName: state.firstName.trim() || undefined,
+        lastName: state.lastName.trim() || undefined,
+        phone: primary || undefined,
+        altPhones: alts.length > 0 ? alts : undefined,
         email: state.email.trim() || undefined,
         addressLine1: state.addressLine1.trim() || undefined,
         addressLine2: state.addressLine2.trim() || undefined,
@@ -125,10 +167,6 @@ export function ClientFormDialog({
     } finally {
       setSubmitting(false);
     }
-  }
-
-  function handlePhoneBlur() {
-    setField("phone", formatPhone(state.phone));
   }
 
   return (
@@ -156,23 +194,26 @@ export function ClientFormDialog({
           </button>
         </div>
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
-          <Field
-            label="Full name"
-            value={state.fullName}
-            onChange={(value) => setField("fullName", value)}
-            error={fieldErrors.fullName}
-            placeholder="Jane Doe"
-          />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field
-              label="Phone (optional)"
-              type="tel"
-              value={state.phone}
-              onChange={(value) => setField("phone", value)}
-              onBlur={handlePhoneBlur}
-              error={fieldErrors.phone}
-              inputMode="tel"
-              placeholder="555-123-4567"
+              label="First name"
+              value={state.firstName}
+              onChange={(value) => setField("firstName", value)}
+              error={fieldErrors.firstName}
+              placeholder="Jane"
+            />
+            <Field
+              label="Last name"
+              value={state.lastName}
+              onChange={(value) => setField("lastName", value)}
+              error={fieldErrors.lastName}
+              placeholder="Doe"
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <PhonesField
+              phones={state.phones}
+              onChange={(next) => setField("phones", next)}
             />
             <Field
               label="Email (optional)"

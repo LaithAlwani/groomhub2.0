@@ -45,10 +45,7 @@ export const list = query({
           .filter((row) =>
             args.includeArchived ? true : row.deletedAt === undefined,
           )
-          .filter((row) => {
-            const phoneDigits = (row.phone ?? "").replace(/\D/g, "");
-            return phoneDigits.includes(digitsOnly);
-          })
+          .filter((row) => phoneMatches(row, digitsOnly))
           .sort((a, b) => a.fullName.localeCompare(b.fullName));
       }
       return await ctx.db
@@ -108,10 +105,7 @@ export const listWithPets = query({
           .filter((row) =>
             args.includeArchived ? true : row.deletedAt === undefined,
           )
-          .filter((row) => {
-            const phoneDigits = (row.phone ?? "").replace(/\D/g, "");
-            return phoneDigits.includes(digitsOnly);
-          })
+          .filter((row) => phoneMatches(row, digitsOnly))
           .sort((a, b) => a.fullName.localeCompare(b.fullName));
       } else {
         clients = await ctx.db
@@ -184,8 +178,11 @@ export const get = query({
 });
 
 const clientInputValidator = {
-  fullName: v.string(),
+  fullName: v.optional(v.string()),
+  firstName: v.optional(v.string()),
+  lastName: v.optional(v.string()),
   phone: v.optional(v.string()),
+  altPhones: v.optional(v.array(v.string())),
   email: v.optional(v.string()),
   addressLine1: v.optional(v.string()),
   addressLine2: v.optional(v.string()),
@@ -197,8 +194,11 @@ const clientInputValidator = {
 };
 
 function buildClientPatch(args: {
-  fullName: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
   phone?: string;
+  altPhones?: string[];
   email?: string;
   addressLine1?: string;
   addressLine2?: string;
@@ -210,9 +210,31 @@ function buildClientPatch(args: {
 }) {
   const phoneDigits = (args.phone ?? "").replace(/\D/g, "");
   const phone = phoneDigits || undefined;
+  const firstName = args.firstName?.trim() || undefined;
+  const lastName = args.lastName?.trim() || undefined;
+  // `fullName` is the canonical display + search string; derive it from
+  // first/last when those are supplied. Falls back to the caller-supplied
+  // `fullName` so legacy form submissions (no split fields) still work.
+  const composed = [firstName, lastName]
+    .filter((part): part is string => Boolean(part))
+    .join(" ")
+    .trim();
+  const fullName =
+    composed.length > 0
+      ? composed
+      : (args.fullName?.trim() || "");
+  // Alt phones: digits-only, de-duped, primary number excluded so we don't
+  // double-count it. Empty array collapses to undefined for cleaner reads.
+  const altPhonesDigits = (args.altPhones ?? [])
+    .map((value) => value.replace(/\D/g, ""))
+    .filter((value) => value.length > 0 && value !== phone);
+  const altPhones = Array.from(new Set(altPhonesDigits));
   return {
-    fullName: args.fullName.trim(),
+    fullName,
+    firstName,
+    lastName,
     phone,
+    altPhones: altPhones.length > 0 ? altPhones : undefined,
     email: args.email?.trim() || undefined,
     addressLine1: args.addressLine1?.trim() || undefined,
     addressLine2: args.addressLine2?.trim() || undefined,
@@ -222,6 +244,22 @@ function buildClientPatch(args: {
     country: args.country?.trim() || undefined,
     notes: args.notes?.trim() || undefined,
   };
+}
+
+/**
+ * True when the client's primary phone OR any altPhone contains the
+ * caller-supplied digit query as a substring (so partial-match search
+ * works — e.g. "4231" matches "555-555-4231"). Both fields are digit-
+ * normalized before comparison.
+ */
+function phoneMatches(row: Doc<"clients">, digits: string): boolean {
+  if (digits.length === 0) return false;
+  const primary = (row.phone ?? "").replace(/\D/g, "");
+  if (primary.includes(digits)) return true;
+  for (const alt of row.altPhones ?? []) {
+    if (alt.replace(/\D/g, "").includes(digits)) return true;
+  }
+  return false;
 }
 
 /**
@@ -343,10 +381,20 @@ async function loadOwnClient(
 }
 
 function validateInput(args: {
-  fullName: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
 }): void {
-  if (args.fullName.trim().length === 0) {
+  // Accept either `fullName` (legacy single-field forms) OR `firstName`
+  // (new split-name forms). One of them must produce a non-empty trimmed
+  // string; otherwise we'd insert a blank client record.
+  const directName = args.fullName?.trim() ?? "";
+  const composed = [args.firstName, args.lastName]
+    .filter((part): part is string => Boolean(part && part.trim()))
+    .join(" ")
+    .trim();
+  if (directName.length === 0 && composed.length === 0) {
     appError("VALIDATION", { field: "fullName", reason: "REQUIRED" });
   }
   if (args.email !== undefined) {

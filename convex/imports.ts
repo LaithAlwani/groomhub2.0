@@ -24,7 +24,10 @@ const phoneDigits = (raw: string | undefined): string =>
 
 const importClientValidator = v.object({
   fullName: v.string(),
+  firstName: v.optional(v.string()),
+  lastName: v.optional(v.string()),
   phone: v.optional(v.string()),
+  altPhones: v.optional(v.array(v.string())),
   email: v.optional(v.string()),
   addressLine1: v.optional(v.string()),
   addressLine2: v.optional(v.string()),
@@ -169,10 +172,23 @@ export const commitBatch = mutation({
             const data = row.client.data;
             const name = data.fullName.trim();
             if (name.length === 0) throw new Error("Missing client name.");
+            // De-dupe alt phones against the primary so the same number
+            // doesn't appear in both places after import.
+            const primaryPhone = phoneDigits(data.phone) || undefined;
+            const altDigits = (data.altPhones ?? [])
+              .map((value) => phoneDigits(value))
+              .filter(
+                (value): value is string =>
+                  Boolean(value) && value !== primaryPhone,
+              );
+            const altPhones = Array.from(new Set(altDigits));
             clientId = await ctx.db.insert("clients", {
               orgId,
               fullName: name,
-              phone: phoneDigits(data.phone) || undefined,
+              firstName: data.firstName?.trim() || undefined,
+              lastName: data.lastName?.trim() || undefined,
+              phone: primaryPhone,
+              altPhones: altPhones.length > 0 ? altPhones : undefined,
               email: data.email?.trim() || undefined,
               addressLine1: data.addressLine1?.trim() || undefined,
               addressLine2: data.addressLine2?.trim() || undefined,

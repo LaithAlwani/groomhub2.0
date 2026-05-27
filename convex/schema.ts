@@ -274,9 +274,19 @@ export default defineSchema({
   clients: defineTable({
     orgId: v.string(),
     fullName: v.string(),
+    // Split-name fields. `fullName` stays the canonical display + search
+    // string (derived `firstName + " " + lastName` on write), so existing
+    // queries and indexes keep working. Imported / legacy clients may not
+    // have these populated.
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
     // Stored as digits-only (e.g. "5551234567"). Display surfaces format as
     // xxx-xxx-xxxx via `lib/phone.ts`.
     phone: v.optional(v.string()),
+    // Secondary phone numbers, digits-only. Search scans both `phone` and
+    // every entry in this array, so an inbound call from an alt phone still
+    // matches the client.
+    altPhones: v.optional(v.array(v.string())),
     email: v.optional(v.string()),
     addressLine1: v.optional(v.string()),
     addressLine2: v.optional(v.string()),

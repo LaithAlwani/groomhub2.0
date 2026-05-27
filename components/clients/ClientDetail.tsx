@@ -111,6 +111,15 @@ export function ClientDetail({
               {formatPhone(client.phone)}
             </span>
           )}
+          {(client.altPhones ?? []).map((alt) => (
+            <span
+              key={alt}
+              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-500 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400"
+            >
+              <Phone size={12} className="text-zinc-400" aria-hidden />
+              {formatPhone(alt)}
+            </span>
+          ))}
           {client.email && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
               <Mail size={12} className="text-zinc-400" aria-hidden />
