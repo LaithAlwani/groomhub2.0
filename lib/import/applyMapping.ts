@@ -26,6 +26,8 @@ export type TargetField =
   | "client.lastName"
   | "client.email"
   | "client.phone"
+  | "client.phone2"
+  | "client.phone3"
   | "client.addressLine1"
   | "client.city"
   | "client.state"
@@ -241,6 +243,18 @@ function guess(key: string, mode: ImportMode): TargetField {
   )
     return "client.lastName";
   if (key.includes("email")) return "client.email";
+  // Match second/third phone columns BEFORE the catch-all `client.phone`
+  // mapping so `Phone2` / `Mobile3` etc. don't get folded into the primary.
+  if (
+    (key.includes("phone") || key.includes("mobile") || key.includes("cell")) &&
+    key.endsWith("3")
+  )
+    return "client.phone3";
+  if (
+    (key.includes("phone") || key.includes("mobile") || key.includes("cell")) &&
+    (key.endsWith("2") || key.includes("alt") || key.includes("secondary"))
+  )
+    return "client.phone2";
   if (key.includes("phone") || key.includes("mobile") || key.includes("cell"))
     return "client.phone";
   if (key.includes("address") || key.includes("street"))
@@ -269,6 +283,23 @@ function guess(key: string, mode: ImportMode): TargetField {
     if (key === "sex" || key === "gender") return "pet.sex";
     if (key.includes("weight") || key === "sizelb" || key === "lbs")
       return "pet.sizeLb";
+    // Inline last-appointment columns — auto-map common Pawfinity / Gingr
+    // export names ("Last Service", "Visit Date", "Groomer", etc.) so the
+    // user doesn't have to set them by hand. Birth-date already caught
+    // above so "Date" here only fires for visit / appointment / service
+    // contexts.
+    if (key.includes("groomer") || key.includes("stylist"))
+      return "history.staffName";
+    if (key.includes("service")) return "history.serviceName";
+    if (
+      key === "lastvisit" ||
+      key === "lastappointment" ||
+      key === "visitdate" ||
+      key === "appointmentdate"
+    )
+      return "history.dateLabel";
+    if (key.includes("price") || key.includes("cost") || key === "total")
+      return "history.priceLabel";
   }
   if (key === "notes" || key === "comments") return "client.notes";
   return "skip";
@@ -310,6 +341,26 @@ function coerceSex(raw: string | undefined): "male" | "female" | undefined {
   if (lower.startsWith("m") || lower === "boy") return "male";
   if (lower.startsWith("f") || lower === "girl") return "female";
   return undefined;
+}
+
+/**
+ * Insert a newline before every date-looking substring so a paragraph
+ * that crams many past visits onto one line ("oct 3 2024... same HYPO
+ * ...$75 mimi june 13 2024..... same $75 mimi") becomes one visit per
+ * line. Used for the notes field on contact-export imports where the
+ * source XML has no structural separators between historical entries.
+ *
+ * Recognized date shapes:
+ *   - month name + day  ("oct 3", "October 3", "OCT. 3 2024")
+ *   - mm/dd[/yy]        ("12/15/2022", "3-10-24")
+ *   - yyyy-mm-dd        ("2024-10-03")
+ * The first date in the text doesn't get a leading newline since the
+ * whitespace lookbehind has nothing to anchor against at position 0.
+ */
+function splitByDates(text: string): string {
+  const datePattern =
+    /\s+(?=\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b|\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b|\b\d{4}[\/-]\d{1,2}[\/-]\d{1,2}\b)/gi;
+  return text.replace(datePattern, "\n");
 }
 
 function coerceLb(raw: string | undefined): number | undefined {
@@ -410,8 +461,30 @@ export function buildPreview(args: {
       if (!fullName) issues.push("missing-client-name");
       const email = get(source, args.mapping, "client.email")?.toLowerCase();
       const phone = phoneDigits(get(source, args.mapping, "client.phone"));
+      // Secondary phones — kept raw (not digit-stripped) so the user can
+      // see formatting in the notes line at the bottom of the client card.
+      const phone2Raw = get(source, args.mapping, "client.phone2");
+      const phone3Raw = get(source, args.mapping, "client.phone3");
       if (email && args.knownEmails.has(email)) issues.push("duplicate-email");
       if (phone && args.knownPhones.has(phone)) issues.push("duplicate-phone");
+      const userNotes = get(source, args.mapping, "client.notes");
+      // Append alt phones onto notes so nothing's lost — clients table only
+      // has one phone column. Duplicate-checked against the primary so we
+      // don't write "Alt phone: 555-1212" when 555-1212 is already saved.
+      const altPhoneLines: string[] = [];
+      if (phone2Raw && phoneDigits(phone2Raw) !== phone) {
+        altPhoneLines.push(`Alt phone: ${phone2Raw.trim()}`);
+      }
+      if (phone3Raw && phoneDigits(phone3Raw) !== phone) {
+        altPhoneLines.push(`Alt phone: ${phone3Raw.trim()}`);
+      }
+      // Pre-split the user's notes on date boundaries so contact-export
+      // blobs with many past visits packed into one paragraph become one
+      // visit per line in the stored value.
+      const splitNotes = userNotes ? splitByDates(userNotes.trim()) : undefined;
+      const composedNotes = [splitNotes, ...altPhoneLines]
+        .filter((part): part is string => Boolean(part && part.length > 0))
+        .join("\n");
       const clientData: BuiltClient | null = fullName
         ? {
             fullName,
@@ -422,10 +495,11 @@ export function buildPreview(args: {
             state: get(source, args.mapping, "client.state"),
             postalCode: get(source, args.mapping, "client.postalCode"),
             country: get(source, args.mapping, "client.country"),
-            notes: get(source, args.mapping, "client.notes"),
+            notes: composedNotes.length > 0 ? composedNotes : undefined,
           }
         : null;
       const pets: BuiltPet[] = [];
+      const legacy: BuiltLegacy[] = [];
       if (args.mode === "clientsAndPets") {
         // Each contact may carry up to three pets in the mapping (Pet
         // Name 1/2/3 + matching breed/species/etc.). Skip empty slots
@@ -444,11 +518,29 @@ export function buildPreview(args: {
             notes: get(source, args.mapping, slot.notes),
           });
         }
+        // Optional last-appointment entry baked into the same row. If any
+        // history.* field is mapped and has a value, attach it as one
+        // legacyAppointments record for the client created above. Missing
+        // dates are fine — the entry is read-only audit data anyway.
+        const historyNotesRaw = get(source, args.mapping, "history.notes");
+        const inlineLegacy: BuiltLegacy = {
+          petName: get(source, args.mapping, "history.petName"),
+          serviceName: get(source, args.mapping, "history.serviceName"),
+          staffName: get(source, args.mapping, "history.staffName"),
+          dateLabel: get(source, args.mapping, "history.dateLabel"),
+          timeLabel: get(source, args.mapping, "history.timeLabel"),
+          priceLabel: get(source, args.mapping, "history.priceLabel"),
+          notes: historyNotesRaw ? splitByDates(historyNotesRaw.trim()) : undefined,
+        };
+        if (Object.values(inlineLegacy).some((value) => Boolean(value))) {
+          legacy.push(inlineLegacy);
+        }
       }
       built = {
         rowId,
         client: clientData ? { kind: "insert", data: clientData } : undefined,
         pets: pets.length > 0 ? pets : undefined,
+        legacy: legacy.length > 0 ? legacy : undefined,
       };
     }
 

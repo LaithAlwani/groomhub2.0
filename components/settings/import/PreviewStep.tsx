@@ -1,15 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAction, useQuery } from "convex/react";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  CheckCircle2,
-  Loader2,
-  Sparkles,
-  XCircle,
-} from "lucide-react";
+import { useQuery } from "convex/react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -19,13 +12,6 @@ import {
   type PreviewIssue,
   type PreviewRow,
 } from "@/lib/import/applyMapping";
-
-const EXTRACT_BATCH_SIZE = 10;
-type ExtractPhase =
-  | { state: "idle" }
-  | { state: "running"; done: number; total: number }
-  | { state: "done"; addedEntries: number }
-  | { state: "error"; message: string };
 
 /**
  * Step 3 — apply the mapping to all rows, look up existing clients for
@@ -72,10 +58,6 @@ export function PreviewStep({
   );
 
   const [preview, setPreview] = useState<PreviewRow[] | null>(initialPreview);
-  const extractHistory = useAction(api.imports.extractHistoryWithAI);
-  const [extractPhase, setExtractPhase] = useState<ExtractPhase>({
-    state: "idle",
-  });
 
   useEffect(() => {
     if (duplicates === undefined) return;
@@ -110,7 +92,6 @@ export function PreviewStep({
   }
 
   const summary = summarize(preview);
-  const extractCandidates = collectExtractCandidates(preview);
 
   function setResolution(rowId: string, value: PreviewRow["resolution"]) {
     setPreview((current) =>
@@ -122,65 +103,9 @@ export function PreviewStep({
     );
   }
 
-  async function handleExtractHistory() {
-    if (extractCandidates.length === 0) return;
-    setExtractPhase({
-      state: "running",
-      done: 0,
-      total: extractCandidates.length,
-    });
-    let processed = 0;
-    let totalEntries = 0;
-    try {
-      for (let offset = 0; offset < extractCandidates.length; offset += EXTRACT_BATCH_SIZE) {
-        const batch = extractCandidates.slice(offset, offset + EXTRACT_BATCH_SIZE);
-        const result = await extractHistory({ rows: batch });
-        const byRowId = new Map(
-          result.extracted.map((row) => [row.rowId, row.entries]),
-        );
-        setPreview((current) => {
-          if (!current) return current;
-          return current.map((row) => {
-            const entries = byRowId.get(row.rowId);
-            if (!entries || entries.length === 0) return row;
-            return {
-              ...row,
-              built: {
-                ...row.built,
-                legacy: [...(row.built.legacy ?? []), ...entries],
-              },
-            };
-          });
-        });
-        for (const entry of result.extracted) totalEntries += entry.entries.length;
-        processed += batch.length;
-        setExtractPhase({
-          state: "running",
-          done: processed,
-          total: extractCandidates.length,
-        });
-      }
-      setExtractPhase({ state: "done", addedEntries: totalEntries });
-    } catch (caught) {
-      setExtractPhase({
-        state: "error",
-        message:
-          caught instanceof Error ? caught.message : "AI extraction failed.",
-      });
-    }
-  }
-
   return (
     <div className="flex flex-col gap-6">
       <SummaryBar summary={summary} />
-
-      {mode !== "appointmentHistory" && extractCandidates.length > 0 && (
-        <ExtractBanner
-          candidateCount={extractCandidates.length}
-          phase={extractPhase}
-          onExtract={handleExtractHistory}
-        />
-      )}
 
       <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <div className="grid grid-cols-[40px_1.4fr_1.6fr_1.2fr_1fr] items-center gap-2 border-b border-zinc-200 bg-zinc-900 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 dark:border-zinc-800">
@@ -364,7 +289,7 @@ function DetailsCell({ row, mode }: { row: PreviewRow; mode: ImportMode }) {
     ? row.built.client.data
     : null;
   const pets = row.built.pets ?? [];
-  const legacyCount = row.built.legacy?.length ?? 0;
+  const legacy = row.built.legacy?.[0];
   return (
     <div className="min-w-0 text-xs text-zinc-500 dark:text-zinc-400">
       {client && (
@@ -381,10 +306,11 @@ function DetailsCell({ row, mode }: { row: PreviewRow; mode: ImportMode }) {
           {pet.breed ? ` · ${pet.breed}` : ""}
         </p>
       ))}
-      {legacyCount > 0 && (
-        <p className="mt-0.5 inline-flex items-center gap-1 text-orange-600 dark:text-orange-300">
-          <Sparkles size={10} aria-hidden />
-          {legacyCount} past appointment{legacyCount === 1 ? "" : "s"}
+      {legacy && (
+        <p className="mt-0.5 truncate text-orange-600 dark:text-orange-300">
+          {[legacy.dateLabel, legacy.serviceName, legacy.priceLabel]
+            .filter(Boolean)
+            .join(" · ") || "Past appointment"}
         </p>
       )}
     </div>
@@ -468,84 +394,6 @@ function summarize(rows: PreviewRow[]): PreviewSummary {
     }
   }
   return { total: rows.length, insertable, conflicts, errors };
-}
-
-/**
- * Find rows whose mapped `client.notes` value looks substantial enough
- * to be worth running through AI extraction. Threshold of 80 chars
- * filters out short one-line notes ("VIP — easy dog") without missing
- * real history blobs. Returns the input shape the action expects.
- */
-function collectExtractCandidates(
-  rows: PreviewRow[],
-): Array<{ rowId: string; text: string }> {
-  const candidates: Array<{ rowId: string; text: string }> = [];
-  for (const row of rows) {
-    const client =
-      row.built.client?.kind === "insert" ? row.built.client.data : null;
-    const notes = client?.notes?.trim() ?? "";
-    if (notes.length < 80) continue;
-    candidates.push({ rowId: row.rowId, text: notes });
-  }
-  return candidates;
-}
-
-function ExtractBanner({
-  candidateCount,
-  phase,
-  onExtract,
-}: {
-  candidateCount: number;
-  phase: ExtractPhase;
-  onExtract: () => void;
-}) {
-  if (phase.state === "running") {
-    return (
-      <div className="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900 dark:border-orange-900/40 dark:bg-orange-950/30 dark:text-orange-200">
-        <Loader2 size={14} className="animate-spin" />
-        Extracting history with AI… {phase.done} of {phase.total} rows processed.
-      </div>
-    );
-  }
-  if (phase.state === "done") {
-    return (
-      <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
-        <CheckCircle2 size={14} />
-        Extracted {phase.addedEntries} appointment row{phase.addedEntries === 1 ? "" : "s"} from notes.
-      </div>
-    );
-  }
-  if (phase.state === "error") {
-    return (
-      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
-        {phase.message}
-      </div>
-    );
-  }
-  // ~$0.001 per row, rounded up to the nearest cent for the estimate.
-  const estCost = Math.max(0.01, candidateCount * 0.001);
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 dark:border-orange-900/40 dark:bg-orange-950/30">
-      <div className="text-sm text-orange-900 dark:text-orange-200">
-        <p className="font-medium">
-          {candidateCount} row{candidateCount === 1 ? " has" : "s have"} long
-          notes that may contain past appointments.
-        </p>
-        <p className="text-xs text-orange-800/80 dark:text-orange-200/70">
-          Run AI to extract dated entries into structured history rows.
-          Estimated cost ${estCost.toFixed(2)}.
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={onExtract}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-[#00273c] px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-[#013a58]"
-      >
-        <Sparkles size={12} />
-        Extract with AI
-      </button>
-    </div>
-  );
 }
 
 function collectEmailsAndPhones(

@@ -343,6 +343,8 @@ const IMPORT_MODE_TARGETS: Record<string, ReadonlyArray<string>> = {
     "client.lastName",
     "client.email",
     "client.phone",
+    "client.phone2",
+    "client.phone3",
     "client.addressLine1",
     "client.city",
     "client.state",
@@ -358,6 +360,8 @@ const IMPORT_MODE_TARGETS: Record<string, ReadonlyArray<string>> = {
     "client.lastName",
     "client.email",
     "client.phone",
+    "client.phone2",
+    "client.phone3",
     "client.addressLine1",
     "client.city",
     "client.state",
@@ -385,6 +389,16 @@ const IMPORT_MODE_TARGETS: Record<string, ReadonlyArray<string>> = {
     "pet3.sex",
     "pet3.sizeLb",
     "pet3.notes",
+    // Inline last-appointment columns for the merged "clients + pets +
+    // history" import. The clientEmail/clientPhone lookup fields stay out
+    // — they only make sense in the standalone appointmentHistory mode.
+    "history.petName",
+    "history.serviceName",
+    "history.staffName",
+    "history.dateLabel",
+    "history.timeLabel",
+    "history.priceLabel",
+    "history.notes",
   ],
   appointmentHistory: [
     "skip",
@@ -550,157 +564,4 @@ function parseAIResponse(
 function truncate(value: string): string {
   const trimmed = value.trim();
   return trimmed.length > 40 ? `${trimmed.slice(0, 40)}…` : trimmed;
-}
-
-/**
- * Extract structured appointment history rows out of a free-form notes
- * blob (common with contact-export XML where every past visit is jammed
- * into one paragraph). One Claude call processes up to ~25 rows at once
- * — the caller batches by chunks so it can show progress.
- *
- * Admin / superAdmin only; same ANTHROPIC_API_KEY as `suggestMappingFromAI`.
- */
-type ExtractedEntry = {
-  petName?: string;
-  serviceName?: string;
-  staffName?: string;
-  dateLabel?: string;
-  timeLabel?: string;
-  priceLabel?: string;
-  notes?: string;
-};
-
-export const extractHistoryWithAI = action({
-  args: {
-    rows: v.array(
-      v.object({
-        rowId: v.string(),
-        text: v.string(),
-      }),
-    ),
-  },
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    extracted: Array<{ rowId: string; entries: ExtractedEntry[] }>;
-  }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Sign in to use AI extraction.");
-    const claims = readOrgClaims(identity);
-    const role = mapClerkOrgRole(claims?.orgRole ?? null);
-    if (role !== "admin" && role !== "superAdmin") {
-      throw new Error("Only admins can use AI extraction.");
-    }
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error("AI extraction needs ANTHROPIC_API_KEY set in Convex env.");
-    }
-    if (args.rows.length === 0) return { extracted: [] };
-
-    const prompt = buildExtractPrompt(args.rows);
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5",
-        max_tokens: 8192,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      console.error("Anthropic extraction error:", response.status, body);
-      throw new Error(
-        `AI extraction failed (${response.status}). Try again or skip.`,
-      );
-    }
-    const payload = (await response.json()) as {
-      content: Array<{ type: string; text?: string }>;
-    };
-    const text =
-      payload.content.find((part) => part.type === "text")?.text ?? "";
-    const extracted = parseExtractResponse(text, args.rows);
-    return { extracted };
-  },
-});
-
-function buildExtractPrompt(
-  rows: Array<{ rowId: string; text: string }>,
-): string {
-  const inputs = rows
-    .map(
-      (row) =>
-        `<input id="${row.rowId}">\n${row.text.slice(0, 4000)}\n</input>`,
-    )
-    .join("\n");
-  return [
-    "You are parsing free-form pet grooming appointment notes into structured records.",
-    "Each note blob below contains a customer's past visits packed into prose.",
-    "",
-    "For each input, extract a list of appointment entries. Per entry, fill in whatever you can read; leave unknown fields out:",
-    "- dateLabel:   the date as it appears (e.g. 'oct 3 2024', 'June 13', '12/15/2022')",
-    "- petName:     the pet's name if mentioned",
-    "- serviceName: short description of what was done (e.g. '#5 all', 'shave down', 'HYPO bath')",
-    "- staffName:   groomer's name if mentioned (e.g. 'mimi', 'Allie')",
-    "- priceLabel:  the price as written (e.g. '$75', '70')",
-    "- notes:       anything else worth keeping (allergies, behavior, etc.)",
-    "",
-    "Skip ranting / non-visit lines. Don't invent dates. If an entry has no readable date, leave dateLabel empty (still include the entry).",
-    "",
-    inputs,
-    "",
-    "Reply with ONLY a <result> block containing JSON keyed by rowId. Each value is an array of entries. No prose, no markdown:",
-    '<result>{"<rowId>":[{"dateLabel":"oct 3 2024","petName":"Gizmo","serviceName":"HYPO bath","priceLabel":"$75","staffName":"mimi"}]}</result>',
-  ].join("\n");
-}
-
-function parseExtractResponse(
-  text: string,
-  rows: Array<{ rowId: string; text: string }>,
-): Array<{ rowId: string; entries: ExtractedEntry[] }> {
-  const match = text.match(/<result>([\s\S]*?)<\/result>/);
-  const raw = match ? match[1] : text;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw.trim());
-  } catch {
-    console.log("[extractHistoryWithAI] could not parse:", text.slice(0, 200));
-    return rows.map((row) => ({ rowId: row.rowId, entries: [] }));
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return rows.map((row) => ({ rowId: row.rowId, entries: [] }));
-  }
-  const envelope = parsed as Record<string, unknown>;
-  return rows.map((row) => {
-    const value = envelope[row.rowId];
-    if (!Array.isArray(value)) return { rowId: row.rowId, entries: [] };
-    const entries: ExtractedEntry[] = [];
-    for (const item of value) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-      const obj = item as Record<string, unknown>;
-      const entry: ExtractedEntry = {};
-      if (typeof obj.petName === "string" && obj.petName.trim())
-        entry.petName = obj.petName.trim();
-      if (typeof obj.serviceName === "string" && obj.serviceName.trim())
-        entry.serviceName = obj.serviceName.trim();
-      if (typeof obj.staffName === "string" && obj.staffName.trim())
-        entry.staffName = obj.staffName.trim();
-      if (typeof obj.dateLabel === "string" && obj.dateLabel.trim())
-        entry.dateLabel = obj.dateLabel.trim();
-      if (typeof obj.timeLabel === "string" && obj.timeLabel.trim())
-        entry.timeLabel = obj.timeLabel.trim();
-      if (typeof obj.priceLabel === "string" && obj.priceLabel.trim())
-        entry.priceLabel = obj.priceLabel.trim();
-      if (typeof obj.notes === "string" && obj.notes.trim())
-        entry.notes = obj.notes.trim();
-      // Only keep entries with at least one field set.
-      if (Object.keys(entry).length > 0) entries.push(entry);
-    }
-    return { rowId: row.rowId, entries };
-  });
 }

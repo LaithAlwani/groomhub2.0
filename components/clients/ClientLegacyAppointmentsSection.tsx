@@ -79,7 +79,7 @@ export function ClientLegacyAppointmentsSection({
                 {row.priceLabel || "—"}
               </p>
               {row.notes && (
-                <p className="col-span-5 mt-1 text-xs italic text-zinc-500 dark:text-zinc-400">
+                <p className="col-span-5 mt-1 whitespace-pre-line text-xs italic text-zinc-500 dark:text-zinc-400">
                   {row.notes}
                 </p>
               )}

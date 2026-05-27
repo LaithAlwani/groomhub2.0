@@ -137,7 +137,7 @@ export function ClientDetail({
           </div>
         )}
         {client.notes && (
-          <p className="mt-4 rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-300">
+          <p className="mt-4 whitespace-pre-line rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-300">
             {client.notes}
           </p>
         )}

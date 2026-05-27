@@ -30,12 +30,13 @@ const MODE_OPTIONS: ReadonlyArray<{
   },
   {
     value: "clientsAndPets",
-    label: "Clients + one pet per row",
-    helper: "Each row creates a client and attaches one pet to them.",
+    label: "Clients, pets & last appointment",
+    helper:
+      "Each row creates a client, up to 3 pets, and one past appointment if history columns are mapped.",
   },
   {
     value: "appointmentHistory",
-    label: "Appointment history",
+    label: "Appointment history only",
     helper:
       "Each row is an old visit, matched to an existing client by email or phone.",
   },
@@ -52,6 +53,8 @@ const CLIENT_TARGETS: ReadonlyArray<{ value: TargetField; label: string }> = [
   { value: "client.lastName", label: "Client · Last name" },
   { value: "client.email", label: "Client · Email" },
   { value: "client.phone", label: "Client · Phone" },
+  { value: "client.phone2", label: "Client · Alt phone" },
+  { value: "client.phone3", label: "Client · Alt phone 2" },
   { value: "client.addressLine1", label: "Client · Address" },
   { value: "client.city", label: "Client · City" },
   { value: "client.state", label: "Client · State / Province" },
@@ -297,6 +300,19 @@ export function MappingStep({
   );
 }
 
+// History fields that make sense when the row also creates a fresh client.
+// `clientEmail` / `clientPhone` are intentionally dropped — they're for the
+// standalone history mode where rows are matched against EXISTING clients;
+// in clientsAndPets mode the client comes from the same row.
+const INLINE_HISTORY_TARGETS: ReadonlyArray<{
+  value: TargetField;
+  label: string;
+}> = HISTORY_TARGETS.filter(
+  (target) =>
+    target.value !== "history.clientEmail" &&
+    target.value !== "history.clientPhone",
+);
+
 function buildTargetOptions(
   mode: ImportMode,
 ): ReadonlyArray<{ value: TargetField; label: string }> {
@@ -304,7 +320,12 @@ function buildTargetOptions(
     return [...COMMON_TARGETS, ...HISTORY_TARGETS];
   }
   if (mode === "clientsAndPets") {
-    return [...COMMON_TARGETS, ...CLIENT_TARGETS, ...PET_TARGETS];
+    return [
+      ...COMMON_TARGETS,
+      ...CLIENT_TARGETS,
+      ...PET_TARGETS,
+      ...INLINE_HISTORY_TARGETS,
+    ];
   }
   return [...COMMON_TARGETS, ...CLIENT_TARGETS];
 }
