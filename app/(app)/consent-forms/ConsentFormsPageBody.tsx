@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { FileSignature, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { AddFAB } from "@/components/app/AddFAB";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ConsentTemplateFormDialog } from "@/components/consent/ConsentTemplateFormDialog";
 import { ConsentTemplateRow } from "@/components/consent/ConsentTemplateRow";
@@ -84,9 +85,9 @@ export function ConsentFormsPageBody({
           <button
             type="button"
             onClick={() => setDialog({ mode: "new" })}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#00273c] px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-[#013a58]"
+            className="hidden items-center gap-2 rounded-lg bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 min-[874px]:inline-flex"
           >
-            <Plus size={12} />
+            <Plus size={14} />
             Add template
           </button>
         )}
@@ -125,6 +126,10 @@ export function ConsentFormsPageBody({
         <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
           {errorMessage}
         </p>
+      )}
+
+      {canEdit && (
+        <AddFAB label="Add template" onClick={() => setDialog({ mode: "new" })} />
       )}
 
       {dialog && (

@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { Plus, Syringe } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { AddFAB } from "@/components/app/AddFAB";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { VaccineFormDialog } from "@/components/vaccines/VaccineFormDialog";
 import { VaccineRow } from "@/components/vaccines/VaccineRow";
@@ -63,9 +64,9 @@ export function VaccinesPageBody({ canDelete }: { canDelete: boolean }) {
         <button
           type="button"
           onClick={() => setDialog({ mode: "new" })}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#00273c] px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-[#013a58]"
+          className="hidden items-center gap-2 rounded-lg bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 min-[874px]:inline-flex"
         >
-          <Plus size={12} />
+          <Plus size={14} />
           Add vaccine
         </button>
       </header>
@@ -104,6 +105,8 @@ export function VaccinesPageBody({ canDelete }: { canDelete: boolean }) {
           {errorMessage}
         </p>
       )}
+
+      <AddFAB label="Add vaccine" onClick={() => setDialog({ mode: "new" })} />
 
       {dialog && (
         <VaccineFormDialog

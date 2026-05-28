@@ -83,7 +83,7 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="hidden items-center gap-2 rounded-lg bg-linear-to-b from-orange-500 to-orange-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow min-[874px]:inline-flex"
+            className="hidden items-center gap-2 rounded-lg bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 min-[874px]:inline-flex"
           >
             <Plus size={14} />
             New client

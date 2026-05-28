@@ -124,7 +124,7 @@ export const landingPage = {
     tiers: [
       {
         name: "Essential",
-        priceMonthly: 29,
+        priceMonthly: 49,
         priceSuffix: "/mo",
         tagline: "Perfect for solo groomers or small salons getting organized.",
         features: [
@@ -140,7 +140,7 @@ export const landingPage = {
       },
       {
         name: "Professional",
-        priceMonthly: 79,
+        priceMonthly: 99,
         priceSuffix: "/mo",
         tagline: "Most popular for growing grooming businesses.",
         recommended: true,
@@ -157,21 +157,21 @@ export const landingPage = {
         ctaLabel: "Start free trial",
         ctaHref: "/sign-up",
       },
-      {
-        name: "Enterprise",
-        priceMonthly: 149,
-        priceSuffix: "/mo",
-        tagline: "Built for scaling and multi-location grooming operations.",
-        features: [
-          "Multiple locations",
-          "Advanced analytics & reporting",
-          "API & integrations access",
-          "Centralized management dashboard",
-          "Priority phone support",
-        ],
-        ctaLabel: "Talk to us",
-        ctaHref: "#contact",
-      },
+      // {
+      //   name: "Enterprise",
+      //   priceMonthly: 179,
+      //   priceSuffix: "/mo",
+      //   tagline: "Built for scaling and multi-location grooming operations.",
+      //   features: [
+      //     "Multiple locations",
+      //     "Advanced analytics & reporting",
+      //     "API & integrations access",
+      //     "Centralized management dashboard",
+      //     "Priority phone support",
+      //   ],
+      //   ctaLabel: "Talk to us",
+      //   ctaHref: "#contact",
+      // },
     ] as ReadonlyArray<PricingTier>,
   },
 

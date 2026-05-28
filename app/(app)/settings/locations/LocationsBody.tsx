@@ -6,6 +6,7 @@ import { MapPin, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { usePlanFeature } from "@/lib/usePlanFeature";
+import { AddFAB } from "@/components/app/AddFAB";
 import { LocationFormDialog } from "@/components/settings/LocationFormDialog";
 
 export function LocationsBody() {
@@ -42,7 +43,7 @@ export function LocationsBody() {
           title={
             canAddNow ? undefined : "Upgrade to Enterprise to add more locations."
           }
-          className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-[#00273c] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#013a58] disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+          className="hidden shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500 min-[874px]:inline-flex"
         >
           <Plus size={14} />
           Add location
@@ -76,6 +77,13 @@ export function LocationsBody() {
           </div>
         )}
       </div>
+
+      {canAddNow && (
+        <AddFAB
+          label="Add location"
+          onClick={() => setDialog({ mode: "create" })}
+        />
+      )}
 
       {dialog && (
         <LocationFormDialog
