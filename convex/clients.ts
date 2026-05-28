@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { appError } from "./lib/errors";
+import { normalizePhone } from "./lib/phone";
 import { requireRole } from "./lib/rbac";
 import { softAuth } from "./lib/tenant";
 
@@ -208,8 +209,8 @@ function buildClientPatch(args: {
   country?: string;
   notes?: string;
 }) {
-  const phoneDigits = (args.phone ?? "").replace(/\D/g, "");
-  const phone = phoneDigits || undefined;
+  const normalizedPhone = normalizePhone(args.phone);
+  const phone = normalizedPhone || undefined;
   const firstName = args.firstName?.trim() || undefined;
   const lastName = args.lastName?.trim() || undefined;
   // `fullName` is the canonical display + search string; derive it from
@@ -223,10 +224,11 @@ function buildClientPatch(args: {
     composed.length > 0
       ? composed
       : (args.fullName?.trim() || "");
-  // Alt phones: digits-only, de-duped, primary number excluded so we don't
-  // double-count it. Empty array collapses to undefined for cleaner reads.
+  // Alt phones: normalized (7-digit → +613, 11-digit/leading-1 → strip),
+  // de-duped, primary number excluded so we don't double-count it.
+  // Empty array collapses to undefined for cleaner reads.
   const altPhonesDigits = (args.altPhones ?? [])
-    .map((value) => value.replace(/\D/g, ""))
+    .map((value) => normalizePhone(value))
     .filter((value) => value.length > 0 && value !== phone);
   const altPhones = Array.from(new Set(altPhonesDigits));
   return {

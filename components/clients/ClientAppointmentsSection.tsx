@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { CalendarDays, CalendarPlus, MapPin } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -54,8 +54,41 @@ export function ClientAppointmentsSection({
     | { mode: "edit"; id: Id<"appointments"> }
     | null
   >(null);
+  // null = "All pets" tab. Reset implicitly when the underlying query
+  // changes (e.g. appointment booked) — useMemo recomputes the pet list
+  // and an invalid pet name just falls back to "All" via the filter.
+  const [selectedPet, setSelectedPet] = useState<string | null>(null);
 
-  const count = appointments?.length ?? 0;
+  // Unique pet names across the client's appointment history, in first-seen
+  // order. Empty / falsy names are dropped so a half-imported appointment
+  // doesn't add a blank tab.
+  const petTabs = useMemo(() => {
+    if (!appointments) return [] as string[];
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const appointment of appointments) {
+      const name = appointment.petName?.trim();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      result.push(name);
+    }
+    return result;
+  }, [appointments]);
+
+  const visibleAppointments = useMemo(() => {
+    if (!appointments) return undefined;
+    if (!selectedPet) return appointments;
+    return appointments.filter((entry) => entry.petName === selectedPet);
+  }, [appointments, selectedPet]);
+
+  const totalCount = appointments?.length ?? 0;
+  const visibleCount = visibleAppointments?.length ?? 0;
+  // Show "{visible} of {total}" only when a pet filter is narrowing the
+  // list; otherwise just the total reads cleanest.
+  const countLabel =
+    selectedPet && visibleCount !== totalCount
+      ? `${visibleCount} of ${totalCount}`
+      : `${totalCount}`;
 
   return (
     <section className="mt-8">
@@ -64,19 +97,39 @@ export function ClientAppointmentsSection({
           Appointment history
           {appointments !== undefined && (
             <span className="text-sm font-medium text-zinc-400 dark:text-zinc-500">
-              {count}
+              {countLabel}
             </span>
           )}
         </h2>
         <button
           type="button"
           onClick={() => setDialog({ mode: "new" })}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#00273c] px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-[#013a58]"
+          className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600"
         >
-          <CalendarPlus size={12} />
+          <CalendarPlus size={14} />
           Book appointment
         </button>
       </header>
+
+      {/* Pet filter tabs — only render with 2+ pets, otherwise the tab row
+          is just noise. "All" pseudo-tab clears the filter. */}
+      {petTabs.length > 1 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          <PetTab
+            label="All"
+            active={selectedPet === null}
+            onClick={() => setSelectedPet(null)}
+          />
+          {petTabs.map((petName) => (
+            <PetTab
+              key={petName}
+              label={petName}
+              active={selectedPet === petName}
+              onClick={() => setSelectedPet(petName)}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <div className="grid grid-cols-[1.4fr_1.2fr_1fr_0.9fr] items-center gap-2 border-b border-zinc-200 bg-zinc-900 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 dark:border-zinc-800">
@@ -85,13 +138,13 @@ export function ClientAppointmentsSection({
           <span>Pet</span>
           <span className="text-right">Status</span>
         </div>
-        {appointments === undefined ? (
+        {visibleAppointments === undefined ? (
           <HistorySkeleton />
-        ) : appointments.length === 0 ? (
+        ) : visibleAppointments.length === 0 ? (
           <EmptyState />
         ) : (
           <ul>
-            {appointments.map((appointment) => (
+            {visibleAppointments.map((appointment) => (
               <li
                 key={appointment._id}
                 onClick={() =>
@@ -128,6 +181,11 @@ export function ClientAppointmentsSection({
                     {STATUS_LABEL[appointment.status] ?? appointment.status}
                   </span>
                 </div>
+                {appointment.notes && (
+                  <p className="col-span-4 mt-1 whitespace-pre-line text-xs italic text-zinc-500 dark:text-zinc-400">
+                    {appointment.notes}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
@@ -148,6 +206,31 @@ export function ClientAppointmentsSection({
         />
       )}
     </section>
+  );
+}
+
+function PetTab({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={
+        active
+          ? "rounded-full bg-orange-500 px-3 py-1 text-xs font-semibold text-white shadow-sm"
+          : "rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900"
+      }
+    >
+      {label}
+    </button>
   );
 }
 

@@ -123,6 +123,8 @@ const petInputValidator = {
   birthDate: v.optional(v.string()),
   sex: v.optional(sexValidator),
   isFixed: v.optional(v.boolean()),
+  isDeceased: v.optional(v.boolean()),
+  isBanned: v.optional(v.boolean()),
   temperament: v.optional(v.string()),
   medicalConditions: v.optional(v.array(v.string())),
   notes: v.optional(v.string()),
@@ -139,6 +141,8 @@ function buildPetPatch(args: {
   birthDate?: string;
   sex?: "male" | "female";
   isFixed?: boolean;
+  isDeceased?: boolean;
+  isBanned?: boolean;
   temperament?: string;
   medicalConditions?: ReadonlyArray<string>;
   notes?: string;
@@ -158,6 +162,8 @@ function buildPetPatch(args: {
     birthDate: args.birthDate?.trim() || undefined,
     sex: args.sex,
     isFixed: args.isFixed,
+    isDeceased: args.isDeceased,
+    isBanned: args.isBanned,
     temperament: args.temperament?.trim() || undefined,
     medicalConditions: cleanMedicalConditions(args.medicalConditions ?? []),
     notes: args.notes?.trim() || undefined,
@@ -194,6 +200,8 @@ const petUpdateValidator = {
   birthDate: v.optional(v.string()),
   sex: v.optional(sexValidator),
   isFixed: v.optional(v.boolean()),
+  isDeceased: v.optional(v.boolean()),
+  isBanned: v.optional(v.boolean()),
   temperament: v.optional(v.string()),
   medicalConditions: v.optional(v.array(v.string())),
   notes: v.optional(v.string()),

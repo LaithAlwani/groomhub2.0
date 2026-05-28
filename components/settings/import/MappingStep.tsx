@@ -53,8 +53,7 @@ const CLIENT_TARGETS: ReadonlyArray<{ value: TargetField; label: string }> = [
   { value: "client.lastName", label: "Client · Last name" },
   { value: "client.email", label: "Client · Email" },
   { value: "client.phone", label: "Client · Phone" },
-  { value: "client.phone2", label: "Client · Alt phone" },
-  { value: "client.phone3", label: "Client · Alt phone 2" },
+  { value: "client.altPhone", label: "Client · Alt phone (map any extras here)" },
   { value: "client.addressLine1", label: "Client · Address" },
   { value: "client.city", label: "Client · City" },
   { value: "client.state", label: "Client · State / Province" },
@@ -85,6 +84,20 @@ const PET_TARGETS: ReadonlyArray<{ value: TargetField; label: string }> = [
   { value: "pet3.sex", label: "Pet 3 · Sex" },
   { value: "pet3.sizeLb", label: "Pet 3 · Weight (lb)" },
   { value: "pet3.notes", label: "Pet 3 · Notes" },
+  { value: "pet4.name", label: "Pet 4 · Name" },
+  { value: "pet4.species", label: "Pet 4 · Species" },
+  { value: "pet4.breed", label: "Pet 4 · Breed" },
+  { value: "pet4.birthDate", label: "Pet 4 · Birth date" },
+  { value: "pet4.sex", label: "Pet 4 · Sex" },
+  { value: "pet4.sizeLb", label: "Pet 4 · Weight (lb)" },
+  { value: "pet4.notes", label: "Pet 4 · Notes" },
+  { value: "pet5.name", label: "Pet 5 · Name" },
+  { value: "pet5.species", label: "Pet 5 · Species" },
+  { value: "pet5.breed", label: "Pet 5 · Breed" },
+  { value: "pet5.birthDate", label: "Pet 5 · Birth date" },
+  { value: "pet5.sex", label: "Pet 5 · Sex" },
+  { value: "pet5.sizeLb", label: "Pet 5 · Weight (lb)" },
+  { value: "pet5.notes", label: "Pet 5 · Notes" },
 ];
 
 const HISTORY_TARGETS: ReadonlyArray<{ value: TargetField; label: string }> = [
@@ -357,9 +370,11 @@ function validateRequiredFields(
     mode === "clientsAndPets" &&
     !targets.has("pet.name") &&
     !targets.has("pet2.name") &&
-    !targets.has("pet3.name")
+    !targets.has("pet3.name") &&
+    !targets.has("pet4.name") &&
+    !targets.has("pet5.name")
   ) {
-    return "Map at least one column to Pet · Name (Pet 1, 2, or 3), or switch the mode back to Clients only.";
+    return "Map at least one column to Pet · Name (Pet 1–5), or switch the mode back to Clients only.";
   }
   return null;
 }

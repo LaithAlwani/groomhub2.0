@@ -19,11 +19,11 @@ export type ParsedFile = {
   rows: Record<string, string>[];
 };
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB raw file cap
+const MAX_BYTES = 50 * 1024 * 1024; // 50 MB raw file cap
 
 export async function parseFile(file: File): Promise<ParsedFile> {
   if (file.size > MAX_BYTES) {
-    throw new Error("File is too large. Keep imports under 10 MB.");
+    throw new Error("File is too large. Keep imports under 50 MB.");
   }
   const ext = (file.name.split(".").pop() ?? "").toLowerCase();
   if (ext === "csv" || file.type === "text/csv") return parseCsv(file);
@@ -96,31 +96,76 @@ async function parseJson(file: File): Promise<ParsedFile> {
       `Could not parse JSON: ${caught instanceof Error ? caught.message : "invalid"}`,
     );
   }
-  // Accept both `Array<row>` and `{ data: Array<row> }` shapes — the
-  // second is common with API exports that wrap a list under `data`.
-  const list = Array.isArray(parsed)
-    ? parsed
-    : Array.isArray((parsed as { data?: unknown })?.data)
-      ? ((parsed as { data: unknown[] }).data as unknown[])
-      : null;
-  if (!list) {
-    throw new Error(
-      "JSON must be an array of objects, or `{ data: [...] }`.",
-    );
+  // Generic row-discovery: walk the parsed tree looking for the largest
+  // array of objects. Supports any wrapper shape — `[ {...}, {...} ]`,
+  // `{ "data": [...] }`, `{ "contacts": [...] }`, `{ "results": { "rows": [...] } }`,
+  // etc. Ties broken by shallower depth so the obvious top-level array
+  // wins over incidental nested ones.
+  const arrays = findRowArrays(parsed);
+  if (arrays.length > 0) {
+    arrays.sort((a, b) => b.items.length - a.items.length || a.depth - b.depth);
+    return materializeJsonRows(arrays[0].items);
   }
-  if (list.length === 0) return { headers: [], rows: [] };
-  // Union of all keys across rows — JSON often has sparse fields per row.
+  // Single object at the root → treat as one row.
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    return materializeJsonRows([parsed as Record<string, unknown>]);
+  }
+  throw new Error("Could not find any rows in the JSON.");
+}
+
+function materializeJsonRows(items: Record<string, unknown>[]): ParsedFile {
+  const flatRows = items.map(flattenJsonRow);
   const headerSet = new Set<string>();
-  for (const row of list) {
-    if (row && typeof row === "object") {
-      for (const key of Object.keys(row)) headerSet.add(key);
-    }
+  for (const row of flatRows) {
+    for (const key of Object.keys(row)) headerSet.add(key);
   }
   const headers = Array.from(headerSet);
-  const rows = list.map((row) =>
-    normalizeRow((row ?? {}) as Record<string, unknown>, headers),
-  );
+  const rows = flatRows.map((row) => normalizeRow(row, headers));
   return { headers, rows };
+}
+
+/**
+ * Surface nested structure as flat columns so the mapping wizard can see
+ * everything in one screen:
+ *   - Arrays of scalars (e.g. `phones: ["555-1212", "555-3434"]`) become
+ *     numbered columns `phones.1`, `phones.2` — each maps individually
+ *   - Nested objects with scalar fields flatten one level deep
+ *     (`address: { street, city }` → `address.street`, `address.city`)
+ * Anything deeper than that falls through to normalizeRow's JSON-stringify
+ * branch.
+ */
+function flattenJsonRow(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (Array.isArray(value) && value.every(isJsonScalar)) {
+      value.forEach((entry, index) => {
+        result[`${key}.${index + 1}`] = entry;
+      });
+      continue;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const subEntries = Object.entries(value as Record<string, unknown>);
+      const allScalar = subEntries.every(([, subValue]) =>
+        isJsonScalar(subValue),
+      );
+      if (allScalar && subEntries.length > 0) {
+        for (const [subKey, subValue] of subEntries) {
+          result[`${key}.${subKey}`] = subValue;
+        }
+        continue;
+      }
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
+function isJsonScalar(value: unknown): boolean {
+  if (value === null) return true;
+  const type = typeof value;
+  return type === "string" || type === "number" || type === "boolean";
 }
 
 async function parseXml(file: File): Promise<ParsedFile> {

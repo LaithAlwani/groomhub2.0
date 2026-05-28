@@ -5,6 +5,8 @@ export const INITIAL_PET_STATE: PetFormState = {
   species: "dog",
   sex: "",
   isFixed: false,
+  isDeceased: false,
+  isBanned: false,
   breed: "",
   coatType: "",
   sizeLb: "",

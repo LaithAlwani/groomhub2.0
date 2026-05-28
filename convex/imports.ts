@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { action, mutation, query } from "./_generated/server";
+import { normalizePhone } from "./lib/phone";
 import { requireRole } from "./lib/rbac";
 import { mapClerkOrgRole } from "./lib/roles";
 import { readOrgClaims, softAuth } from "./lib/tenant";
@@ -19,8 +20,7 @@ import { speciesValidator, sexValidator } from "./schema";
  *   - `legacyAppointmentsForClient` — read for the client detail page.
  */
 
-const phoneDigits = (raw: string | undefined): string =>
-  (raw ?? "").replace(/\D/g, "");
+const phoneDigits = (raw: string | undefined): string => normalizePhone(raw);
 
 const importClientValidator = v.object({
   fullName: v.string(),
@@ -359,8 +359,7 @@ const IMPORT_MODE_TARGETS: Record<string, ReadonlyArray<string>> = {
     "client.lastName",
     "client.email",
     "client.phone",
-    "client.phone2",
-    "client.phone3",
+    "client.altPhone",
     "client.addressLine1",
     "client.city",
     "client.state",
@@ -376,8 +375,7 @@ const IMPORT_MODE_TARGETS: Record<string, ReadonlyArray<string>> = {
     "client.lastName",
     "client.email",
     "client.phone",
-    "client.phone2",
-    "client.phone3",
+    "client.altPhone",
     "client.addressLine1",
     "client.city",
     "client.state",
@@ -405,6 +403,20 @@ const IMPORT_MODE_TARGETS: Record<string, ReadonlyArray<string>> = {
     "pet3.sex",
     "pet3.sizeLb",
     "pet3.notes",
+    "pet4.name",
+    "pet4.species",
+    "pet4.breed",
+    "pet4.birthDate",
+    "pet4.sex",
+    "pet4.sizeLb",
+    "pet4.notes",
+    "pet5.name",
+    "pet5.species",
+    "pet5.breed",
+    "pet5.birthDate",
+    "pet5.sex",
+    "pet5.sizeLb",
+    "pet5.notes",
     // Inline last-appointment columns for the merged "clients + pets +
     // history" import. The clientEmail/clientPhone lookup fields stay out
     // — they only make sense in the standalone appointmentHistory mode.

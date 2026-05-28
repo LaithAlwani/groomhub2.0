@@ -45,23 +45,49 @@ export function PetRow({
   const hasMedical =
     pet.medicalConditions !== undefined && pet.medicalConditions.length > 0;
   const showWarning = expiredVaccines > 0 || hasMedical;
+  // Status modifiers — banned wins for border colour (front-desk needs to
+  // see it loudest); deceased gets a muted look + badge in the title row.
+  const cardClass = pet.isBanned
+    ? "border-red-300 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20"
+    : pet.isDeceased
+      ? "border-zinc-200 bg-zinc-50/60 dark:border-zinc-800 dark:bg-zinc-900/40"
+      : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950";
+  const hoverClass = canEdit
+    ? pet.isBanned
+      ? "cursor-pointer hover:border-red-400 hover:bg-red-50 dark:hover:border-red-900 dark:hover:bg-red-950/30"
+      : "cursor-pointer hover:border-zinc-300 hover:bg-zinc-50 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
+    : "";
 
   return (
     <li
       onClick={() => {
         if (canEdit && !busy) onEdit();
       }}
-      className={`flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-sm transition-colors dark:border-zinc-800 dark:bg-zinc-950 ${
-        canEdit
-          ? "cursor-pointer hover:border-zinc-300 hover:bg-zinc-50 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
-          : ""
-      }`}
+      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm transition-colors ${cardClass} ${hoverClass}`}
     >
       <PetImage imageUrl={pet.imageUrl} alt={pet.name} size="md" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {pet.name}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p
+            className={`truncate text-sm font-semibold ${
+              pet.isDeceased
+                ? "text-zinc-500 dark:text-zinc-400"
+                : "text-zinc-900 dark:text-zinc-100"
+            }`}
+          >
+            {pet.name}
+          </p>
+          {pet.isDeceased && (
+            <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              Deceased
+            </span>
+          )}
+          {pet.isBanned && (
+            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-700 dark:bg-red-950/60 dark:text-red-300">
+              Banned
+            </span>
+          )}
+        </div>
         {subtitle && (
           <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
             {subtitle}

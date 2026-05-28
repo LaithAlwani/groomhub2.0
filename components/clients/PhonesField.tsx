@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
-import { formatPhone } from "@/lib/phone";
+import { formatPhone, normalizePhone } from "@/lib/phone";
 
 /**
  * Phone-list editor for the client form. The first entry is the primary
@@ -39,7 +39,10 @@ export function PhonesField({
   function formatOnBlur(index: number) {
     const value = phones[index] ?? "";
     if (!value.trim()) return;
-    updateAt(index, formatPhone(value));
+    // Normalize first (7-digit numbers get +613, 11-digit "1XXX..." strips
+    // the country code) so the displayed format matches what the backend
+    // will actually store.
+    updateAt(index, formatPhone(normalizePhone(value)));
   }
 
   return (

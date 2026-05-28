@@ -210,6 +210,16 @@ export const create = mutation({
         locationId: args.locationId,
       },
     );
+    // Server-side guard mirrored from the booking dropdown: a deceased
+    // OR banned pet can't be the subject of a new appointment, even if
+    // the caller sends a stale petId or an offline-queued booking
+    // replays after the pet was flagged.
+    if (pet.isDeceased === true) {
+      appError("VALIDATION", { field: "petId", reason: "PET_DECEASED" });
+    }
+    if (pet.isBanned === true) {
+      appError("VALIDATION", { field: "petId", reason: "PET_BANNED" });
+    }
     const endTime = args.startTime + service.durationMin * 60 * 1000;
     await assertWithinAvailability(
       ctx,

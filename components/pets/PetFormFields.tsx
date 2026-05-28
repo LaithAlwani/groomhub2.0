@@ -1,6 +1,7 @@
 "use client";
 
 import { Field } from "@/components/forms/Field";
+import { SwitchRow } from "@/components/forms/Switch";
 import type { Id } from "@/convex/_generated/dataModel";
 import { VaccinationsPanel } from "./VaccinationsPanel";
 import type { VaccinationDraft } from "./VaccinationRow";
@@ -15,6 +16,8 @@ export type PetFormState = {
   species: Species;
   sex: Sex;
   isFixed: boolean;
+  isDeceased: boolean;
+  isBanned: boolean;
   breed: string;
   coatType: string;
   sizeLb: string;
@@ -173,6 +176,26 @@ export function PetFormFields({
           className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
         />
       </label>
+      {/* Status toggles — switches sit on the right so the label/helper
+          column reads naturally on the left. Either flag changes how the
+          pet card looks; `isDeceased` additionally blocks new bookings. */}
+      <fieldset className="flex flex-col gap-3 rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-800">
+        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          Status
+        </legend>
+        <SwitchRow
+          title="Deceased"
+          helper="Blocks new appointments"
+          checked={state.isDeceased}
+          onChange={(next) => onChange("isDeceased", next)}
+        />
+        <SwitchRow
+          title="Banned"
+          helper="Blocks new appointments + highlights the card in red"
+          checked={state.isBanned}
+          onChange={(next) => onChange("isBanned", next)}
+        />
+      </fieldset>
       <VaccinationsPanel
         rows={state.vaccinations}
         petSpecies={state.species}

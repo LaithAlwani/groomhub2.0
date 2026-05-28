@@ -22,6 +22,7 @@ import type * as invitations from "../invitations.js";
 import type * as lib_appointmentChecks from "../lib/appointmentChecks.js";
 import type * as lib_ensureMembership from "../lib/ensureMembership.js";
 import type * as lib_errors from "../lib/errors.js";
+import type * as lib_phone from "../lib/phone.js";
 import type * as lib_plans from "../lib/plans.js";
 import type * as lib_rbac from "../lib/rbac.js";
 import type * as lib_reservedSlugs from "../lib/reservedSlugs.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "lib/appointmentChecks": typeof lib_appointmentChecks;
   "lib/ensureMembership": typeof lib_ensureMembership;
   "lib/errors": typeof lib_errors;
+  "lib/phone": typeof lib_phone;
   "lib/plans": typeof lib_plans;
   "lib/rbac": typeof lib_rbac;
   "lib/reservedSlugs": typeof lib_reservedSlugs;

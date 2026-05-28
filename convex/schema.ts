@@ -411,6 +411,15 @@ export default defineSchema({
     temperament: v.optional(v.string()),
     medicalConditions: v.optional(v.array(v.string())),
     notes: v.optional(v.string()),
+    // Status flags surfaced on the pet card + enforced at booking time.
+    //   - `isDeceased`: shows a "Deceased" badge and blocks new appointment
+    //                   bookings. Past appointments stay intact.
+    //   - `isBanned`:   shop has banned the pet (aggressive behaviour, unpaid
+    //                   balance, etc.). Adds a red accent to the card so
+    //                   front-desk staff see it immediately. Doesn't block
+    //                   booking on its own — admin decides per case.
+    isDeceased: v.optional(v.boolean()),
+    isBanned: v.optional(v.boolean()),
     vaccinations: v.array(vaccinationValidator),
     // Convex storage id for the pet's main photo. UI uses a placeholder when
     // unset. `update`/`hardDelete` clean up the storage object so we don't

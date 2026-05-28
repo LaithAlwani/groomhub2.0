@@ -80,11 +80,30 @@ export function AppointmentFormFields({
                   ? "No pets on file"
                   : "Choose a pet"}
           </option>
-          {pets?.map((pet) => (
-            <option key={pet._id} value={pet._id}>
-              {pet.name} ({pet.species})
-            </option>
-          ))}
+          {pets?.map((pet) => {
+            const isDeceased = pet.isDeceased === true;
+            const isBanned = pet.isBanned === true;
+            // Keep blocked pets visible but disabled so admins editing a
+            // historical appointment can still see which pet it was for,
+            // while new bookings can't pick a deceased OR banned pet.
+            const isBlocked = isDeceased || isBanned;
+            const isCurrentSelection = state.petId === pet._id;
+            const suffix = isDeceased
+              ? " — Deceased"
+              : isBanned
+                ? " — Banned"
+                : "";
+            return (
+              <option
+                key={pet._id}
+                value={pet._id}
+                disabled={isBlocked && !isCurrentSelection}
+              >
+                {pet.name} ({pet.species})
+                {suffix}
+              </option>
+            );
+          })}
         </select>
         {errors.petId && (
           <span className="text-xs text-red-600 dark:text-red-400">{errors.petId}</span>

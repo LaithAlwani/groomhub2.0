@@ -91,7 +91,7 @@ export function UploadStep({
             Drop a file here, or click to choose
           </p>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            CSV · Excel (.xlsx) · JSON · XML — up to 10 MB
+            CSV · Excel (.xlsx) · JSON · XML — up to 50 MB
           </p>
         </div>
         <input

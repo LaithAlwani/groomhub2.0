@@ -1,4 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
+import { normalizePhone } from "@/lib/phone";
 
 /**
  * Pure functions that translate the wizard's column-mapping state plus the
@@ -26,8 +27,10 @@ export type TargetField =
   | "client.lastName"
   | "client.email"
   | "client.phone"
-  | "client.phone2"
-  | "client.phone3"
+  // Single accumulating target. Map every secondary / mobile / work-phone
+  // source column to this — the importer collects all values mapped to it
+  // into the `altPhones[]` array. No artificial slot cap.
+  | "client.altPhone"
   | "client.addressLine1"
   | "client.city"
   | "client.state"
@@ -55,6 +58,20 @@ export type TargetField =
   | "pet3.sizeLb"
   | "pet3.sex"
   | "pet3.notes"
+  | "pet4.name"
+  | "pet4.species"
+  | "pet4.breed"
+  | "pet4.birthDate"
+  | "pet4.sizeLb"
+  | "pet4.sex"
+  | "pet4.notes"
+  | "pet5.name"
+  | "pet5.species"
+  | "pet5.breed"
+  | "pet5.birthDate"
+  | "pet5.sizeLb"
+  | "pet5.sex"
+  | "pet5.notes"
   | "history.clientEmail"
   | "history.clientPhone"
   | "history.petName"
@@ -108,6 +125,24 @@ const PET_SLOTS: ReadonlyArray<PetSlotTargets> = [
     sex: "pet3.sex",
     sizeLb: "pet3.sizeLb",
     notes: "pet3.notes",
+  },
+  {
+    name: "pet4.name",
+    species: "pet4.species",
+    breed: "pet4.breed",
+    birthDate: "pet4.birthDate",
+    sex: "pet4.sex",
+    sizeLb: "pet4.sizeLb",
+    notes: "pet4.notes",
+  },
+  {
+    name: "pet5.name",
+    species: "pet5.species",
+    breed: "pet5.breed",
+    birthDate: "pet5.birthDate",
+    sex: "pet5.sex",
+    sizeLb: "pet5.sizeLb",
+    notes: "pet5.notes",
   },
 ];
 
@@ -246,20 +281,22 @@ function guess(key: string, mode: ImportMode): TargetField {
   )
     return "client.lastName";
   if (key.includes("email")) return "client.email";
-  // Match second/third phone columns BEFORE the catch-all `client.phone`
-  // mapping so `Phone2` / `Mobile3` etc. don't get folded into the primary.
-  if (
-    (key.includes("phone") || key.includes("mobile") || key.includes("cell")) &&
-    key.endsWith("3")
-  )
-    return "client.phone3";
-  if (
-    (key.includes("phone") || key.includes("mobile") || key.includes("cell")) &&
-    (key.endsWith("2") || key.includes("alt") || key.includes("secondary"))
-  )
-    return "client.phone2";
-  if (key.includes("phone") || key.includes("mobile") || key.includes("cell"))
-    return "client.phone";
+  // Phone columns: anything with a trailing digit > 1, an "alt" / "secondary"
+  // / "work" / "mobile" hint, or that's clearly not the primary phone goes
+  // to `client.altPhone` (the accumulating target — multiple columns can
+  // route here and they all land in altPhones[]). Otherwise it's the
+  // primary `client.phone`.
+  const isPhoneLike =
+    key.includes("phone") || key.includes("mobile") || key.includes("cell");
+  if (isPhoneLike) {
+    const looksAlt =
+      /[2-9]$/.test(key) ||
+      key.includes("alt") ||
+      key.includes("secondary") ||
+      key.includes("work") ||
+      key.includes("other");
+    return looksAlt ? "client.altPhone" : "client.phone";
+  }
   if (key.includes("address") || key.includes("street"))
     return "client.addressLine1";
   if (key === "city") return "client.city";
@@ -269,11 +306,12 @@ function guess(key: string, mode: ImportMode): TargetField {
   if (mode === "clientsAndPets") {
     // Numbered slots (Pet Name 2 / Breed 2 / ...) come first so the
     // catch-all slot-1 rules don't swallow them. Contact-export XML
-    // typically uses 1/2/3 suffixes.
-    const slot2 = matchPetSlot(key, "2");
-    if (slot2) return slot2;
-    const slot3 = matchPetSlot(key, "3");
-    if (slot3) return slot3;
+    // typically uses 1/2/3/4/5 suffixes — we support up to 5 pets per
+    // contact.
+    for (const slot of ["2", "3", "4", "5"] as const) {
+      const slotMatch = matchPetSlot(key, slot);
+      if (slotMatch) return slotMatch;
+    }
     if (
       key === "petname" ||
       key === "petname1" ||
@@ -309,14 +347,18 @@ function guess(key: string, mode: ImportMode): TargetField {
 }
 
 /**
- * Map a normalized header like `petname2` / `breed2` / `species3` to the
+ * Map a normalized header like `petname2` / `breed3` / `species5` to the
  * matching pet-slot target. Returns null when the key isn't a numbered
- * pet column so the caller can fall through to slot-1 rules.
+ * pet column so the caller can fall through to slot-1 rules. Supports
+ * slots 2 through 5 (contact-export XML rarely has more pets per row).
  */
-function matchPetSlot(key: string, slot: "2" | "3"): TargetField | null {
+function matchPetSlot(
+  key: string,
+  slot: "2" | "3" | "4" | "5",
+): TargetField | null {
   if (!key.endsWith(slot)) return null;
   const base = key.slice(0, -1);
-  const prefix = slot === "2" ? "pet2" : "pet3";
+  const prefix = `pet${slot}`;
   if (base === "petname" || (base.includes("pet") && base.includes("name")))
     return `${prefix}.name` as TargetField;
   if (base.includes("species") || base === "type")
@@ -386,6 +428,26 @@ function get(
 }
 
 /**
+ * Like `get`, but returns EVERY non-empty value mapped to the target —
+ * not just the first. Used for accumulating targets like `client.altPhone`
+ * where the user may map several source columns (Phone2 / Phone3 /
+ * Mobile / Work phone) into one array on the client record.
+ */
+function getAll(
+  row: Record<string, string>,
+  mapping: ColumnMapping,
+  target: TargetField,
+): string[] {
+  const values: string[] = [];
+  for (const [header, mapped] of Object.entries(mapping)) {
+    if (mapped !== target) continue;
+    const value = (row[header] ?? "").trim();
+    if (value.length > 0) values.push(value);
+  }
+  return values;
+}
+
+/**
  * Build import-ready rows from raw parsed input + the user's mapping.
  * Returns one `PreviewRow` per source row, with issues annotated so the
  * preview UI can colour-code (green / yellow / red).
@@ -410,7 +472,7 @@ export function buildPreview(args: {
     let built: ImportRow = { rowId };
     let matchedClient: PreviewRow["matchedClient"] = null;
     const phoneDigits = (raw: string | undefined): string | undefined => {
-      const digits = (raw ?? "").replace(/\D/g, "");
+      const digits = normalizePhone(raw);
       return digits.length > 0 ? digits : undefined;
     };
 
@@ -464,8 +526,6 @@ export function buildPreview(args: {
       if (!fullName) issues.push("missing-client-name");
       const email = get(source, args.mapping, "client.email")?.toLowerCase();
       const phone = phoneDigits(get(source, args.mapping, "client.phone"));
-      const phone2 = phoneDigits(get(source, args.mapping, "client.phone2"));
-      const phone3 = phoneDigits(get(source, args.mapping, "client.phone3"));
       if (email && args.knownEmails.has(email)) issues.push("duplicate-email");
       if (phone && args.knownPhones.has(phone)) issues.push("duplicate-phone");
       // Pre-split the user's notes on date boundaries so contact-export
@@ -473,13 +533,18 @@ export function buildPreview(args: {
       // visit per line in the stored value.
       const userNotes = get(source, args.mapping, "client.notes");
       const splitNotes = userNotes ? splitByDates(userNotes.trim()) : undefined;
-      // De-dupe alt phones against the primary so the same number doesn't
-      // appear twice on the client record.
+      // Collect EVERY column mapped to `client.altPhone` (unlimited — the
+      // schema stores them in an array). Normalize each to digits-only,
+      // drop empties, drop the primary (so the same number isn't stored
+      // twice), and de-dupe the rest.
       const altPhones = Array.from(
         new Set(
-          [phone2, phone3].filter(
-            (value): value is string => Boolean(value) && value !== phone,
-          ),
+          getAll(source, args.mapping, "client.altPhone")
+            .map((value) => phoneDigits(value))
+            .filter(
+              (value): value is string =>
+                Boolean(value) && value !== phone,
+            ),
         ),
       );
       const clientData: BuiltClient | null = fullName
@@ -501,21 +566,38 @@ export function buildPreview(args: {
       const pets: BuiltPet[] = [];
       const legacy: BuiltLegacy[] = [];
       if (args.mode === "clientsAndPets") {
-        // Each contact may carry up to three pets in the mapping (Pet
-        // Name 1/2/3 + matching breed/species/etc.). Skip empty slots
-        // silently — a missing pet doesn't block the client from
-        // importing; the shop can attach pets later.
+        // Each contact may carry up to five pets in the mapping (Pet
+        // Name 1..5 + matching breed/species/etc.). A slot counts as
+        // "filled" if ANY of its fields has a value — so a row with
+        // just `Breed 2 = "poodle"` still creates Pet 2 with name
+        // "Unknown" rather than silently dropping the breed. Truly
+        // empty slots are skipped.
         for (const slot of PET_SLOTS) {
           const petName = get(source, args.mapping, slot.name);
-          if (!petName) continue;
+          const breed = get(source, args.mapping, slot.breed);
+          const speciesRaw = get(source, args.mapping, slot.species);
+          const birthDate = get(source, args.mapping, slot.birthDate);
+          const sexRaw = get(source, args.mapping, slot.sex);
+          const sizeLbRaw = get(source, args.mapping, slot.sizeLb);
+          const petNotes = get(source, args.mapping, slot.notes);
+          const hasAnyData = Boolean(
+            petName ||
+              breed ||
+              speciesRaw ||
+              birthDate ||
+              sexRaw ||
+              sizeLbRaw ||
+              petNotes,
+          );
+          if (!hasAnyData) continue;
           pets.push({
-            name: petName,
-            species: coerceSpecies(get(source, args.mapping, slot.species)),
-            breed: get(source, args.mapping, slot.breed),
-            birthDate: get(source, args.mapping, slot.birthDate),
-            sex: coerceSex(get(source, args.mapping, slot.sex)),
-            sizeLb: coerceLb(get(source, args.mapping, slot.sizeLb)),
-            notes: get(source, args.mapping, slot.notes),
+            name: petName ?? "Unknown",
+            species: coerceSpecies(speciesRaw),
+            breed,
+            birthDate,
+            sex: coerceSex(sexRaw),
+            sizeLb: coerceLb(sizeLbRaw),
+            notes: petNotes,
           });
         }
         // Optional last-appointment entry baked into the same row. If any
