@@ -17,10 +17,6 @@ export default async function VaccinesPage() {
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         Vaccines
       </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        The vaccine types your shop tracks. Add them here once and pick from
-        the list whenever you record a pet&apos;s vaccinations.
-      </p>
       <div className="mt-8">
         <VaccinesPageBody canDelete={canDelete} />
       </div>

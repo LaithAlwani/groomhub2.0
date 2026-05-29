@@ -1,5 +1,6 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { MemberAvatar } from "./MemberAvatar";
 import { MemberLocationsEditor } from "./MemberLocationsEditor";
@@ -57,7 +58,17 @@ export function MemberRow({
       }`}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <MemberAvatar user={member} />
+        {/* Avatar + role badge: pill is absolutely positioned so it
+            overlaps the bottom edge of the avatar — reads as a "title"
+            label tucked under the photo, not a separate row element. */}
+        <div className="relative shrink-0 pb-2.5">
+          <MemberAvatar user={member} />
+          <span
+            className={`absolute -bottom-0.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider shadow-sm ring-2 ring-white dark:ring-zinc-950 ${roleTone}`}
+          >
+            {roleLabel}
+          </span>
+        </div>
         <div className="min-w-0">
           <p className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-100">
             {displayName}
@@ -83,19 +94,16 @@ export function MemberRow({
         {isMultiLocation && (
           <MemberLocationsEditor membership={link} locations={locations} />
         )}
-        <span
-          className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${roleTone}`}
-        >
-          {roleLabel}
-        </span>
         {canRemove && !isSelf && !isInactive && (
           <button
             type="button"
             disabled={isRemoving}
             onClick={onRemove}
-            className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/40"
+            aria-label={isRemoving ? "Removing…" : "Remove member"}
+            title="Remove member"
+            className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-400"
           >
-            {isRemoving ? "Removing…" : "Remove"}
+            <Trash2 size={16} />
           </button>
         )}
       </div>

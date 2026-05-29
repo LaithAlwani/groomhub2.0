@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { X } from "lucide-react";
 import { z } from "zod";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Field } from "@/components/forms/Field";
+import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
-import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 const SPECIES_OPTIONS = ["dog", "cat", "other"] as const;
 type Species = (typeof SPECIES_OPTIONS)[number];
@@ -40,7 +39,6 @@ export function ServiceFormDialog({
 
   const create = useMutation(api.services.create);
   const update = useMutation(api.services.update);
-  useBodyScrollLock();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -131,30 +129,13 @@ export function ServiceFormDialog({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal
-      className="fixed inset-0 z-40 flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-6"
-      onClick={onClose}
+    <DialogShell
+      open
+      onClose={onClose}
+      busy={submitting}
+      title={isEdit ? "Edit service" : "New service"}
     >
-      <div
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-950 sm:rounded-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            {isEdit ? "Edit service" : "New service"}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="-mt-1 rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
-          >
-            <X size={16} />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3 px-5 py-5">
           <Field
             label="Name"
             value={name}
@@ -241,7 +222,6 @@ export function ServiceFormDialog({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </DialogShell>
   );
 }

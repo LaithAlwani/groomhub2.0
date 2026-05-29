@@ -146,7 +146,7 @@ export const myBlockingOwnerships = query({
 
 /**
  * Records the inviting admin's location intent for a fresh invite. Called by
- * `InviteMemberForm` BEFORE Clerk's `organization.inviteMember()` so the
+ * `InviteMemberDialog` BEFORE Clerk's `organization.inviteMember()` so the
  * subsequent `organizationMembership.created` webhook can apply these
  * `locationIds` to the new membership row.
  *

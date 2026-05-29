@@ -39,9 +39,6 @@ export function CalendarHeader({
           <h1 className="truncate text-3xl font-semibold tracking-tight text-[#00273c] dark:text-zinc-50">
             Calendar
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Manage your grooming schedule and track upcoming appointments with ease.
-          </p>
         </div>
         <div className="hidden shrink-0 items-center gap-3 min-[874px]:flex">
           {showStaffFilter && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { CalendarEvent } from "./calendarStyles";
 import { isoDateKey } from "./calendarStyles";
@@ -58,15 +58,42 @@ export function MobileCalendarTimeline({
   );
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // The hour-of-day currently anchored at the top of the viewport. Updated
+  // on scroll; used to preserve the user's time-of-day across re-renders
+  // when `startHour` shifts (e.g. switching staff brings in different
+  // availability, which rebounds the timeline). Without this, the grid
+  // translates under the user and the time they were looking at jumps.
+  const anchorHourRef = useRef<number | null>(null);
+
+  function handleScroll() {
+    if (!scrollRef.current) return;
+    anchorHourRef.current =
+      startHour + scrollRef.current.scrollTop / HOUR_HEIGHT;
+  }
+
   useEffect(() => {
     if (!isToday || !scrollRef.current) return;
     const now = new Date(nowMs);
     const offsetMin = (now.getHours() - startHour) * 60 + now.getMinutes();
     if (offsetMin <= 0) return;
-    scrollRef.current.scrollTop = (offsetMin / 60) * HOUR_HEIGHT - 120;
+    const targetScrollTop = (offsetMin / 60) * HOUR_HEIGHT - 120;
+    scrollRef.current.scrollTop = targetScrollTop;
+    anchorHourRef.current = startHour + targetScrollTop / HOUR_HEIGHT;
     // Mount-only auto-scroll so we don't yank the user's pan position.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When the timeline rebounds (different staff, different day's availability)
+  // re-snap scrollTop so the same time-of-day stays in view. Uses layout
+  // effect so the correction happens before paint — no visible flicker.
+  useLayoutEffect(() => {
+    if (!scrollRef.current) return;
+    if (anchorHourRef.current === null) return;
+    const targetScrollTop =
+      (anchorHourRef.current - startHour) * HOUR_HEIGHT;
+    if (Math.abs(scrollRef.current.scrollTop - targetScrollTop) < 1) return;
+    scrollRef.current.scrollTop = Math.max(0, targetScrollTop);
+  }, [startHour]);
 
   return (
     <div className="flex h-[70vh] flex-col">
@@ -101,7 +128,11 @@ export function MobileCalendarTimeline({
         </div>
       </header>
 
-      <div ref={scrollRef} className="relative flex-1 overflow-y-auto px-4 py-2">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="relative flex-1 overflow-y-auto px-4 py-2"
+      >
         <div
           className="relative ml-14"
           style={{ height: hours.length * HOUR_HEIGHT }}

@@ -66,11 +66,6 @@ export function ConsentFormsPageBody({
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         Consent forms
       </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        Create the consent text your shop wants every client to sign. When
-        you collect a signature from a client profile, you pick from this
-        catalog.
-      </p>
 
       <header className="mt-8 mb-3 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">

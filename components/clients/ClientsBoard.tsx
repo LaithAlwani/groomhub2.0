@@ -75,9 +75,6 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
           <h1 className="text-3xl font-semibold tracking-tight text-[#00273c] dark:text-zinc-50">
             Clients
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Manage pet owners and their grooming history.
-          </p>
         </div>
         {canEdit && (
           <button

@@ -81,10 +81,6 @@ export function ServicesPageBody({ canEdit }: { canEdit: boolean }) {
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         Services
       </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        Your shop&apos;s service menu. Set durations and prices so
-        they&apos;re ready when booking.
-      </p>
 
       {multiLocation && currentLocation && (
         <p className="mt-4 text-xs text-zinc-500 dark:text-zinc-400">

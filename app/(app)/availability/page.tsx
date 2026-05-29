@@ -12,10 +12,6 @@ export default async function MyAvailabilityPage() {
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         My availability
       </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        Set the hours you work each week, then override individual days for time
-        off or extra shifts.
-      </p>
       <div className="mt-8">
         <MyAvailabilityBody />
       </div>

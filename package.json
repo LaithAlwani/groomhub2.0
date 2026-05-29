@@ -30,6 +30,7 @@
     "react-dom": "19.2.4",
     "react-signature-canvas": "^1.1.0-alpha.2",
     "svix": "^1.93.0",
+    "vaul": "^1.1.2",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOrganization, useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
 import { MemberLocationFilter } from "./MemberLocationFilter";
@@ -31,6 +32,26 @@ export function MemberList() {
   const { locations, current: currentLocation } = useCurrentLocation();
   const isMultiLocation = locations.length > 1;
 
+  // Local filter state. Defaults to the sidebar's active location, but can
+  // be set to `null` ("All locations") to see every member at once — that
+  // option doesn't exist in the sidebar's switcher since it controls
+  // booking defaults / calendar rendering, where "all" makes no sense.
+  const [filterLocationId, setFilterLocationId] = useState<
+    Id<"locations"> | null
+  >(currentLocation?._id ?? null);
+
+  // Re-sync when the sidebar's location changes (e.g. user switches in the
+  // sidebar after landing on the staff page). Only follow when the filter
+  // was on a specific location — leave "All" alone since that's an
+  // explicit override.
+  useEffect(() => {
+    if (filterLocationId === null) return;
+    if (currentLocation && currentLocation._id !== filterLocationId) {
+      setFilterLocationId(currentLocation._id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLocation?._id]);
+
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<
@@ -39,19 +60,20 @@ export function MemberList() {
 
   if (baseMembers === undefined) return <ListSkeleton />;
 
-  // Filter by the sidebar's active location: members with `locationIds: []`
-  // always show, plus anyone whose assignment includes the current location.
+  // Filter by the active filter location: members with `locationIds: []`
+  // always show, plus anyone whose assignment includes the filter
+  // location. `filterLocationId === null` = "All locations" → no filtering.
   const filterByLocation = <
     T extends { membership: { locationIds: readonly unknown[] } },
   >(
     rows: T[],
   ): T[] =>
-    isMultiLocation && currentLocation
+    isMultiLocation && filterLocationId !== null
       ? rows.filter(
           (row) =>
             row.membership.locationIds.length === 0 ||
             (row.membership.locationIds as string[]).includes(
-              currentLocation._id,
+              filterLocationId,
             ),
         )
       : rows;
@@ -97,10 +119,14 @@ export function MemberList() {
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
             Active members
           </h2>
-          {isMultiLocation && currentLocation ? (
+          {isMultiLocation && filterLocationId !== null && currentLocation ? (
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              Showing members at <strong>{currentLocation.name}</strong>.
-              Switch locations in the sidebar to see other rosters.
+              Showing members at{" "}
+              <strong>
+                {locations.find((row) => row._id === filterLocationId)?.name ??
+                  currentLocation.name}
+              </strong>
+              . Switch to <em>All locations</em> to see everyone.
             </p>
           ) : (
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
@@ -108,7 +134,11 @@ export function MemberList() {
             </p>
           )}
         </div>
-        <MemberLocationFilter />
+        <MemberLocationFilter
+          locations={locations}
+          selectedId={filterLocationId}
+          onChange={setFilterLocationId}
+        />
       </header>
 
       {visibleMembers.length === 0 ? (

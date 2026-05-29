@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
-import { X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
-import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 type Props = {
   service: Doc<"services">;
@@ -29,7 +28,6 @@ export function ServiceLocationOverrideDialog({
 }: Props) {
   const set = useMutation(api.services.setLocationOverride);
   const clear = useMutation(api.services.clearLocationOverride);
-  useBodyScrollLock();
 
   // Empty string = "no override on this field" (fall back to default).
   // Avoid coercing 0 to empty so admin can intentionally set $0 if needed.
@@ -115,34 +113,16 @@ export function ServiceLocationOverrideDialog({
   const hasOverride = override !== null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-40 flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-6"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !saving && !removing) onClose();
-      }}
+    <DialogShell
+      open
+      onClose={onClose}
+      busy={saving || removing}
+      title={`Customize for ${location.name}`}
     >
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl dark:bg-zinc-950 sm:rounded-2xl">
-        <header className="flex items-start justify-between gap-3 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              Customize for {location.name}
-            </h2>
-            <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
-              {service.name} · default {orgDurationLabel} · {orgPriceLabel}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
-          >
-            <X size={16} />
-          </button>
-        </header>
-        <form onSubmit={handleSave} className="flex flex-col gap-4 px-5 py-5">
+      <p className="px-5 pt-4 text-xs text-zinc-500 dark:text-zinc-400">
+        {service.name} · default {orgDurationLabel} · {orgPriceLabel}
+      </p>
+      <form onSubmit={handleSave} className="flex flex-col gap-4 px-5 py-5">
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
               Price at {location.name}
@@ -226,8 +206,7 @@ export function ServiceLocationOverrideDialog({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+    </DialogShell>
   );
 }
 

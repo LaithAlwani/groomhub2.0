@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { X } from "lucide-react";
 import { z } from "zod";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Field } from "@/components/forms/Field";
+import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
-import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 const SPECIES_OPTIONS = ["dog", "cat", "other"] as const;
 type Species = (typeof SPECIES_OPTIONS)[number];
@@ -48,7 +47,6 @@ export function VaccineFormDialog({
 
   const create = useMutation(api.vaccines.create);
   const update = useMutation(api.vaccines.update);
-  useBodyScrollLock();
 
   const [name, setName] = useState("");
   const [species, setSpecies] = useState<Species[]>([]);
@@ -131,29 +129,13 @@ export function VaccineFormDialog({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-40 flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-6"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !submitting) onClose();
-      }}
+    <DialogShell
+      open
+      onClose={onClose}
+      busy={submitting}
+      title={isEdit ? "Edit vaccine" : "New vaccine"}
     >
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl dark:bg-zinc-950 sm:rounded-2xl">
-        <header className="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            {isEdit ? "Edit vaccine" : "New vaccine"}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
-          >
-            <X size={16} />
-          </button>
-        </header>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-5 py-5">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-5 py-5">
           <Field
             label="Name"
             value={name}
@@ -219,7 +201,6 @@ export function VaccineFormDialog({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </DialogShell>
   );
 }

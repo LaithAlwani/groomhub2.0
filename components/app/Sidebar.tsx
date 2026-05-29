@@ -39,7 +39,7 @@ const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: "/vaccines", label: "Vaccines", icon: Syringe },
   { href: "/consent-forms", label: "Consent forms", icon: FileSignature },
   { href: "/availability", label: "My availability", icon: CalendarClock },
-  { href: "/staff", label: "Team", icon: Users, visibleTo: ["admin", "superAdmin"] },
+  { href: "/staff", label: "Staff", icon: Users, visibleTo: ["admin", "superAdmin"] },
   {
     href: "/settings/locations",
     label: "Locations",

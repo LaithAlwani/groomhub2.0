@@ -98,11 +98,6 @@ export function ImportFlow() {
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
           Import data
         </h1>
-        <p className="max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-          Bring over your clients, pets, and past appointment history from a
-          previous system. Upload a CSV, Excel, JSON, or XML export — map the
-          columns to GroomHub fields — review — import.
-        </p>
       </header>
 
       <StepRail currentIndex={stepIndex} />

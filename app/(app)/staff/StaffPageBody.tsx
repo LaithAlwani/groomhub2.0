@@ -1,23 +1,51 @@
 "use client";
 
 import { useState } from "react";
-import { InviteMemberForm } from "@/components/staff/InviteMemberForm";
+import { Plus } from "lucide-react";
+import { AddFAB } from "@/components/app/AddFAB";
+import { InviteMemberDialog } from "@/components/staff/InviteMemberDialog";
 import { MemberList } from "@/components/staff/MemberList";
 import { PendingInvitationsList } from "@/components/staff/PendingInvitationsList";
 
 /**
- * Thin client wrapper that wires a refresh signal from the invite form to the
- * pending-invitations list. Each child renders its own card so the page just
- * stacks them with a consistent gap.
+ * Staff page body. Owns the page header (title + invite button), the
+ * invite-member dialog state, and stacks the pending-invitations + active-
+ * members cards. Mobile shows the orange "+ Invite member" FAB instead of
+ * the top button — same pattern as the other list pages.
  */
 export function StaffPageBody() {
   const [refreshKey, setRefreshKey] = useState(0);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   return (
-    <div className="mt-8 flex flex-col gap-6">
-      <InviteMemberForm onInvited={() => setRefreshKey((value) => value + 1)} />
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+            Staff
+          </h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => setInviteOpen(true)}
+          className="hidden items-center gap-2 rounded-lg bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 min-[874px]:inline-flex"
+        >
+          <Plus size={14} />
+          Invite member
+        </button>
+      </header>
+
       <PendingInvitationsList refreshKey={refreshKey} />
       <MemberList />
+
+      <AddFAB label="Invite member" onClick={() => setInviteOpen(true)} />
+
+      {inviteOpen && (
+        <InviteMemberDialog
+          onClose={() => setInviteOpen(false)}
+          onInvited={() => setRefreshKey((value) => value + 1)}
+        />
+      )}
     </div>
   );
 }

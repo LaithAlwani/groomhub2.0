@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Eraser, X } from "lucide-react";
+import { Eraser } from "lucide-react";
 import SignaturePad from "react-signature-canvas";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Field } from "@/components/forms/Field";
+import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { buildConsentPdf } from "@/lib/consent/buildConsentPdf";
-import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 /**
  * The tablet-friendly signing modal. Staff opens it from the client detail
@@ -38,7 +38,6 @@ export function SignConsentDialog({
   const generateUploadUrl = useMutation(api.consentForms.generateUploadUrl);
   const recordSigning = useMutation(api.consentForms.recordSigning);
   const deleteOrphan = useMutation(api.consentForms.deleteOrphanStorage);
-  useBodyScrollLock();
 
   const padRef = useRef<SignaturePad | null>(null);
   const [templateId, setTemplateId] = useState<Id<"consentTemplates"> | "">("");
@@ -159,29 +158,14 @@ export function SignConsentDialog({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-40 flex items-end justify-center bg-zinc-900/40 p-0 backdrop-blur-sm sm:items-center sm:p-6"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !submitting) onClose();
-      }}
+    <DialogShell
+      open
+      onClose={onClose}
+      busy={submitting}
+      title="Sign consent form"
+      maxWidth="lg"
     >
-      <div className="flex h-[100vh] w-full flex-col overflow-hidden bg-white shadow-xl dark:bg-zinc-950 sm:h-auto sm:min-h-[80vh] sm:max-w-2xl sm:rounded-2xl">
-        <header className="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            Sign consent form
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded p-1 text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
-          >
-            <X size={16} />
-          </button>
-        </header>
-        <form
+      <form
           onSubmit={handleSubmit}
           className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5"
         >
@@ -279,8 +263,7 @@ export function SignConsentDialog({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </DialogShell>
   );
 }
 

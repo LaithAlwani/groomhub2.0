@@ -102,12 +102,17 @@ export function MemberLocationsEditor({
       {open && !isOwner && (
         <div
           role="dialog"
-          className="absolute right-0 z-30 mt-1 w-56 overflow-hidden rounded-lg border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-800 dark:bg-zinc-950"
+          className="absolute right-0 z-30 mt-1.5 w-64 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
         >
-          <p className="px-1 pb-1 text-[11px] uppercase tracking-wide text-zinc-400">
-            Assigned locations
-          </p>
-          <ul className="flex flex-col gap-0.5">
+          <header className="border-b border-zinc-100 px-3 py-2.5 dark:border-zinc-900">
+            <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+              Assigned locations
+            </p>
+            <p className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+              None checked = every location.
+            </p>
+          </header>
+          <ul className="flex flex-col px-2 py-2">
             {locations.map((location) => {
               const checked = draft.includes(location._id);
               return (
@@ -115,11 +120,11 @@ export function MemberLocationsEditor({
                   <button
                     type="button"
                     onClick={() => toggle(location._id)}
-                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-xs text-zinc-700 transition-colors hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-900"
                   >
                     <span
                       aria-hidden
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-emerald-500 bg-emerald-500 text-white" : "border-zinc-300 dark:border-zinc-700"}`}
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${checked ? "border-orange-500 bg-orange-500 text-white" : "border-zinc-300 dark:border-zinc-700"}`}
                     >
                       {checked && <Check size={10} />}
                     </span>
@@ -129,22 +134,19 @@ export function MemberLocationsEditor({
               );
             })}
           </ul>
-          <p className="mt-2 px-1 text-[11px] text-zinc-500">
-            Leave all unchecked = every location.
-          </p>
           {error && (
-            <p className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
+            <p className="mx-3 mb-2 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
               {error}
             </p>
           )}
-          <div className="mt-2 flex items-center justify-end gap-1">
+          <div className="flex items-center justify-end gap-2 border-t border-zinc-100 bg-zinc-50/60 px-3 py-2 dark:border-zinc-900 dark:bg-zinc-900/40">
             <button
               type="button"
               onClick={() => {
                 setDraft(membership.locationIds);
                 setOpen(false);
               }}
-              className="rounded px-2 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-white dark:text-zinc-300 dark:hover:bg-zinc-900"
             >
               Cancel
             </button>
@@ -152,7 +154,7 @@ export function MemberLocationsEditor({
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
+              className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
             >
               {saving ? "Saving…" : "Save"}
             </button>
