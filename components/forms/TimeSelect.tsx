@@ -39,7 +39,7 @@ export function TimeSelect({
         value={hour}
         onChange={(event) => emit(Number(event.target.value), minute)}
         aria-label="Hour"
-        className="appearance-none rounded-l-lg bg-transparent px-2 py-2 text-sm text-zinc-900 focus:outline-none dark:text-zinc-100"
+        className="min-w-14 appearance-none rounded-l-lg bg-transparent py-2 pl-3 pr-2 text-base text-zinc-900 focus:outline-none dark:text-zinc-100 sm:text-sm"
       >
         {HOURS.map((value) => (
           <option key={value} value={value}>
@@ -54,7 +54,7 @@ export function TimeSelect({
         value={minute}
         onChange={(event) => emit(hour, Number(event.target.value))}
         aria-label="Minute"
-        className="appearance-none rounded-r-lg bg-transparent px-2 py-2 text-sm text-zinc-900 focus:outline-none dark:text-zinc-100"
+        className="min-w-14 appearance-none rounded-r-lg bg-transparent py-2 pl-2 pr-3 text-base text-zinc-900 focus:outline-none dark:text-zinc-100 sm:text-sm"
       >
         {MINUTES.map((value) => (
           <option key={value} value={value}>
