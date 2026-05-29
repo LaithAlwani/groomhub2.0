@@ -248,8 +248,8 @@ export const landingPage = {
         heading: "Company",
         links: [
           { label: "Contact", href: "#contact" },
-          { label: "Privacy", href: "#" },
-          { label: "Terms", href: "#" },
+          { label: "Privacy", href: "/privacy" },
+          { label: "Terms", href: "/terms" },
         ],
       },
     ],
