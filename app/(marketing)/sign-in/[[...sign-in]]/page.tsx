@@ -97,7 +97,12 @@ export default function SignInPage() {
     }
   }
 
-  if (redirecting) return <SignInProgress message="Signing you in…" />;
+  // Render the branded loader as soon as Clerk reports an active session,
+  // not just when we kick off the redirect ourselves. Otherwise the form
+  // paints for one frame after the SSO callback bounces back here.
+  if (redirecting || isSignedIn) {
+    return <SignInProgress message="Signing you in…" />;
+  }
 
   return (
     <AuthCard

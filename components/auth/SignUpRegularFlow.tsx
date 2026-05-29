@@ -61,7 +61,12 @@ export function SignUpRegularFlow() {
     window.location.assign("/dashboard");
   }
 
-  if (redirecting) return <SignInProgress message="Taking you to your dashboard…" />;
+  // Cover the case where the user lands on /sign-up while already signed
+  // in (post-SSO bounce, second tab, etc.) so the form doesn't paint for
+  // a frame before the redirect fires.
+  if (redirecting || isSignedIn) {
+    return <SignInProgress message="Taking you to your dashboard…" />;
+  }
 
   const title =
     step === "verify"

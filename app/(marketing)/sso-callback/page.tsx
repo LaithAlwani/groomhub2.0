@@ -1,6 +1,7 @@
 "use client";
 
 import { AuthenticateWithRedirectCallback } from "@clerk/nextjs";
+import { BrandedLoader } from "@/components/ui/BrandedLoader";
 
 /**
  * OAuth redirect lands here after Google/Apple sign-in. The
@@ -20,8 +21,8 @@ import { AuthenticateWithRedirectCallback } from "@clerk/nextjs";
  */
 export default function SSOCallbackPage() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-16">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">Signing you in…</p>
+    <>
+      <BrandedLoader message="Signing you in…" />
       <div id="clerk-captcha" />
       <AuthenticateWithRedirectCallback
         signInUrl="/sign-in"
@@ -30,6 +31,6 @@ export default function SSOCallbackPage() {
         signUpForceRedirectUrl="/dashboard"
         continueSignUpUrl="/sign-up"
       />
-    </div>
+    </>
   );
 }
