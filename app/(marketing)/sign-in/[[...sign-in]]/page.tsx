@@ -69,6 +69,18 @@ export default function SignInPage() {
       return;
     }
 
+    // `password()` only completes the first factor. If a second factor or
+    // any other step is still required, `signIn.status` will be something
+    // other than "complete" and calling `finalize()` would throw
+    // "Cannot finalize sign-in without a created session."
+    if (signIn.status !== "complete") {
+      const factors = signIn.supportedSecondFactors?.map((factor) =>
+        "strategy" in factor ? factor.strategy : "unknown",
+      ) ?? [];
+      setServerError(describePendingStep(signIn.status, factors));
+      return;
+    }
+
     setRedirecting(true);
     const finalizeResult = await signIn.finalize({
       navigate: () => undefined,
@@ -100,7 +112,10 @@ export default function SignInPage() {
   // Render the branded loader as soon as Clerk reports an active session,
   // not just when we kick off the redirect ourselves. Otherwise the form
   // paints for one frame after the SSO callback bounces back here.
-  if (redirecting || isSignedIn) {
+  // The `!serverError` guard yields to errors — if `signIn.finalize`
+  // failed after the password step already set the auth cookie,
+  // `isSignedIn` will be true but we still need to surface the error.
+  if (redirecting || (isSignedIn && !serverError)) {
     return <SignInProgress message="Signing you in…" />;
   }
 
@@ -157,4 +172,32 @@ export default function SignInPage() {
       </p>
     </AuthCard>
   );
+}
+
+function describePendingStep(
+  status: string,
+  supportedSecondFactors: string[],
+): string {
+  switch (status) {
+    case "needs_second_factor": {
+      const factorList =
+        supportedSecondFactors.length > 0
+          ? supportedSecondFactors.join(", ")
+          : "unknown";
+      if (supportedSecondFactors.includes("email_code")) {
+        return `Clerk is requiring an email code as a second factor (status=needs_second_factor, supported=${factorList}). This is set at the instance level (Configure → Multi-factor → "Email code") OR on the user's email (User → Email → "Reserved for second factor"). Disable both to sign in here.`;
+      }
+      return `Sign-in needs a second factor: ${factorList}. Disable it in Clerk Dashboard → Configure → Multi-factor, and on the user's profile if it was set per-account.`;
+    }
+    case "needs_new_password":
+      return "This account requires a password reset before you can sign in. Use the forgot-password flow.";
+    case "needs_first_factor":
+      return "Password wasn't accepted as a sign-in method for this account.";
+    case "needs_client_trust":
+      return "Verifying this device. Try again, or sign in from a previously trusted device.";
+    case "needs_identifier":
+      return "Couldn't recognize that email address.";
+    default:
+      return `Sign-in needs another step (status=${status}). Check the account's Clerk settings.`;
+  }
 }

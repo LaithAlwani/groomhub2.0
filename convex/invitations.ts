@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { action } from "./_generated/server";
+import { api } from "./_generated/api";
 
 /**
  * Looks up an organisation invitation by its ticket JWT.
@@ -54,6 +55,83 @@ export const lookupTicket = action({
     return { email: invitation.email_address };
   },
 });
+
+/**
+ * Sends an organisation invitation via Clerk's Backend API with an
+ * explicit `redirect_url`, so the email link always points at the host
+ * the inviter sent it from (`window.location.origin`). The client SDK's
+ * `organization.inviteMember(...)` doesn't accept `redirect_url` and
+ * falls back to whatever's set in Clerk Dashboard → Customization →
+ * Paths, which was the source of "invitation links go to localhost"
+ * after we switched between dev/prod Clerk instances.
+ *
+ * Also records the local invite intent (for per-location scoping) before
+ * dispatching to Clerk so the webhook can apply locationIds when the
+ * membership lands.
+ */
+export const sendInvitation = action({
+  args: {
+    email: v.string(),
+    role: v.string(),
+    locationIds: v.array(v.id("locations")),
+    redirectUrl: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return { ok: false, error: "Not authenticated" };
+
+    const orgId =
+      (identity["org_id"] as string | undefined) ??
+      (identity.orgId as string | undefined);
+    if (!orgId) return { ok: false, error: "No active organization" };
+
+    const inviterUserId = identity.subject;
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) {
+      return { ok: false, error: "CLERK_SECRET_KEY not set in Convex env" };
+    }
+
+    await ctx.runMutation(api.memberships.recordInviteIntent, {
+      email: args.email,
+      locationIds: args.locationIds,
+    });
+
+    const response = await fetch(
+      `https://api.clerk.com/v1/organizations/${orgId}/invitations`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email_address: args.email,
+          role: args.role,
+          redirect_url: args.redirectUrl,
+          inviter_user_id: inviterUserId,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      const parsed = safeParseClerkError(text);
+      return { ok: false, error: parsed ?? `Clerk: ${response.status} ${text}` };
+    }
+    return { ok: true };
+  },
+});
+
+function safeParseClerkError(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as {
+      errors?: Array<{ message?: string; long_message?: string }>;
+    };
+    const first = parsed.errors?.[0];
+    return first?.long_message ?? first?.message ?? null;
+  } catch {
+    return null;
+  }
+}
 
 type DecodedPayload = {
   st?: string;

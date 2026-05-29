@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAction } from "convex/react";
 import { useSignUp } from "@clerk/nextjs";
-import { User } from "lucide-react";
+import { Lock, User } from "lucide-react";
 import { z } from "zod";
 import { api } from "@/convex/_generated/api";
 import { AuthInput } from "@/components/auth/AuthInput";
@@ -14,6 +14,7 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 const schema = z.object({
   firstName: z.string().trim().min(1, "First name is required"),
   lastName: z.string().trim().min(1, "Last name is required"),
+  password: z.string().min(8, "At least 8 characters"),
 });
 
 type FormInput = z.infer<typeof schema>;
@@ -47,6 +48,7 @@ export function InvitationAcceptForm({
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [accountExists, setAccountExists] = useState(false);
@@ -69,7 +71,7 @@ export function InvitationAcceptForm({
     event.preventDefault();
     setServerError(null);
 
-    const parsed = schema.safeParse({ firstName, lastName });
+    const parsed = schema.safeParse({ firstName, lastName, password });
     if (!parsed.success) {
       const nextErrors: FieldErrors = {};
       for (const issue of parsed.error.issues) {
@@ -84,12 +86,17 @@ export function InvitationAcceptForm({
 
     setSubmitting(true);
     try {
+      // The password field is required because Clerk's "Sign-up with
+      // password" instance setting is on — without it the ticket-strategy
+      // sign-up leaves the user with `createdSessionId === null` and the
+      // flow gets stuck on "Sign-up didn't finish".
       type SignUpCreateParams = Parameters<typeof signUp.create>[0];
       const createResult = await signUp.create({
         strategy: "ticket",
         ticket: invitationTicket,
         firstName: parsed.data.firstName,
         lastName: parsed.data.lastName,
+        password: parsed.data.password,
       } as SignUpCreateParams);
 
       if (createResult.error) {
@@ -195,6 +202,16 @@ export function InvitationAcceptForm({
           autoComplete="family-name"
         />
       </div>
+      <AuthInput
+        label="Password"
+        icon={Lock}
+        type="password"
+        value={password}
+        onChange={setPassword}
+        error={fieldErrors.password}
+        autoComplete="new-password"
+        placeholder="At least 8 characters"
+      />
       <div id="clerk-captcha" />
       {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
       <AuthPrimaryButton disabled={submitting || busy || !signUp}>

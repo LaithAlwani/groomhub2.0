@@ -63,8 +63,9 @@ export function SignUpRegularFlow() {
 
   // Cover the case where the user lands on /sign-up while already signed
   // in (post-SSO bounce, second tab, etc.) so the form doesn't paint for
-  // a frame before the redirect fires.
-  if (redirecting || isSignedIn) {
+  // a frame before the redirect fires. The `!finalizeError` guard yields
+  // if `signUp.finalize` failed after the account was already created.
+  if (redirecting || (isSignedIn && !finalizeError)) {
     return <SignInProgress message="Taking you to your dashboard…" />;
   }
 

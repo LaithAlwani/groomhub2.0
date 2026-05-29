@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useOrganization } from "@clerk/nextjs";
-import { useMutation } from "convex/react";
+import { useAction } from "convex/react";
 import { z } from "zod";
 import { api } from "@/convex/_generated/api";
 import { Field } from "@/components/forms/Field";
@@ -38,7 +38,7 @@ export function InviteMemberDialog({
 }) {
   const { organization } = useOrganization();
   const { current: currentLocation, locations } = useCurrentLocation();
-  const recordInviteIntent = useMutation(api.memberships.recordInviteIntent);
+  const sendInvitation = useAction(api.invitations.sendInvitation);
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<ClerkRole>("org:member");
@@ -73,14 +73,21 @@ export function InviteMemberDialog({
     if (!organization) return;
     setSubmitting(true);
     try {
-      await recordInviteIntent({
+      // Bake the inviter's current origin into the redirect URL so the
+      // invitation email always points at the host they sent it from
+      // (avoids "invite goes to localhost" when the Clerk dashboard's
+      // configured sign-up URL doesn't match the current environment).
+      const redirectUrl = `${window.location.origin}/sign-up`;
+      const result = await sendInvitation({
         email: parsed.data.email,
-        locationIds: willScopeToLocation ? [currentLocation._id] : [],
-      });
-      await organization.inviteMember({
-        emailAddress: parsed.data.email,
         role,
+        locationIds: willScopeToLocation ? [currentLocation._id] : [],
+        redirectUrl,
       });
+      if (!result.ok) {
+        setServerError(result.error);
+        return;
+      }
       onInvited();
       onClose();
     } catch (caught) {

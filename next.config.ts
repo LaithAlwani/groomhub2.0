@@ -12,7 +12,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://*.clerk.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com wss://*.convex.cloud https://*.convex.cloud https://*.convex.site",
+  "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk-telemetry.com wss://*.convex.cloud https://*.convex.cloud https://*.convex.site",
   "frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
   "worker-src 'self' blob:",
   "object-src 'none'",
