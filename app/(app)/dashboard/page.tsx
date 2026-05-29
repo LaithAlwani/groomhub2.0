@@ -6,7 +6,7 @@ import { TodayList } from "@/components/dashboard/TodayList";
 
 export default function DashboardPage() {
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 py-12">
+    <section className="mx-auto w-full max-w-7xl px-6 py-8">
       <Suspense fallback={<DashboardSkeleton />}>
         <WelcomeHeader />
       </Suspense>
@@ -26,7 +26,9 @@ async function WelcomeHeader() {
 
   return (
     <header>
-      <h1 className="text-2xl font-semibold tracking-tight">Welcome, {fullName}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+        Welcome, {fullName}
+      </h1>
       {email && (
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{email}</p>
       )}

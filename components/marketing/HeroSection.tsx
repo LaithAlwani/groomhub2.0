@@ -6,8 +6,8 @@ export function HeroSection() {
   const { hero } = landingPage;
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-sky-50 via-white to-white dark:from-[#00273c] dark:via-[#00273c] dark:to-zinc-950">
-      <div className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-orange-200/40 blur-3xl dark:bg-orange-500/10" />
+    <section className="relative overflow-hidden bg-linear-to-b from-sky-50 via-white to-white dark:from-[#00273c] dark:via-[#00273c] dark:to-zinc-950">
+      <div className="pointer-events-none absolute -top-32 left-1/2 h-105 w-205 -translate-x-1/2 rounded-full bg-orange-200/40 blur-3xl dark:bg-orange-500/10" />
       <div className="relative mx-auto grid w-full max-w-6xl gap-12 px-6 py-20 md:grid-cols-2 md:items-center md:py-28">
         <div>
           <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wider text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-300">
@@ -23,7 +23,7 @@ export function HeroSection() {
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
             <Link
               href={hero.primaryCtaHref}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-orange-600 to-orange-500 px-6 py-3 font-medium text-white shadow-md transition-transform hover:scale-[1.02] hover:shadow-lg"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-linear-to-r from-orange-600 to-orange-500 px-6 py-3 font-medium text-white shadow-md transition-transform hover:scale-[1.02] hover:shadow-lg"
             >
               {hero.primaryCtaLabel}
               <ArrowRight size={16} aria-hidden />
@@ -51,7 +51,7 @@ export function HeroSection() {
 function DashboardMockup() {
   return (
     <div className="relative mx-auto w-full max-w-md">
-      <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-orange-200/60 via-sky-200/60 to-transparent blur-2xl dark:from-orange-500/20 dark:via-sky-500/10" />
+      <div className="absolute -inset-4 rounded-3xl bg-linear-to-br from-orange-200/60 via-sky-200/60 to-transparent blur-2xl dark:from-orange-500/20 dark:via-sky-500/10" />
       <div className="relative rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
         <div className="flex items-center justify-between border-b border-zinc-100 pb-3 dark:border-zinc-800">
           <div className="flex items-center gap-2">

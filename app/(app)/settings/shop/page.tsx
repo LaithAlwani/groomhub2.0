@@ -11,7 +11,7 @@ export default async function ShopSettingsPage() {
   if (role !== "admin" && role !== "superAdmin") redirect("/dashboard");
 
   return (
-    <section className="mx-auto w-full max-w-2xl px-6 py-10">
+    <section className="mx-auto w-full max-w-7xl px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         Organization
       </h1>

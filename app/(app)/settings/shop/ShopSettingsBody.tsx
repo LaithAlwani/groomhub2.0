@@ -103,7 +103,9 @@ export function ShopSettingsBody() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    // Form column kept at max-w-3xl so the inputs stay scannable even
+    // though the page wrapper now matches the app-wide max-w-7xl.
+    <div className="flex max-w-3xl flex-col gap-8">
       <ShopLogoEditor logoUrl={org.logoUrl ?? null} />
 
       <SectionHeader title="Identity" />

@@ -15,7 +15,7 @@ import { SessionsSection } from "@/components/account/SessionsSection";
  */
 export default function AccountPage() {
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 py-8">
+    <section className="mx-auto w-full max-w-7xl px-6 py-8">
       <nav
         aria-label="Breadcrumb"
         className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400"

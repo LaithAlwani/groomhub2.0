@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * Desktop calendar view. Wraps `react-big-calendar` with drag-and-drop,
+ * three-day mode, and shop-specific theming. Hidden below `md`; the
+ * `MobileCalendarTimeline` sibling takes over on small screens because
+ * BigCalendar's grid doesn't degrade well to narrow widths.
+ */
+
 import { useMemo } from "react";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
