@@ -6,6 +6,7 @@ import { useOrganization, useOrganizationList } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { ChevronsUpDown, PawPrint } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import type { Plan } from "@/convex/lib/plans";
 import { SwitcherMenu } from "./OrgSwitcherMenus";
 
 /**
@@ -79,7 +80,10 @@ export function SidebarBrand() {
         aria-expanded={open}
         className={`flex w-full items-center gap-3 rounded-lg p-1 text-left transition-colors hover:bg-white dark:hover:bg-zinc-900 ${switching ? "opacity-50" : ""}`}
       >
-        <ShopAvatar logoUrl={liveOrg?.logoUrl ?? null} />
+        <div className="relative shrink-0">
+          <ShopAvatar logoUrl={liveOrg?.logoUrl ?? null} />
+          <PlanBadge plan={liveOrg?.plan} />
+        </div>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-base font-semibold capitalize text-[#00273c] dark:text-zinc-50">
             {organization.name}
@@ -127,6 +131,35 @@ function ShopAvatar({ logoUrl }: { logoUrl: string | null }) {
       className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#00273c] text-white"
     >
       <PawPrint size={20} />
+    </span>
+  );
+}
+
+const PLAN_PILL_STYLES: Record<Plan, string> = {
+  essential:
+    "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+  professional:
+    "bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-200",
+  enterprise:
+    "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
+};
+const PLAN_PILL_LABELS: Record<Plan, string> = {
+  essential: "Essential",
+  professional: "Pro",
+  enterprise: "Enterprise",
+};
+
+function PlanBadge({ plan }: { plan: string | undefined }) {
+  if (!plan || !(plan in PLAN_PILL_STYLES)) return null;
+  const key = plan as Plan;
+  // Positioned to cover the bottom strip of the avatar (~25% of its height)
+  // and slightly extend below it. Centered horizontally so wider labels
+  // like "Enterprise" stay visually balanced against the 44px avatar.
+  return (
+    <span
+      className={`absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-sm px-1 py-px text-[8px] font-semibold uppercase leading-none tracking-wide whitespace-nowrap shadow-sm ring-1 ring-white/40 dark:ring-zinc-900/40 ${PLAN_PILL_STYLES[key]}`}
+    >
+      {PLAN_PILL_LABELS[key]}
     </span>
   );
 }
