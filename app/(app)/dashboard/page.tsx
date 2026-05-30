@@ -1,19 +1,15 @@
 import { Suspense } from "react";
 import { currentUser } from "@clerk/nextjs/server";
-import { DeclinedQueueList } from "@/components/dashboard/DeclinedQueueList";
-import { PendingApprovalsList } from "@/components/dashboard/PendingApprovalsList";
-import { TodayList } from "@/components/dashboard/TodayList";
+import { DashboardBody } from "@/components/dashboard/DashboardBody";
 
 export default function DashboardPage() {
   return (
     <section className="mx-auto w-full max-w-7xl px-6 py-8">
-      <Suspense fallback={<DashboardSkeleton />}>
+      <Suspense fallback={<WelcomeHeaderSkeleton />}>
         <WelcomeHeader />
       </Suspense>
-      <div className="mt-6 flex flex-col gap-6">
-        <PendingApprovalsList />
-        <DeclinedQueueList />
-        <TodayList />
+      <div className="mt-6">
+        <DashboardBody />
       </div>
     </section>
   );
@@ -36,7 +32,7 @@ async function WelcomeHeader() {
   );
 }
 
-function DashboardSkeleton() {
+function WelcomeHeaderSkeleton() {
   return (
     <header>
       <div className="h-7 w-48 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />

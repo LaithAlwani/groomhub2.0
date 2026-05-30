@@ -16,12 +16,18 @@ const PLAN_RANK: Record<Plan, number> = {
 };
 
 export type PlanFeature =
-  | "multipleLocations";
+  | "multipleLocations"
+  // Gates the Salon Health + Week Metrics dashboard cards. Professional+.
+  | "dashboardSalonHealth"
+  // Gates the Top Services + Top Clients dashboard cards. Enterprise+.
+  | "dashboardAdvancedAnalytics";
 // Reserved for future phases (listed here as comments so the matrix is
-// self-documenting): "smsReminders" | "recurringAppointments" | "analytics".
+// self-documenting): "smsReminders" | "recurringAppointments".
 
 export const FEATURE_MIN_PLAN: Record<PlanFeature, Plan> = {
   multipleLocations: "enterprise",
+  dashboardSalonHealth: "professional",
+  dashboardAdvancedAnalytics: "enterprise",
 };
 
 export function planAllows(plan: Plan, feature: PlanFeature): boolean {

@@ -10,7 +10,6 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { mapClerkOrgRole } from "@/convex/lib/roles";
 import { Calendar, type CalendarEvent } from "@/components/calendar/Calendar";
 import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
-import { CalendarBentoCards } from "@/components/calendar/CalendarBentoCards";
 import { CalendarHeader } from "@/components/calendar/CalendarHeader";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
@@ -162,8 +161,6 @@ export function CalendarPageBody() {
           <div className="h-[70vh] animate-pulse bg-zinc-50 dark:bg-zinc-900" />
         )}
       </div>
-
-      <CalendarBentoCards />
 
       <button
         type="button"

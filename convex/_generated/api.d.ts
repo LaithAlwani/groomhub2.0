@@ -14,6 +14,7 @@ import type * as clerkSync from "../clerkSync.js";
 import type * as clients from "../clients.js";
 import type * as consentForms from "../consentForms.js";
 import type * as crons from "../crons.js";
+import type * as dashboard from "../dashboard.js";
 import type * as email from "../email.js";
 import type * as emailPayloads from "../emailPayloads.js";
 import type * as http from "../http.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   clients: typeof clients;
   consentForms: typeof consentForms;
   crons: typeof crons;
+  dashboard: typeof dashboard;
   email: typeof email;
   emailPayloads: typeof emailPayloads;
   http: typeof http;
