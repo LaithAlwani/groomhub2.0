@@ -1,8 +1,11 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
+import { ensureMembership } from "./lib/ensureMembership";
 import { appError } from "./lib/errors";
 import { requireRole } from "./lib/rbac";
-import { softAuth } from "./lib/tenant";
+import { isDevDeployment } from "./lib/seedGating";
+import { softAuth, type AuthedIdentity } from "./lib/tenant";
 import { validateSlugShape } from "./lib/reservedSlugs";
 
 /**
@@ -172,9 +175,44 @@ export const seedFromClerk = mutation({
       timezone: args.timezone,
       currency: args.currency,
     });
+    await maybeScheduleSeed(ctx, identity, args.clerkOrgId);
     return newOrgId;
   },
 });
+
+/**
+ * On dev Convex deployments only, bootstrap the creator's membership row
+ * immediately (the Clerk webhook hasn't fired yet) and schedule the test
+ * seed. Scheduled — not inline — so a seed bug can never break the
+ * critical org-creation path. No-op everywhere else.
+ */
+async function maybeScheduleSeed(
+  ctx: import("./_generated/server").MutationCtx,
+  identity: import("convex/server").UserIdentity,
+  clerkOrgId: string,
+): Promise<void> {
+  if (!isDevDeployment()) return;
+  // The just-created Clerk org makes the caller `org:admin`; the JWT may
+  // not reflect that claim yet (it was minted before the create), so we
+  // synthesize the identity rather than reading it back from auth.
+  const authedIdentity: AuthedIdentity = Object.assign(identity, {
+    orgId: clerkOrgId,
+    orgRole: "org:admin",
+  });
+  const { membership } = await ensureMembership(ctx, authedIdentity);
+  const location = await ctx.db
+    .query("locations")
+    .withIndex("by_org_active", (index) =>
+      index.eq("orgId", clerkOrgId).eq("isActive", true),
+    )
+    .first();
+  if (!location) return;
+  await ctx.scheduler.runAfter(0, internal.seed.populateShop, {
+    orgId: clerkOrgId,
+    locationId: location._id,
+    staffId: membership._id,
+  });
+}
 
 /**
  * Idempotently ensures the org has at least one active location named "Main"
