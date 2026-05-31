@@ -115,6 +115,7 @@ export function PasswordSection() {
             onChange={setCurrentPassword}
             error={fieldErrors.currentPassword}
             autoComplete="current-password"
+            required
           />
         )}
         <Field
@@ -124,6 +125,7 @@ export function PasswordSection() {
           onChange={setNewPassword}
           error={fieldErrors.newPassword}
           autoComplete="new-password"
+          required
         />
         <Field
           label="Confirm new password"
@@ -132,6 +134,7 @@ export function PasswordSection() {
           onChange={setConfirmPassword}
           error={fieldErrors.confirmPassword}
           autoComplete="new-password"
+          required
         />
         <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
           <input

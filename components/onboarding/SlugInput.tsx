@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { RequiredMark } from "@/components/forms/RequiredMark";
 
 type Tone = "ok" | "error" | "muted";
 type Hint = { tone: Tone; text: string };
@@ -21,6 +22,7 @@ export function SlugInput({
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
         Public URL slug
+        <RequiredMark />
       </label>
       <div className="flex items-stretch overflow-hidden rounded-lg border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950">
         <span className="px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500">

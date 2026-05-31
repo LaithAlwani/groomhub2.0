@@ -48,7 +48,7 @@ export function PhonesField({
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-        Phone (optional)
+        Phone
       </span>
       <div className="flex flex-col gap-2">
         {phones.map((value, index) => (

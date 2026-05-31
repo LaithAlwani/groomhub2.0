@@ -50,6 +50,7 @@ export function SignUpVerifyStep({
     <form onSubmit={handleSubmit} className="space-y-5">
       <AuthInput
         label="Verification Code"
+        required
         icon={KeyRound}
         value={code}
         onChange={setCode}

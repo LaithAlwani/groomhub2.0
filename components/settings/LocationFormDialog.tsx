@@ -154,12 +154,14 @@ export function LocationFormDialog({
             value={state.name}
             onChange={(value) => setField("name", value)}
             placeholder="Downtown"
+            required
           />
           <Field
             label="URL slug"
             value={state.slug}
             onChange={(value) => setField("slug", value)}
             placeholder="downtown"
+            required
           />
           <div className="grid grid-cols-2 gap-3">
             <Field
@@ -167,12 +169,14 @@ export function LocationFormDialog({
               value={state.timezone}
               onChange={(value) => setField("timezone", value)}
               placeholder="America/Toronto"
+              required
             />
             <Field
               label="Currency"
               value={state.currency}
               onChange={(value) => setField("currency", value)}
               placeholder="USD"
+              required
             />
           </div>
           <Field
@@ -207,7 +211,7 @@ export function LocationFormDialog({
             placeholder="555-123-4567"
           />
           <Field
-            label="Reply-To email (optional)"
+            label="Reply-To email"
             type="email"
             inputMode="email"
             value={state.contactEmail}

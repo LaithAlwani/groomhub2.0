@@ -118,7 +118,7 @@ export function ShopSettingsBody() {
       <SectionHeader title="Contact" />
       <form onSubmit={handleContactSubmit} className="flex flex-col gap-4">
         <Field
-          label="Contact email (optional)"
+          label="Contact email"
           type="email"
           inputMode="email"
           value={state.contactEmail}
@@ -128,7 +128,7 @@ export function ShopSettingsBody() {
           readOnly={!canEdit}
         />
         <Field
-          label="Contact phone (optional)"
+          label="Contact phone"
           type="tel"
           inputMode="tel"
           value={state.contactPhone}

@@ -1,6 +1,7 @@
 "use client";
 
 import { Field } from "@/components/forms/Field";
+import { RequiredMark } from "@/components/forms/RequiredMark";
 import { SwitchRow } from "@/components/forms/Switch";
 import type { Id } from "@/convex/_generated/dataModel";
 import { VaccinationsPanel } from "./VaccinationsPanel";
@@ -73,10 +74,12 @@ export function PetFormFields({
           onChange={(value) => onChange("name", value)}
           error={errors.name}
           placeholder="Luna"
+          required
         />
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
             Species
+            <RequiredMark />
           </span>
           <select
             value={state.species}
@@ -95,6 +98,7 @@ export function PetFormFields({
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
             Sex
+            <RequiredMark />
           </span>
           <select
             value={state.sex}
@@ -105,6 +109,11 @@ export function PetFormFields({
             <option value="female">Female</option>
             <option value="male">Male</option>
           </select>
+          {errors.sex && (
+            <span className="text-xs text-red-600 dark:text-red-400">
+              {errors.sex}
+            </span>
+          )}
         </label>
         <label className="flex items-end gap-2 pb-1.5 text-sm text-zinc-800 dark:text-zinc-200">
           <input
@@ -118,41 +127,44 @@ export function PetFormFields({
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
-          label="Breed (optional)"
+          label="Breed"
           value={state.breed}
           onChange={(value) => onChange("breed", value)}
+          error={errors.breed}
+          required
         />
         <Field
-          label="Coat type (optional)"
+          label="Coat type"
           value={state.coatType}
           onChange={(value) => onChange("coatType", value)}
         />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
-          label="Size (lb, optional)"
+          label="Size (lb)"
           type="number"
           inputMode="decimal"
           value={state.sizeLb}
           onChange={(value) => onChange("sizeLb", value)}
           error={errors.sizeLb}
+          required
         />
         <Field
-          label="Birth date (optional)"
+          label="Birth date"
           type="date"
           value={state.birthDate}
           onChange={(value) => onChange("birthDate", value)}
         />
       </div>
       <Field
-        label="Temperament (optional)"
+        label="Temperament"
         value={state.temperament}
         onChange={(value) => onChange("temperament", value)}
         placeholder="Friendly · anxious around clippers"
       />
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          Medical conditions (optional)
+          Medical conditions
         </span>
         <textarea
           value={state.medicalConditions}
@@ -167,7 +179,7 @@ export function PetFormFields({
       </label>
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          Notes (optional)
+          Notes
         </span>
         <textarea
           value={state.notes}

@@ -142,6 +142,7 @@ export function VaccineFormDialog({
             onChange={setName}
             error={fieldErrors.name}
             placeholder="Rabies"
+            required
           />
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
@@ -168,7 +169,7 @@ export function VaccineFormDialog({
             </span>
           </div>
           <Field
-            label="Default interval (months, optional)"
+            label="Default interval (months)"
             type="number"
             inputMode="numeric"
             value={defaultIntervalMonths}
@@ -177,7 +178,7 @@ export function VaccineFormDialog({
             placeholder="12"
           />
           <Field
-            label="Description (optional)"
+            label="Description"
             value={description}
             onChange={setDescription}
             error={fieldErrors.description}

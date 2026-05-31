@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { RequiredMark } from "@/components/forms/RequiredMark";
 import { ClientPicker } from "./ClientPicker";
 import { SchedulingFields, type AppointmentStatus } from "./SchedulingFields";
 
@@ -64,6 +65,7 @@ export function AppointmentFormFields({
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Pet
+          <RequiredMark />
         </span>
         <select
           value={state.petId ?? ""}
@@ -112,6 +114,7 @@ export function AppointmentFormFields({
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Service
+          <RequiredMark />
         </span>
         <select
           value={state.serviceId ?? ""}
@@ -156,6 +159,7 @@ function ClientNameDisplay({ clientId }: { clientId: Id<"clients"> | null }) {
     <div className="flex flex-col gap-1.5">
       <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
         Client
+        <RequiredMark />
       </span>
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
         {client?.fullName ?? "Loading…"}

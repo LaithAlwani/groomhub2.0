@@ -183,6 +183,7 @@ export function ClientFormDialog({
               onChange={(value) => setField("firstName", value)}
               error={fieldErrors.firstName}
               placeholder="Jane"
+              required
             />
             <Field
               label="Last name"
@@ -190,6 +191,7 @@ export function ClientFormDialog({
               onChange={(value) => setField("lastName", value)}
               error={fieldErrors.lastName}
               placeholder="Doe"
+              required
             />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -198,7 +200,7 @@ export function ClientFormDialog({
               onChange={(next) => setField("phones", next)}
             />
             <Field
-              label="Email (optional)"
+              label="Email"
               type="email"
               value={state.email}
               onChange={(value) => setField("email", value)}
@@ -210,7 +212,7 @@ export function ClientFormDialog({
           <AddressFields state={state} onChange={setField} />
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-              Notes (optional)
+              Notes
             </span>
             <textarea
               value={state.notes}

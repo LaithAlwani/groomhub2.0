@@ -92,6 +92,7 @@ export function SignUpCompleteStep({
       <div className="grid grid-cols-2 gap-3">
         <AuthInput
           label="First Name"
+          required
           icon={User}
           value={firstName}
           onChange={setFirstName}
@@ -100,6 +101,7 @@ export function SignUpCompleteStep({
         />
         <AuthInput
           label="Last Name"
+          required
           icon={User}
           value={lastName}
           onChange={setLastName}

@@ -21,36 +21,36 @@ export function AddressFields({
   return (
     <>
       <Field
-        label="Street address (optional)"
+        label="Street address"
         value={state.addressLine1}
         onChange={(value) => onChange("addressLine1", value)}
         placeholder="123 Main Street"
       />
       <Field
-        label="Apt / suite / unit (optional)"
+        label="Apt / suite / unit"
         value={state.addressLine2}
         onChange={(value) => onChange("addressLine2", value)}
         placeholder="Apt 4B"
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Field
-          label="City (optional)"
+          label="City"
           value={state.city}
           onChange={(value) => onChange("city", value)}
         />
         <Field
-          label="State / region (optional)"
+          label="Province"
           value={state.state}
           onChange={(value) => onChange("state", value)}
         />
         <Field
-          label="Postal code (optional)"
+          label="Postal code"
           value={state.postalCode}
           onChange={(value) => onChange("postalCode", value)}
         />
       </div>
       <Field
-        label="Country (optional)"
+        label="Country"
         value={state.country}
         onChange={(value) => onChange("country", value)}
       />

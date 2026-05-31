@@ -6,6 +6,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Field } from "@/components/forms/Field";
+import { RequiredMark } from "@/components/forms/RequiredMark";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { validateSlugShape } from "@/convex/lib/reservedSlugs";
 import { compressImage } from "@/lib/imageCompress";
@@ -117,6 +118,7 @@ export function NewShopForm({
         onChange={form.setName}
         error={fieldErrors.name}
         placeholder="Posh Paws Grooming"
+        required
       />
       <SlugInput slug={form.slug} error={fieldErrors.slug} onChange={form.setSlug} />
       <div className="flex flex-col gap-1.5">
@@ -128,6 +130,7 @@ export function NewShopForm({
           onChange={form.setShopEmail}
           error={fieldErrors.shopEmail}
           placeholder="hello@yourshop.com"
+          required
         />
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Clients reply to this address when they get booking confirmations. We
@@ -139,6 +142,7 @@ export function NewShopForm({
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-semibold text-[#00273c] dark:text-zinc-100">
             Timezone
+            <RequiredMark />
           </span>
           <select
             value={form.timezone}
@@ -160,6 +164,7 @@ export function NewShopForm({
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-semibold text-[#00273c] dark:text-zinc-100">
             Currency
+            <RequiredMark />
           </span>
           <select
             value={form.currency}

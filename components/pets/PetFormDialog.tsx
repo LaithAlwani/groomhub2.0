@@ -78,8 +78,12 @@ export function PetFormDialog({
     setServerError(null);
     const next: PetFormErrors = {};
     if (state.name.trim().length === 0) next.name = "Name is required";
+    if (state.sex === "") next.sex = "Sex is required";
+    if (state.breed.trim().length === 0) next.breed = "Breed is required";
     const sizeLbNumber = state.sizeLb ? Number(state.sizeLb) : undefined;
-    if (sizeLbNumber !== undefined && (Number.isNaN(sizeLbNumber) || sizeLbNumber < 0)) {
+    if (sizeLbNumber === undefined) {
+      next.sizeLb = "Size is required";
+    } else if (Number.isNaN(sizeLbNumber) || sizeLbNumber < 0) {
       next.sizeLb = "Must be 0 or greater";
     }
     for (const row of state.vaccinations) {

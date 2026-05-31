@@ -128,6 +128,7 @@ export default function SignInPage() {
       <form onSubmit={handleSubmit} className="space-y-5">
         <AuthInput
           label="Email Address"
+          required
           icon={Mail}
           type="email"
           value={email}
@@ -138,6 +139,7 @@ export default function SignInPage() {
         />
         <AuthInput
           label="Password"
+          required
           icon={Lock}
           type="password"
           value={password}

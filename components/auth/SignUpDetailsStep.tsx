@@ -128,6 +128,7 @@ export function SignUpDetailsStep({
         <div className="grid grid-cols-2 gap-3">
           <AuthInput
             label="First Name"
+            required
             icon={User}
             value={firstName}
             onChange={setFirstName}
@@ -137,6 +138,7 @@ export function SignUpDetailsStep({
           />
           <AuthInput
             label="Last Name"
+            required
             icon={User}
             value={lastName}
             onChange={setLastName}
@@ -147,6 +149,7 @@ export function SignUpDetailsStep({
         </div>
         <AuthInput
           label="Email Address"
+          required
           icon={Mail}
           type="email"
           value={email}
@@ -158,6 +161,7 @@ export function SignUpDetailsStep({
         />
         <AuthInput
           label="Password"
+          required
           icon={Lock}
           type="password"
           value={password}

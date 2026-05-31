@@ -1,6 +1,7 @@
 "use client";
 
 import type { HTMLAttributes } from "react";
+import { RequiredMark } from "./RequiredMark";
 
 export function Field({
   label,
@@ -13,6 +14,7 @@ export function Field({
   inputMode,
   placeholder,
   readOnly,
+  required,
 }: {
   label: string;
   value: string;
@@ -24,11 +26,13 @@ export function Field({
   inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"];
   placeholder?: string;
   readOnly?: boolean;
+  required?: boolean;
 }) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
         {label}
+        {required && <RequiredMark />}
       </span>
       <input
         type={type}

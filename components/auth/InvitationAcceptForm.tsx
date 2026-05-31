@@ -187,6 +187,7 @@ export function InvitationAcceptForm({
       <div className="grid grid-cols-2 gap-3">
         <AuthInput
           label="First Name"
+          required
           icon={User}
           value={firstName}
           onChange={setFirstName}
@@ -195,6 +196,7 @@ export function InvitationAcceptForm({
         />
         <AuthInput
           label="Last Name"
+          required
           icon={User}
           value={lastName}
           onChange={setLastName}
@@ -204,6 +206,7 @@ export function InvitationAcceptForm({
       </div>
       <AuthInput
         label="Password"
+        required
         icon={Lock}
         type="password"
         value={password}

@@ -6,11 +6,17 @@ import { z } from "zod";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Field } from "@/components/forms/Field";
+import { RequiredMark } from "@/components/forms/RequiredMark";
 import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 
 const SPECIES_OPTIONS = ["dog", "cat", "other"] as const;
 type Species = (typeof SPECIES_OPTIONS)[number];
+
+// Green is the calendar default for a brand-new service so it never lands
+// uncoloured (which renders gray). The swatch already showed this as its
+// fallback — now it's the actual saved value too.
+const DEFAULT_SERVICE_COLOR = "#22c55e";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -45,7 +51,7 @@ export function ServiceFormDialog({
   const [durationMin, setDurationMin] = useState("60");
   const [priceDollars, setPriceDollars] = useState("0");
   const [species, setSpecies] = useState<Species[]>(["dog"]);
-  const [color, setColor] = useState("");
+  const [color, setColor] = useState(DEFAULT_SERVICE_COLOR);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -59,7 +65,7 @@ export function ServiceFormDialog({
       durationMin: String(existing.durationMin),
       priceDollars: (existing.priceCents / 100).toFixed(2),
       species: existing.species as Species[],
-      color: existing.color ?? "",
+      color: existing.color ?? DEFAULT_SERVICE_COLOR,
     };
     setName(next.name);
     setDescription(next.description);
@@ -142,9 +148,10 @@ export function ServiceFormDialog({
             onChange={setName}
             error={fieldErrors.name}
             placeholder="Full groom — small dog"
+            required
           />
           <Field
-            label="Description (optional)"
+            label="Description"
             value={description}
             onChange={setDescription}
             error={fieldErrors.description}
@@ -157,6 +164,7 @@ export function ServiceFormDialog({
               onChange={setDurationMin}
               error={fieldErrors.durationMin}
               inputMode="numeric"
+              required
             />
             <Field
               label="Price"
@@ -165,11 +173,13 @@ export function ServiceFormDialog({
               onChange={setPriceDollars}
               error={fieldErrors.priceCents}
               inputMode="decimal"
+              required
             />
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
               Species
+              <RequiredMark />
             </span>
             <div className="flex gap-3">
               {SPECIES_OPTIONS.map((option) => (
@@ -195,11 +205,11 @@ export function ServiceFormDialog({
           </div>
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-              Calendar colour (optional)
+              Calendar colour
             </span>
             <input
               type="color"
-              value={color || "#22c55e"}
+              value={color || DEFAULT_SERVICE_COLOR}
               onChange={(event) => setColor(event.target.value)}
               className="h-9 w-16 cursor-pointer rounded border border-zinc-300 dark:border-zinc-700"
             />

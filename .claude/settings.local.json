@@ -6,7 +6,8 @@
       "Bash(npx tsc *)",
       "Bash(npx next *)",
       "Bash(npx convex *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "PowerShell(npx eslint components/forms/Field.tsx components/forms/RequiredMark.tsx components/auth/AuthInput.tsx components/pets/PetFormFields.tsx components/calendar/ClientPicker.tsx components/onboarding/SlugInput.tsx 2>&1)"
     ]
   }
 }

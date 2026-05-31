@@ -6,6 +6,7 @@ import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { RequiredMark } from "@/components/forms/RequiredMark";
 
 export function ClientPicker({
   value,
@@ -42,6 +43,7 @@ export function ClientPicker({
     <div ref={containerRef} className="relative flex flex-col gap-1.5">
       <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
         Client
+        <RequiredMark />
       </span>
       <button
         type="button"

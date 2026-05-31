@@ -2,6 +2,7 @@
 
 import { useState, type HTMLAttributes } from "react";
 import { Eye, EyeOff, type LucideIcon } from "lucide-react";
+import { RequiredMark } from "@/components/forms/RequiredMark";
 
 /**
  * Labeled input used by all auth pages. Optional leading icon and built-in
@@ -23,6 +24,7 @@ export function AuthInput({
   inputMode,
   placeholder,
   readOnly,
+  required,
   icon: Icon,
   trailingSlot,
 }: {
@@ -36,6 +38,7 @@ export function AuthInput({
   inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"];
   placeholder?: string;
   readOnly?: boolean;
+  required?: boolean;
   icon?: LucideIcon;
   trailingSlot?: React.ReactNode;
 }) {
@@ -58,6 +61,7 @@ export function AuthInput({
       <div className="flex items-center justify-between">
         <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
           {label}
+          {required && <RequiredMark />}
         </label>
         {trailingSlot}
       </div>

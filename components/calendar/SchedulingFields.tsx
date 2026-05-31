@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { RequiredMark } from "@/components/forms/RequiredMark";
 import { TimeSelect } from "@/components/forms/TimeSelect";
 import { todayIsoDate } from "@/lib/time";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
@@ -82,6 +83,7 @@ export function SchedulingFields({
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Staff
+          <RequiredMark />
         </span>
         {lockedStaff ? (
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
@@ -112,6 +114,7 @@ export function SchedulingFields({
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
             Date
+            <RequiredMark />
           </span>
           <input
             type="date"
@@ -124,6 +127,7 @@ export function SchedulingFields({
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
             Start time
+            <RequiredMark />
           </span>
           <TimeSelect value={time} onChange={onChangeTime} ariaLabel="Start time" />
         </div>
@@ -150,7 +154,7 @@ export function SchedulingFields({
       )}
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          Notes (optional)
+          Notes
         </span>
         <textarea
           value={notes}

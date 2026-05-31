@@ -49,7 +49,7 @@ export function UploadStep({
     <div className="flex flex-col gap-6">
       <label className="flex max-w-md flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Source system (optional)
+          Source system
         </span>
         <input
           type="text"
