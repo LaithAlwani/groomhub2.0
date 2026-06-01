@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Drawer } from "vaul";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
@@ -68,10 +69,10 @@ export function DialogShell({
         dismissible={!busy}
       >
         <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 z-40 bg-zinc-900/40 backdrop-blur-sm" />
+          <Drawer.Overlay className="fixed inset-0 z-100 bg-zinc-900/40 backdrop-blur-sm" />
           <Drawer.Content
             aria-describedby={undefined}
-            className="fixed bottom-0 left-0 right-0 z-50 flex max-h-[92vh] flex-col rounded-t-2xl border border-b-0 border-zinc-200 bg-white shadow-xl outline-none dark:border-zinc-800 dark:bg-zinc-950"
+            className="fixed bottom-0 left-0 right-0 z-110 flex max-h-[92vh] flex-col rounded-t-2xl border border-b-0 border-zinc-200 bg-white shadow-xl outline-none dark:border-zinc-800 dark:bg-zinc-950"
           >
             {/* Drag handle — purely cosmetic; vaul tracks drags on the
                 whole header region. */}
@@ -100,12 +101,18 @@ export function DialogShell({
     );
   }
 
-  return (
+  // Render through a portal to `document.body` so the modal escapes whatever
+  // stacking context it was triggered from (e.g. the sidebar, which sits at
+  // z-60/z-70) and reliably overlays all page chrome. SSR-guarded — dialogs
+  // only ever open from client interaction, so `document` is present.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-0 z-40 flex items-center justify-center bg-zinc-900/40 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-zinc-900/40 p-6 backdrop-blur-sm"
       onClick={(event) => {
         if (event.target === event.currentTarget && !busy) onClose();
       }}
@@ -129,6 +136,7 @@ export function DialogShell({
         </header>
         <div className="flex-1 overflow-y-auto">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
