@@ -20,8 +20,29 @@ export type ResolvedHost =
   | { kind: "app"; rootDomain: string }
   | { kind: "tenant"; rootDomain: string; slug: string };
 
+/**
+ * Normalises a `ROOT_DOMAIN` env value to a bare registrable host like
+ * `groomhub.ca`, tolerating the common mistakes of pasting a full URL or the
+ * `www.` host (`https://www.groomhub.ca/` → `groomhub.ca`). A bad value here
+ * silently disables the host split *and* corrupts the Clerk CSP entries, so we
+ * sanitise rather than trust the raw string.
+ */
+export function normalizeRootDomain(
+  value: string | undefined | null,
+): string | undefined {
+  if (!value) return undefined;
+  const cleaned = value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "") // strip scheme
+    .replace(/\/.*$/, "") // strip any path
+    .replace(/:\d+$/, "") // strip port
+    .replace(/^www\./, ""); // strip leading www.
+  return cleaned || undefined;
+}
+
 export function resolveHost(hostHeader: string | null): ResolvedHost {
-  const rootDomain = process.env.ROOT_DOMAIN?.toLowerCase();
+  const rootDomain = normalizeRootDomain(process.env.ROOT_DOMAIN);
   // Split not configured (dev / preview) → behave like one combined host.
   if (!rootDomain || !hostHeader) return { kind: "combined" };
 

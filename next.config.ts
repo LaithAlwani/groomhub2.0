@@ -1,7 +1,17 @@
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
-const rootDomain = process.env.ROOT_DOMAIN;
+
+// Sanitise ROOT_DOMAIN to a bare host (`groomhub.ca`) so a URL-style value such
+// as `https://www.groomhub.ca` doesn't corrupt the Clerk CSP entries below
+// (which would block clerk-js). Mirrors `normalizeRootDomain` in `lib/host.ts`,
+// inlined here to avoid importing app modules into the Next config loader.
+const rootDomain = process.env.ROOT_DOMAIN?.trim()
+  .toLowerCase()
+  .replace(/^https?:\/\//, "")
+  .replace(/\/.*$/, "")
+  .replace(/:\d+$/, "")
+  .replace(/^www\./, "");
 
 // Clerk serves clerk-js + its Frontend API from `*.clerk.accounts.dev` on a
 // development instance, but from a CUSTOM domain (`clerk.<root>` and the account

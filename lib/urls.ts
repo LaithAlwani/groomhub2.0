@@ -10,7 +10,9 @@
  * The middleware in `proxy.ts` also redirects these paths off the marketing
  * host, so this is purely a UX optimisation that avoids the extra redirect hop.
  */
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+import { normalizeRootDomain } from "./host";
+
+const ROOT_DOMAIN = normalizeRootDomain(process.env.NEXT_PUBLIC_ROOT_DOMAIN);
 
 // Paths that belong to the app host. Kept in sync with the app routes guarded
 // in `proxy.ts`.

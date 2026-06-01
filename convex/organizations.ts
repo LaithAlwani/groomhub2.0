@@ -175,7 +175,17 @@ export const seedFromClerk = mutation({
       timezone: args.timezone,
       currency: args.currency,
     });
-    await maybeScheduleSeed(ctx, identity, args.clerkOrgId);
+    // Dev deployments get the full demo dataset (catalog + fake clients / pets /
+    // appointments) so the UI is non-empty for development. Real deployments get
+    // just the starter services + vaccines catalog, which makes onboarding a new
+    // shop easier without polluting it with fake clients.
+    if (isDevDeployment()) {
+      await maybeScheduleSeed(ctx, identity, args.clerkOrgId);
+    } else {
+      await ctx.scheduler.runAfter(0, internal.seed.seedCatalog, {
+        orgId: args.clerkOrgId,
+      });
+    }
     return newOrgId;
   },
 });

@@ -60,6 +60,46 @@ export const populateShop = internalMutation({
   },
 });
 
+/**
+ * Seeds a new shop's starter CATALOG — the default services + vaccines — on
+ * EVERY deployment, including production. Unlike `populateShop` this is real
+ * reference data (not demo clients/pets/appointments), so it deliberately is
+ * NOT gated by `isDevDeployment()`: a brand-new shop lands on a usable services
+ * menu and vaccine list, which makes onboarding far easier.
+ *
+ * Scheduled (not run inline) from `seedFromClerk` so a seed failure can never
+ * break org creation. Idempotent per table — skips services or vaccines if the
+ * org already has any — so a scheduler retry can't create duplicates.
+ */
+export const seedCatalog = internalMutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, args) => {
+    const org = await ctx.db
+      .query("organizations")
+      .withIndex("by_clerkOrgId", (index) =>
+        index.eq("clerkOrgId", args.orgId),
+      )
+      .unique();
+    if (!org) return;
+
+    const existingVaccines = await ctx.db
+      .query("vaccines")
+      .withIndex("by_org", (index) => index.eq("orgId", args.orgId))
+      .take(1);
+    if (existingVaccines.length === 0) {
+      await insertVaccines(ctx, args.orgId);
+    }
+
+    const existingServices = await ctx.db
+      .query("services")
+      .withIndex("by_org", (index) => index.eq("orgId", args.orgId))
+      .take(1);
+    if (existingServices.length === 0) {
+      await insertServices(ctx, args.orgId, org.currency);
+    }
+  },
+});
+
 async function alreadySeeded(ctx: MutationCtx, orgId: string): Promise<boolean> {
   const existing = await ctx.db
     .query("clients")
