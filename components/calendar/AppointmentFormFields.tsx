@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { RequiredMark } from "@/components/forms/RequiredMark";
 import { ClientPicker } from "./ClientPicker";
+import { PetPicker } from "./PetPicker";
 import { SchedulingFields, type AppointmentStatus } from "./SchedulingFields";
 import { useBookingInlineCreate } from "./useBookingInlineCreate";
 
@@ -48,10 +48,6 @@ export function AppointmentFormFields({
     value: AppointmentFormState[K],
   ) => void;
 }) {
-  const pets = useQuery(
-    api.pets.listForClient,
-    state.clientId ? { clientId: state.clientId } : "skip",
-  );
   const services = useQuery(api.services.list, {});
   // Drives the availability-aware time picker — only start times that leave room
   // for the service before the slot ends are offered.
@@ -86,65 +82,14 @@ export function AppointmentFormFields({
           onCreateNew={canInlineCreate ? inlineCreate.openCreateClient : undefined}
         />
       )}
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          Pet
-          <RequiredMark />
-        </span>
-        <select
-          value={state.petId ?? ""}
-          onChange={(event) => onChange("petId", event.target.value as Id<"pets">)}
-          disabled={!state.clientId || isEdit}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-        >
-          <option value="" disabled>
-            {!state.clientId
-              ? "Choose a client first"
-              : pets === undefined
-                ? "Loading…"
-                : pets.length === 0
-                  ? "No pets on file"
-                  : "Choose a pet"}
-          </option>
-          {pets?.map((pet) => {
-            const isDeceased = pet.isDeceased === true;
-            const isBanned = pet.isBanned === true;
-            // Keep blocked pets visible but disabled so admins editing a
-            // historical appointment can still see which pet it was for,
-            // while new bookings can't pick a deceased OR banned pet.
-            const isBlocked = isDeceased || isBanned;
-            const isCurrentSelection = state.petId === pet._id;
-            const suffix = isDeceased
-              ? " — Deceased"
-              : isBanned
-                ? " — Banned"
-                : "";
-            return (
-              <option
-                key={pet._id}
-                value={pet._id}
-                disabled={isBlocked && !isCurrentSelection}
-              >
-                {pet.name} ({pet.species})
-                {suffix}
-              </option>
-            );
-          })}
-        </select>
-        {errors.petId && (
-          <span className="text-xs text-red-600 dark:text-red-400">{errors.petId}</span>
-        )}
-        {canInlineCreate && state.clientId && (
-          <button
-            type="button"
-            onClick={inlineCreate.openCreatePet}
-            className="mt-1 inline-flex w-fit items-center gap-1 text-xs font-medium text-orange-700 transition-colors hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-300"
-          >
-            <Plus size={12} aria-hidden />
-            New pet
-          </button>
-        )}
-      </label>
+      <PetPicker
+        clientId={state.clientId}
+        value={state.petId}
+        onChange={(id) => onChange("petId", id)}
+        disabled={!state.clientId || isEdit}
+        onCreateNew={canInlineCreate ? inlineCreate.openCreatePet : undefined}
+        error={errors.petId}
+      />
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Service

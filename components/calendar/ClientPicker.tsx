@@ -79,6 +79,19 @@ export function ClientPicker({
               />
             </label>
           </div>
+          {onCreateNew && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onCreateNew();
+              }}
+              className="flex w-full items-center gap-2 border-b border-zinc-200 px-3 py-2.5 text-left text-sm font-medium text-orange-700 transition-colors hover:bg-orange-50 dark:border-zinc-800 dark:text-orange-400 dark:hover:bg-zinc-900"
+            >
+              <Plus size={14} aria-hidden />
+              Add new client
+            </button>
+          )}
           <ul className="max-h-60 overflow-y-auto py-1">
             {results === undefined && (
               <li className="px-3 py-2 text-xs text-zinc-500">Loading…</li>
@@ -104,19 +117,6 @@ export function ClientPicker({
               </li>
             ))}
           </ul>
-          {onCreateNew && (
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                onCreateNew();
-              }}
-              className="flex w-full items-center gap-2 border-t border-zinc-200 px-3 py-2.5 text-left text-sm font-medium text-orange-700 transition-colors hover:bg-orange-50 dark:border-zinc-800 dark:text-orange-400 dark:hover:bg-zinc-900"
-            >
-              <Plus size={14} aria-hidden />
-              Add new client
-            </button>
-          )}
         </div>
       )}
     </div>
