@@ -20,9 +20,9 @@ export function AddFAB({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-b from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 min-[874px]:hidden"
+      className="fixed bottom-6 right-6 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-b from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 min-[874px]:hidden"
     >
-      <Plus size={24} />
+      <Plus size={20} />
     </button>
   );
 }

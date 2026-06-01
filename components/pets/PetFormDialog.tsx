@@ -17,10 +17,14 @@ export function PetFormDialog({
   clientId,
   petId,
   onClose,
+  onSuccess,
 }: {
   clientId: Id<"clients">;
   petId: Id<"pets"> | "new";
   onClose: () => void;
+  /** Called with the new pet's id after a successful create (not on edit).
+   * Lets the booking dialog auto-select the just-created pet. */
+  onSuccess?: (id: Id<"pets">) => void;
 }) {
   const isEdit = petId !== "new";
   const existing = useQuery(api.pets.get, isEdit ? { id: petId } : "skip");
@@ -135,13 +139,14 @@ export function PetFormDialog({
         // upload made from a parallel session.
         await update({ id: petId, ...sharedPayload });
       } else {
-        await create({
+        const newPetId = await create({
           clientId,
           ...sharedPayload,
           imageStorageId: state.imageStorageId,
         });
         // Create succeeded — the storageId is now linked to the new pet.
         setPendingCreateStorageId(null);
+        onSuccess?.(newPetId);
       }
       onClose();
     } catch (caught) {

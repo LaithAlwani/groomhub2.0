@@ -93,6 +93,11 @@ export default defineSchema({
     role: roleValidator,
     isActive: v.boolean(),
     locationIds: v.array(v.id("locations")),
+    // Set the first time the groomer saves their OWN weekly schedule via the
+    // availability editor. The first-run onboarding card uses it to mark
+    // "Confirm your working hours" done. The inherited shop-hours seed does NOT
+    // set it — confirmation means the groomer actively reviewed their hours.
+    availabilityConfirmedAt: v.optional(v.number()),
   })
     .index("by_user_org", ["userId", "orgId"])
     .index("by_org_active", ["orgId", "isActive"])
@@ -331,6 +336,19 @@ export default defineSchema({
       "staffId",
       "weekday",
     ]),
+
+  // The shop's operating hours per location — the template new groomers inherit
+  // (copied into `staffWeeklySchedule` when their membership is created). Admins
+  // edit these; seeded to Mon–Fri 9–5 when a location is created. Same shape as
+  // `staffWeeklySchedule` minus `staffId`; multiple rows per weekday allow split
+  // hours (e.g. a midday close).
+  locationHours: defineTable({
+    orgId: v.string(),
+    locationId: v.id("locations"),
+    weekday: v.number(), // 0=Sunday … 6=Saturday (matches JS Date.getDay())
+    startMin: v.number(),
+    endMin: v.number(),
+  }).index("by_org_location", ["orgId", "locationId"]),
 
   // Bookings. `startTime`/`endTime` are ms-since-epoch (UTC). The org timezone
   // is applied at the UI layer when rendering. `clientUuid` is the offline-queue

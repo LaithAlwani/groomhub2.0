@@ -30,6 +30,8 @@ export function TimelineDayColumn({
   onEditRange,
   onToggleEnabled,
   defaultRange,
+  openRanges = [],
+  shopConstrained = false,
 }: {
   label: string;
   sublabel?: string;
@@ -45,9 +47,17 @@ export function TimelineDayColumn({
   onEditRange: (index: number) => void;
   onToggleEnabled: () => void;
   defaultRange: DayRange;
+  // The shop's open windows for this weekday. When `shopConstrained` is true the
+  // closed times render as blocked bands and can't be added to.
+  openRanges?: ReadonlyArray<DayRange>;
+  shopConstrained?: boolean;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const enabled = ranges.length > 0;
+  const shopClosedAllDay = shopConstrained && openRanges.length === 0;
+  const blockedBands = shopConstrained
+    ? complementWithinGrid(openRanges, startGridMin, endGridMin)
+    : [];
 
   function handleAddAtPointer(event: React.MouseEvent<HTMLDivElement>) {
     if (!bodyRef.current) return;
@@ -60,6 +70,15 @@ export function TimelineDayColumn({
     if (end > endGridMin) {
       end = endGridMin;
       start = end - NEW_RANGE_DURATION;
+    }
+    if (shopConstrained) {
+      // Only allow adding inside the shop's open hours; clamp to that window.
+      const window = openRanges.find(
+        (range) => start >= range.startMin && start < range.endMin,
+      );
+      if (!window) return;
+      end = Math.min(end, window.endMin);
+      start = Math.max(window.startMin, Math.min(start, end - 15));
     }
     const conflict = ranges.some(
       (range) => start < range.endMin && end > range.startMin,
@@ -97,9 +116,11 @@ export function TimelineDayColumn({
         <button
           type="button"
           onClick={onToggleEnabled}
+          disabled={shopClosedAllDay}
+          title={shopClosedAllDay ? "The shop is closed this day" : undefined}
           role="switch"
           aria-checked={enabled}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
             enabled
               ? "bg-orange-500"
               : "bg-zinc-300 dark:bg-zinc-700"
@@ -136,12 +157,32 @@ export function TimelineDayColumn({
             className="absolute inset-x-0 border-b border-zinc-100 last:border-b-0 dark:border-zinc-900/60"
           />
         ))}
-        {!enabled && (
+        {blockedBands.map((band, bandIndex) => (
+          <div
+            key={`blocked-${bandIndex}`}
+            aria-hidden
+            title="The shop is closed at this time"
+            style={{
+              top: (band.startMin - startGridMin) * pixelsPerMin,
+              height: (band.endMin - band.startMin) * pixelsPerMin,
+            }}
+            className="pointer-events-none absolute inset-x-0 bg-[repeating-linear-gradient(135deg,transparent,transparent_6px,rgba(113,113,122,0.18)_6px,rgba(113,113,122,0.18)_12px)] bg-zinc-100/70 dark:bg-zinc-900/60"
+          />
+        ))}
+        {shopClosedAllDay ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <span className="rounded-full bg-zinc-200/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:bg-zinc-800/70 dark:text-zinc-400">
-              Day off
+            <span className="rounded-full bg-zinc-200/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:bg-zinc-800/80 dark:text-zinc-400">
+              Shop closed
             </span>
           </div>
+        ) : (
+          !enabled && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <span className="rounded-full bg-zinc-200/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:bg-zinc-800/70 dark:text-zinc-400">
+                Day off
+              </span>
+            </div>
+          )
         )}
         {ranges.map((range, index) => (
           <div key={index} data-ribbon>
@@ -157,7 +198,7 @@ export function TimelineDayColumn({
             />
           </div>
         ))}
-        {enabled && ranges.length === 0 && (
+        {enabled && ranges.length === 0 && !shopClosedAllDay && (
           <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
             <span className="inline-flex items-center gap-1 rounded-full border border-dashed border-zinc-300 px-2 py-0.5 text-[10px] text-zinc-400 dark:border-zinc-700 dark:text-zinc-500">
               <Plus size={10} /> Click to add
@@ -167,4 +208,28 @@ export function TimelineDayColumn({
       </div>
     </div>
   );
+}
+
+/**
+ * The gaps NOT covered by `open` within the visible [gridStart, gridEnd] window
+ * — i.e. the shop-closed bands. An empty `open` means the shop is closed all day,
+ * so the whole grid is one blocked band.
+ */
+function complementWithinGrid(
+  open: ReadonlyArray<DayRange>,
+  gridStart: number,
+  gridEnd: number,
+): DayRange[] {
+  if (open.length === 0) return [{ startMin: gridStart, endMin: gridEnd }];
+  const sorted = [...open].sort((a, b) => a.startMin - b.startMin);
+  const blocked: DayRange[] = [];
+  let cursor = gridStart;
+  for (const range of sorted) {
+    const start = Math.max(gridStart, range.startMin);
+    const end = Math.min(gridEnd, range.endMin);
+    if (start > cursor) blocked.push({ startMin: cursor, endMin: start });
+    cursor = Math.max(cursor, end);
+  }
+  if (cursor < gridEnd) blocked.push({ startMin: cursor, endMin: gridEnd });
+  return blocked;
 }

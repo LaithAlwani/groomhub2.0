@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { appError } from "./errors";
+import { constrainToShopHours, readShopHours } from "../locationHours";
 
 const MAX_APPOINTMENT_MS = 24 * 60 * 60 * 1000;
 const NON_BLOCKING_STATUSES: ReadonlyArray<Doc<"appointments">["status"]> = [
@@ -44,7 +45,8 @@ export async function findConflictForStaff(
  * Resolves a staff member's available slots (in minutes from midnight in the
  * location's timezone) for a single calendar date at a single location. Order:
  * per-day override wins, else the weekly pattern for that weekday at that
- * location, else `[]`.
+ * location, else `[]`. The result is always clamped to the shop's operating
+ * hours — a groomer is never available while the shop is closed.
  */
 export async function getSlotsForStaffOnDate(
   ctx: QueryCtx | MutationCtx,
@@ -53,6 +55,7 @@ export async function getSlotsForStaffOnDate(
   staffId: Id<"memberships">,
   date: string,
 ): Promise<Array<{ startMin: number; endMin: number }>> {
+  const weekday = weekdayFromDate(date);
   const override = await ctx.db
     .query("staffDayOverride")
     .withIndex("by_org_location_staff_date", (index) =>
@@ -64,21 +67,26 @@ export async function getSlotsForStaffOnDate(
     )
     .unique();
   if (override?.kind === "off") return [];
+
+  let base: Array<{ startMin: number; endMin: number }>;
   if (override?.kind === "custom") {
-    return (override.slots ?? []).map((slot) => ({ ...slot }));
+    base = (override.slots ?? []).map((slot) => ({ ...slot }));
+  } else {
+    const rows = await ctx.db
+      .query("staffWeeklySchedule")
+      .withIndex("by_org_location_staff_weekday", (index) =>
+        index
+          .eq("orgId", orgId)
+          .eq("locationId", locationId)
+          .eq("staffId", staffId)
+          .eq("weekday", weekday),
+      )
+      .collect();
+    base = rows.map((row) => ({ startMin: row.startMin, endMin: row.endMin }));
   }
-  const weekday = weekdayFromDate(date);
-  const rows = await ctx.db
-    .query("staffWeeklySchedule")
-    .withIndex("by_org_location_staff_weekday", (index) =>
-      index
-        .eq("orgId", orgId)
-        .eq("locationId", locationId)
-        .eq("staffId", staffId)
-        .eq("weekday", weekday),
-    )
-    .collect();
-  return rows.map((row) => ({ startMin: row.startMin, endMin: row.endMin }));
+
+  const shop = await readShopHours(ctx, orgId, locationId);
+  return constrainToShopHours(base, weekday, shop);
 }
 
 /**
@@ -124,7 +132,7 @@ function weekdayFromDate(dateStr: string): number {
  * Returns the calendar date (YYYY-MM-DD) of `timestamp` in `timezone`.
  * Uses Intl with `en-CA` because it produces ISO-shaped output reliably.
  */
-function formatDateInTimezone(timestamp: number, timezone: string): string {
+export function formatDateInTimezone(timestamp: number, timezone: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
     year: "numeric",
@@ -136,7 +144,7 @@ function formatDateInTimezone(timestamp: number, timezone: string): string {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
-function minutesIntoDayInTimezone(timestamp: number, timezone: string): number {
+export function minutesIntoDayInTimezone(timestamp: number, timezone: string): number {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: timezone,
     hour: "2-digit",

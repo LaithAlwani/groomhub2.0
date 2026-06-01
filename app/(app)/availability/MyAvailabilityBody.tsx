@@ -24,6 +24,10 @@ export function MyAvailabilityBody() {
     api.availability.myOverridesInRange,
     locationId ? { locationId, fromDate, toDate } : "skip",
   );
+  const shopHoursRows = useQuery(
+    api.locationHours.getLocationHours,
+    locationId ? { locationId } : "skip",
+  );
   const upsertWeekly = useMutation(api.availability.upsertMyWeekly);
   const upsertOverride = useMutation(api.availability.upsertMyOverride);
   const clearOverride = useMutation(api.availability.clearMyOverride);
@@ -44,9 +48,24 @@ export function MyAvailabilityBody() {
       })),
     [weekly],
   );
+  const shopHours = useMemo(
+    () =>
+      (shopHoursRows ?? []).map(({ weekday, startMin, endMin }) => ({
+        weekday,
+        startMin,
+        endMin,
+      })),
+    [shopHoursRows],
+  );
 
   if (loading || !locationId) return <EditorSkeleton />;
-  if (weekly === undefined || overrides === undefined) return <EditorSkeleton />;
+  if (
+    weekly === undefined ||
+    overrides === undefined ||
+    shopHoursRows === undefined
+  ) {
+    return <EditorSkeleton />;
+  }
 
   const active = activeDate
     ? overrides.find((row) => row.date === activeDate) ?? null
@@ -66,6 +85,7 @@ export function MyAvailabilityBody() {
         </p>
         <WeeklyTimelineEditor
           initialRanges={weeklyRanges}
+          shopHours={shopHours}
           readOnly={false}
           saving={savingWeekly}
           onSave={async (ranges) => {

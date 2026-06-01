@@ -92,6 +92,7 @@ export function AppointmentDialog(props: AppointmentDialogProps) {
                 isEdit={isEdit}
                 lockedClient={!isEdit && props.initialClientId !== undefined}
                 lockedStaff={lockedStaff}
+                editingAppointmentId={isEdit ? existing?._id : undefined}
                 onChange={setField}
               />
               {serverError && <ErrorBanner>{serverError}</ErrorBanner>}

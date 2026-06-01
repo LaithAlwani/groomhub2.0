@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
-import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Search } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
@@ -12,10 +12,14 @@ export function ClientPicker({
   value,
   onChange,
   disabled,
+  onCreateNew,
 }: {
   value: Id<"clients"> | null;
   onChange: (id: Id<"clients">) => void;
   disabled?: boolean;
+  /** When provided, renders an "Add new client" action in the dropdown so the
+   * user can create one without leaving the booking flow. */
+  onCreateNew?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -100,6 +104,19 @@ export function ClientPicker({
               </li>
             ))}
           </ul>
+          {onCreateNew && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onCreateNew();
+              }}
+              className="flex w-full items-center gap-2 border-t border-zinc-200 px-3 py-2.5 text-left text-sm font-medium text-orange-700 transition-colors hover:bg-orange-50 dark:border-zinc-800 dark:text-orange-400 dark:hover:bg-zinc-900"
+            >
+              <Plus size={14} aria-hidden />
+              Add new client
+            </button>
+          )}
         </div>
       )}
     </div>

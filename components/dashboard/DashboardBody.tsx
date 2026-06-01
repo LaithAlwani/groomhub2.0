@@ -2,12 +2,13 @@
 
 import { useOrganization } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
-import { Activity, BarChart3, Crown, DollarSign, Scissors } from "lucide-react";
+import { Activity, BarChart3, Crown, Scissors } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { mapClerkOrgRole } from "@/convex/lib/roles";
 import { planAllows, type Plan } from "@/convex/lib/plans";
 import { CriticalAlertsCard } from "./CriticalAlertsCard";
 import { DeclinedQueueList } from "./DeclinedQueueList";
+import { OnboardingChecklistCard } from "./OnboardingChecklistCard";
 import { LockedWidgetTeaser } from "./LockedWidgetTeaser";
 import { PendingApprovalsList } from "./PendingApprovalsList";
 import { RevenueCard } from "./RevenueCard";
@@ -48,11 +49,13 @@ export function DashboardBody() {
   const allowsAdvanced = planAllows(plan, "dashboardAdvancedAnalytics");
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-      <div className="md:col-span-2">
-        <TodayList />
-      </div>
-      <UpcomingTodayCard />
+    <div className="flex flex-col gap-6">
+      <OnboardingChecklistCard />
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="md:col-span-2">
+          <TodayList />
+        </div>
+        <UpcomingTodayCard />
 
       <CriticalAlertsCard />
       {isOwner ? (
@@ -117,6 +120,7 @@ export function DashboardBody() {
         // keep the grid balanced on xl.
         <div className="hidden xl:block" aria-hidden />
       )}
+      </div>
     </div>
   );
 }

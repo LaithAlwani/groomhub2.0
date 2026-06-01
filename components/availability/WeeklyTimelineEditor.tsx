@@ -30,11 +30,17 @@ export function WeeklyTimelineEditor({
   readOnly,
   saving,
   onSave,
+  shopHours,
 }: {
   initialRanges: ReadonlyArray<WeeklyRange>;
   readOnly: boolean;
   saving: boolean;
   onSave: (ranges: WeeklyRange[]) => Promise<void>;
+  // The shop's operating hours. When provided, closed times render as blocked
+  // bands the groomer can't schedule into, and a save outside them is rejected
+  // with a readable message (instead of a raw server error). Omit it where the
+  // editor *is* the shop hours (admin operating-hours editor).
+  shopHours?: ReadonlyArray<WeeklyRange>;
 }) {
   const [grid, setGrid] = useState<DayRange[][]>(() =>
     fromWeeklyRanges(initialRanges),
@@ -46,7 +52,19 @@ export function WeeklyTimelineEditor({
     index: number;
   } | null>(null);
 
+  const shopByWeekday = useMemo(() => {
+    const map = new Map<number, DayRange[]>();
+    for (const range of shopHours ?? []) {
+      const bucket = map.get(range.weekday) ?? [];
+      bucket.push({ startMin: range.startMin, endMin: range.endMin });
+      map.set(range.weekday, bucket);
+    }
+    return map;
+  }, [shopHours]);
+  const shopConfigured = (shopHours?.length ?? 0) > 0;
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- re-hydrate the editable grid when the saved schedule loads / changes
     setGrid(fromWeeklyRanges(initialRanges));
     setDirty(false);
   }, [initialRanges]);
@@ -59,17 +77,58 @@ export function WeeklyTimelineEditor({
   }
 
   function toggleDay(weekday: number) {
-    if (grid[weekday].length === 0) {
-      mutate(weekday, [{ ...DEFAULT_RANGE }]);
-    } else {
+    if (grid[weekday].length > 0) {
       mutate(weekday, []);
+      return;
     }
+    // Turning a day on: seed it with the shop's open hours for that weekday so
+    // the groomer starts inside bounds (falls back to the 9–5 default when the
+    // shop hasn't configured hours).
+    const open = shopByWeekday.get(weekday) ?? [];
+    if (shopConfigured && open.length === 0) return; // shop closed that day
+    mutate(
+      weekday,
+      shopConfigured && open.length > 0
+        ? open.map((range) => ({ ...range }))
+        : [{ ...DEFAULT_RANGE }],
+    );
+  }
+
+  // Readable shop-hours check, mirroring the server's `assertWeeklyWithinShopHours`
+  // so the groomer gets a clear message at the Save button instead of a raw
+  // ConvexError if a dragged ribbon ends up outside the shop's open hours.
+  function validateAgainstShopHours(): string | null {
+    if (!shopConfigured) return null;
+    for (let weekday = 0; weekday < 7; weekday += 1) {
+      const open = shopByWeekday.get(weekday) ?? [];
+      for (const range of grid[weekday]) {
+        const fits = open.some(
+          (window) =>
+            window.startMin <= range.startMin && range.endMin <= window.endMin,
+        );
+        if (!fits) {
+          const openLabel =
+            open.length > 0
+              ? open
+                  .map((w) => `${formatMin(w.startMin)}–${formatMin(w.endMin)}`)
+                  .join(", ")
+              : "closed";
+          return `${WEEKDAYS_SHORT[weekday]} hours must be within the shop's open hours (${openLabel}).`;
+        }
+      }
+    }
+    return null;
   }
 
   async function handleSave() {
     const validation = validateWeeklyGrid(grid);
     if (validation) {
       setError(validation);
+      return;
+    }
+    const shopViolation = validateAgainstShopHours();
+    if (shopViolation) {
+      setError(shopViolation);
       return;
     }
     setError(null);
@@ -116,6 +175,8 @@ export function WeeklyTimelineEditor({
         }}
       />
 
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+
       <div className="hidden overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 md:block">
         <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))]">
           <TimeGutterColumn
@@ -151,6 +212,8 @@ export function WeeklyTimelineEditor({
               onEditRange={(index) => setEditing({ weekday, index })}
               onToggleEnabled={() => toggleDay(weekday)}
               defaultRange={DEFAULT_RANGE}
+              openRanges={shopByWeekday.get(weekday) ?? []}
+              shopConstrained={shopConfigured}
             />
           ))}
         </div>
@@ -162,8 +225,6 @@ export function WeeklyTimelineEditor({
         onMutate={mutate}
         onEdit={(weekday, index) => setEditing({ weekday, index })}
       />
-
-      {error && <ErrorBanner>{error}</ErrorBanner>}
 
       {editing && grid[editing.weekday][editing.index] && (
         <EditRangeDialog
@@ -192,5 +253,13 @@ export function WeeklyTimelineEditor({
       )}
     </div>
   );
+}
+
+function formatMin(min: number): string {
+  const hour = Math.floor(min / 60);
+  const minute = min % 60;
+  const ampm = hour < 12 ? "AM" : "PM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${hour12}:${String(minute).padStart(2, "0")} ${ampm}`;
 }
 

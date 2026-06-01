@@ -1,11 +1,13 @@
 "use client";
 
 import { useQuery } from "convex/react";
+import { Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { RequiredMark } from "@/components/forms/RequiredMark";
 import { ClientPicker } from "./ClientPicker";
 import { SchedulingFields, type AppointmentStatus } from "./SchedulingFields";
+import { useBookingInlineCreate } from "./useBookingInlineCreate";
 
 export type { AppointmentStatus };
 
@@ -30,6 +32,7 @@ export function AppointmentFormFields({
   isEdit,
   lockedClient,
   lockedStaff,
+  editingAppointmentId,
   onChange,
 }: {
   state: AppointmentFormState;
@@ -37,6 +40,9 @@ export function AppointmentFormFields({
   isEdit: boolean;
   lockedClient: boolean;
   lockedStaff: boolean;
+  // The appointment being edited (omit for new bookings) — excluded from the
+  // booked-slot conflict set so its own time stays selectable.
+  editingAppointmentId?: Id<"appointments">;
   onChange: <K extends keyof AppointmentFormState>(
     key: K,
     value: AppointmentFormState[K],
@@ -47,6 +53,23 @@ export function AppointmentFormFields({
     state.clientId ? { clientId: state.clientId } : "skip",
   );
   const services = useQuery(api.services.list, {});
+  // Drives the availability-aware time picker — only start times that leave room
+  // for the service before the slot ends are offered.
+  const serviceDurationMin =
+    services?.find((service) => service._id === state.serviceId)?.durationMin ??
+    null;
+
+  // Inline client/pet creation so a brand-new shop can book without leaving the
+  // dialog. Only offered when creating (not editing an existing appointment).
+  const inlineCreate = useBookingInlineCreate({
+    clientId: state.clientId,
+    onClientCreated: (id) => {
+      onChange("clientId", id);
+      onChange("petId", null);
+    },
+    onPetCreated: (id) => onChange("petId", id),
+  });
+  const canInlineCreate = !isEdit;
 
   return (
     <>
@@ -60,6 +83,7 @@ export function AppointmentFormFields({
             onChange("petId", null);
           }}
           disabled={isEdit}
+          onCreateNew={canInlineCreate ? inlineCreate.openCreateClient : undefined}
         />
       )}
       <label className="flex flex-col gap-1.5">
@@ -110,6 +134,16 @@ export function AppointmentFormFields({
         {errors.petId && (
           <span className="text-xs text-red-600 dark:text-red-400">{errors.petId}</span>
         )}
+        {canInlineCreate && state.clientId && (
+          <button
+            type="button"
+            onClick={inlineCreate.openCreatePet}
+            className="mt-1 inline-flex w-fit items-center gap-1 text-xs font-medium text-orange-700 transition-colors hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-300"
+          >
+            <Plus size={12} aria-hidden />
+            New pet
+          </button>
+        )}
       </label>
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
@@ -142,13 +176,15 @@ export function AppointmentFormFields({
         notes={state.notes}
         isEdit={isEdit}
         lockedStaff={lockedStaff}
-        allowPastDate={isEdit}
+        serviceDurationMin={serviceDurationMin}
+        excludeAppointmentId={editingAppointmentId}
         onChangeStaff={(value) => onChange("staffId", value)}
         onChangeDate={(value) => onChange("date", value)}
         onChangeTime={(value) => onChange("time", value)}
         onChangeStatus={(value) => onChange("status", value)}
         onChangeNotes={(value) => onChange("notes", value)}
       />
+      {inlineCreate.dialogs}
     </>
   );
 }

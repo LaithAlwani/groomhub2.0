@@ -11,6 +11,8 @@ import { appError } from "./lib/errors";
 import {
   assertWithinAvailability,
   findConflictForStaff,
+  formatDateInTimezone,
+  minutesIntoDayInTimezone,
 } from "./lib/appointmentChecks";
 import { ensureMembership, readMembershipForQuery } from "./lib/ensureMembership";
 import { mapClerkOrgRole } from "./lib/roles";
@@ -166,6 +168,71 @@ export const get = query({
     if (!identity) return null;
     const row = await loadOwnAppointment(ctx, args.id, identity.orgId);
     return await enrichAppointment(ctx, row);
+  },
+});
+
+/**
+ * Booked time ranges for one staff member, keyed by local date (YYYY-MM-DD) and
+ * expressed as minutes-into-day in the location's timezone — the same shape as
+ * `availability.forStaffSlotsInRange`, so the booking picker can subtract these
+ * from the open slots and never offer a taken time. Mirrors the server overlap
+ * rule (only `cancelled` is non-blocking), so the picker matches what `create`
+ * would accept. `excludeAppointmentId` drops the appointment being rescheduled
+ * so its own slot stays selectable.
+ */
+export const bookedSlotsForStaffInRange = query({
+  args: {
+    locationId: v.id("locations"),
+    staffId: v.id("memberships"),
+    fromDate: v.string(),
+    toDate: v.string(),
+    excludeAppointmentId: v.optional(v.id("appointments")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await softAuth(ctx);
+    if (!identity) return {};
+    const role = mapClerkOrgRole(identity.orgRole);
+    const { membership } = await readMembershipForQuery(ctx, identity);
+    // Staff may only see their own bookings; admins/owners see any groomer's.
+    if (role === "staff" && membership?._id !== args.staffId) return {};
+    const location = await ctx.db.get(args.locationId);
+    if (!location || location.orgId !== identity.orgId) return {};
+    const timezone = location.timezone;
+
+    // Widen the UTC window a day each side so timezone offsets near the date
+    // boundaries are covered; we re-filter by the appointment's LOCAL date.
+    const dayMs = 24 * 60 * 60 * 1000;
+    const fromMs = Date.parse(`${args.fromDate}T00:00:00Z`) - dayMs;
+    const toMs = Date.parse(`${args.toDate}T00:00:00Z`) + 2 * dayMs;
+
+    const rows = await ctx.db
+      .query("appointments")
+      .withIndex("by_staff_start", (index) =>
+        index
+          .eq("staffId", args.staffId)
+          .gte("startTime", fromMs)
+          .lt("startTime", toMs),
+      )
+      .take(MAX_RESULTS);
+
+    const result: Record<string, Array<{ startMin: number; endMin: number }>> =
+      {};
+    for (const row of rows) {
+      if (row.status === "cancelled") continue;
+      if (row.locationId !== args.locationId) continue;
+      if (args.excludeAppointmentId && row._id === args.excludeAppointmentId) {
+        continue;
+      }
+      const date = formatDateInTimezone(row.startTime, timezone);
+      if (date < args.fromDate || date > args.toDate) continue;
+      const startMin = minutesIntoDayInTimezone(row.startTime, timezone);
+      const endMinRaw = minutesIntoDayInTimezone(row.endTime, timezone);
+      // An appointment that crosses midnight wraps to a smaller end-of-day
+      // value — clamp to 24:00 so it still blocks the rest of the day.
+      const endMin = endMinRaw > startMin ? endMinRaw : 24 * 60;
+      (result[date] ??= []).push({ startMin, endMin });
+    }
+    return result;
   },
 });
 

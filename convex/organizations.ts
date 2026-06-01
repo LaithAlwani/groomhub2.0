@@ -7,6 +7,10 @@ import { requireRole } from "./lib/rbac";
 import { isDevDeployment } from "./lib/seedGating";
 import { softAuth, type AuthedIdentity } from "./lib/tenant";
 import { validateSlugShape } from "./lib/reservedSlugs";
+import {
+  seedDefaultLocationHours,
+  seedStaffScheduleFromLocation,
+} from "./locationHours";
 
 /**
  * Public unauthenticated query — returns minimal org info for the v2 client
@@ -210,6 +214,14 @@ async function maybeScheduleSeed(
     orgRole: "org:admin",
   });
   const { membership } = await ensureMembership(ctx, authedIdentity);
+  // Owner inherits the seeded shop hours (prod owners get this via the Clerk
+  // membership webhook; dev creates the membership here, so seed it here too).
+  await seedStaffScheduleFromLocation(
+    ctx,
+    clerkOrgId,
+    membership._id,
+    membership.locationIds,
+  );
   const location = await ctx.db
     .query("locations")
     .withIndex("by_org_active", (index) =>
@@ -241,7 +253,7 @@ async function ensureFirstLocation(
     )
     .take(1);
   if (existingActive.length > 0) return;
-  await ctx.db.insert("locations", {
+  const locationId = await ctx.db.insert("locations", {
     orgId: args.orgId,
     name: "Main",
     slug: "main",
@@ -249,6 +261,9 @@ async function ensureFirstLocation(
     currency: args.currency,
     isActive: true,
   });
+  // Seed default shop hours (Mon–Fri 9–5) so the shop is bookable from day one
+  // and the owner's groomer schedule inherits them.
+  await seedDefaultLocationHours(ctx, args.orgId, locationId);
 }
 
 /**

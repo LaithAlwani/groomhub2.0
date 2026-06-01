@@ -5,9 +5,8 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { RequiredMark } from "@/components/forms/RequiredMark";
-import { TimeSelect } from "@/components/forms/TimeSelect";
-import { todayIsoDate } from "@/lib/time";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
+import { AvailabilitySlotPicker } from "./AvailabilitySlotPicker";
 
 // `pendingApproval` is intentionally omitted: that status is only set when
 // admin books for another groomer, and transitions out via the Confirm /
@@ -35,7 +34,8 @@ export function SchedulingFields({
   notes,
   isEdit,
   lockedStaff,
-  allowPastDate,
+  serviceDurationMin,
+  excludeAppointmentId,
   onChangeStaff,
   onChangeDate,
   onChangeTime,
@@ -49,7 +49,8 @@ export function SchedulingFields({
   notes: string;
   isEdit: boolean;
   lockedStaff: boolean;
-  allowPastDate: boolean;
+  serviceDurationMin: number | null;
+  excludeAppointmentId?: Id<"appointments">;
   onChangeStaff: (value: Id<"memberships">) => void;
   onChangeDate: (value: string) => void;
   onChangeTime: (value: string) => void;
@@ -110,28 +111,20 @@ export function SchedulingFields({
           </select>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            Date
-            <RequiredMark />
-          </span>
-          <input
-            type="date"
-            value={date}
-            min={allowPastDate ? undefined : todayIsoDate()}
-            onChange={(event) => onChangeDate(event.target.value)}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-          />
-        </label>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            Start time
-            <RequiredMark />
-          </span>
-          <TimeSelect value={time} onChange={onChangeTime} ariaLabel="Start time" />
-        </div>
-      </div>
+      {/* Date + time constrained to the groomer's open, unbooked slots. When
+          editing, the appointment's own slot stays selectable so it can be
+          kept or nudged by 15–30 min. */}
+      <AvailabilitySlotPicker
+        staffId={staffId}
+        locationId={currentLocation?._id ?? null}
+        date={date}
+        time={time}
+        serviceDurationMin={serviceDurationMin}
+        onChangeDate={onChangeDate}
+        onChangeTime={onChangeTime}
+        excludeAppointmentId={excludeAppointmentId}
+        allowCurrentSelection={isEdit}
+      />
       {isEdit && status !== "pendingApproval" && (
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">

@@ -9,8 +9,12 @@ import {
 import { appError } from "./lib/errors";
 import { ensureMembership, readMembershipForQuery } from "./lib/ensureMembership";
 import { mapClerkOrgRole } from "./lib/roles";
-import { requireRole } from "./lib/rbac";
 import { requireAuth, softAuth } from "./lib/tenant";
+import {
+  assertWeeklyWithinShopHours,
+  constrainToShopHours,
+  readShopHours,
+} from "./locationHours";
 
 const MAX_RANGES_PER_DAY = 6;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -86,6 +90,13 @@ export const upsertMyWeekly = mutation({
     await assertLocationInOrg(ctx, args.locationId, identity.orgId);
     const { membership } = await ensureMembership(ctx, identity);
     validateRanges(args.ranges);
+    // A groomer can only be available while the shop is open.
+    await assertWeeklyWithinShopHours(
+      ctx,
+      identity.orgId,
+      args.locationId,
+      args.ranges,
+    );
     await replaceWeeklyForStaff(
       ctx,
       identity.orgId,
@@ -93,6 +104,13 @@ export const upsertMyWeekly = mutation({
       membership._id,
       args.ranges,
     );
+    // First time the groomer saves their own hours, mark them confirmed — this
+    // is what completes the "Confirm your working hours" onboarding step. The
+    // inherited shop-hours seed does not call this path, so it stays unset until
+    // the groomer actively reviews/saves.
+    if (membership.availabilityConfirmedAt === undefined) {
+      await ctx.db.patch(membership._id, { availabilityConfirmedAt: Date.now() });
+    }
   },
 });
 
@@ -241,6 +259,15 @@ export const forStaffSlotsInRange = query({
         .filter((row) => row.weekday === weekday)
         .map((row) => ({ startMin: row.startMin, endMin: row.endMin }));
     }
+    // Clamp every date to the shop's open hours — closed days/times drop out.
+    const shop = await readShopHours(ctx, orgId, args.locationId);
+    for (const day of Object.keys(result)) {
+      result[day] = constrainToShopHours(
+        result[day]!,
+        weekdayFromDate(day),
+        shop,
+      );
+    }
     return result;
   },
 });
@@ -312,8 +339,13 @@ export const forOrgSlotsInRange = query({
         }
       }
     }
+    const shop = await readShopHours(ctx, identity.orgId, args.locationId);
     for (const date of Object.keys(result)) {
-      result[date] = mergeSlots(result[date]!);
+      result[date] = constrainToShopHours(
+        mergeSlots(result[date]!),
+        weekdayFromDate(date),
+        shop,
+      );
     }
     return result;
   },

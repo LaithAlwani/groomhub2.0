@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { roleValidator } from "./schema";
+import { seedStaffScheduleFromLocation } from "./locationHours";
 
 /**
  * Internal mutations called by the Clerk webhook httpAction (convex/http.ts).
@@ -148,13 +149,22 @@ export const upsertMembership = internalMutation({
     const locationIds = intent?.locationIds ?? [];
     if (intent) await ctx.db.delete(intent._id);
 
-    return await ctx.db.insert("memberships", {
+    const membershipId = await ctx.db.insert("memberships", {
       userId: user._id,
       orgId: args.clerkOrgId,
       role: args.role,
       isActive: true,
       locationIds,
     });
+    // New groomers inherit the shop's operating hours by default so they're
+    // immediately bookable (idempotent — no-op if they already have a schedule).
+    await seedStaffScheduleFromLocation(
+      ctx,
+      args.clerkOrgId,
+      membershipId,
+      locationIds,
+    );
+    return membershipId;
   },
 });
 

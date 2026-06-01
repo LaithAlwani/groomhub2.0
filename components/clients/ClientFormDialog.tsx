@@ -64,9 +64,13 @@ function splitLegacyName(fullName: string): {
 export function ClientFormDialog({
   clientId,
   onClose,
+  onSuccess,
 }: {
   clientId: Id<"clients"> | "new";
   onClose: () => void;
+  /** Called with the new client's id after a successful create (not on edit).
+   * Lets a caller (e.g. the booking dialog) auto-select the just-created client. */
+  onSuccess?: (id: Id<"clients">) => void;
 }) {
   const isEdit = clientId !== "new";
   const existing = useQuery(
@@ -157,7 +161,8 @@ export function ClientFormDialog({
       if (isEdit) {
         await update({ id: clientId, ...payload });
       } else {
-        await create(payload);
+        const newClientId = await create(payload);
+        onSuccess?.(newClientId);
       }
       onClose();
     } catch (caught) {

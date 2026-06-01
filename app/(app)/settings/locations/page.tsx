@@ -11,7 +11,7 @@ export default async function LocationsSettingsPage() {
   if (role !== "admin" && role !== "superAdmin") redirect("/dashboard");
 
   return (
-    <section className="mx-auto w-full max-w-7xl px-6 py-10">
+    <section className="mx-auto w-full max-w-7xl px-6 pt-10 pb-24 min-[874px]:py-10">
       <LocationsBody />
     </section>
   );

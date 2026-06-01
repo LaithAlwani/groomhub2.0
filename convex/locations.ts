@@ -5,6 +5,7 @@ import { requirePlanFeature } from "./lib/plans";
 import { requireRole } from "./lib/rbac";
 import { softAuth } from "./lib/tenant";
 import { validateSlugShape } from "./lib/reservedSlugs";
+import { seedDefaultLocationHours } from "./locationHours";
 
 const NAME_MAX = 60;
 const ADDRESS_FIELD_MAX = 120;
@@ -126,6 +127,9 @@ export const create = mutation({
       contactEmail: trimOrUndef(args.contactEmail),
       isActive: true,
     });
+    // Seed the shop's default operating hours so the new location is bookable
+    // and new groomers assigned here inherit a sensible weekly schedule.
+    await seedDefaultLocationHours(ctx, orgId, insertedId);
     return insertedId;
   },
 });

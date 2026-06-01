@@ -8,6 +8,7 @@ import type { Doc } from "@/convex/_generated/dataModel";
 import { usePlanFeature } from "@/lib/usePlanFeature";
 import { AddFAB } from "@/components/app/AddFAB";
 import { LocationFormDialog } from "@/components/settings/LocationFormDialog";
+import { LocationHoursSection } from "@/components/settings/LocationHoursSection";
 
 export function LocationsBody() {
   const locations = useQuery(api.locations.list);
@@ -73,6 +74,10 @@ export function LocationsBody() {
           </div>
         )}
       </div>
+
+      {locations && locations.length > 0 && (
+        <LocationHoursSection locations={locations} />
+      )}
 
       {canAddNow && (
         <AddFAB
