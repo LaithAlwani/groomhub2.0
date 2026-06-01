@@ -30,6 +30,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  // Dev-only. Lets the host-split test domains (apex + app subdomain on lvh.me,
+  // which both resolve to 127.0.0.1) load Next's HMR/dev resources without the
+  // cross-origin block. Ignored entirely in production builds.
+  allowedDevOrigins: ["lvh.me", "app.lvh.me"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "img.clerk.com" },

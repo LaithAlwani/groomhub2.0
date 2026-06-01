@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { landingPage } from "@/lib/landingPage";
+import { marketingHref } from "@/lib/urls";
 
 export function MarketingNav() {
   const [open, setOpen] = useState(false);
@@ -49,13 +50,13 @@ export function MarketingNav() {
 
         <div className="hidden items-center gap-2 md:flex">
           <Link
-            href={landingPage.nav.signInHref}
+            href={marketingHref(landingPage.nav.signInHref)}
             className="rounded-full px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
           >
             {landingPage.nav.signInLabel}
           </Link>
           <Link
-            href={landingPage.nav.primaryCtaHref}
+            href={marketingHref(landingPage.nav.primaryCtaHref)}
             className="rounded-full bg-linear-to-r from-orange-600 to-orange-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-transform hover:scale-[1.02] hover:shadow"
           >
             {landingPage.nav.primaryCtaLabel}
@@ -88,14 +89,14 @@ export function MarketingNav() {
           </nav>
           <div className="mt-4 flex flex-col gap-2">
             <Link
-              href={landingPage.nav.signInHref}
+              href={marketingHref(landingPage.nav.signInHref)}
               onClick={() => setOpen(false)}
               className="rounded-full border border-zinc-300 px-4 py-2 text-center text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
             >
               {landingPage.nav.signInLabel}
             </Link>
             <Link
-              href={landingPage.nav.primaryCtaHref}
+              href={marketingHref(landingPage.nav.primaryCtaHref)}
               onClick={() => setOpen(false)}
               className="rounded-full bg-linear-to-r from-orange-600 to-orange-500 px-4 py-2 text-center text-sm font-medium text-white shadow-sm"
             >

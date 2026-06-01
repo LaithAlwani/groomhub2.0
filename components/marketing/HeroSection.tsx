@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CalendarCheck2, PawPrint, Sparkles } from "lucide-react";
 import { landingPage } from "@/lib/landingPage";
+import { marketingHref } from "@/lib/urls";
 
 export function HeroSection() {
   const { hero } = landingPage;
@@ -42,7 +43,7 @@ export function HeroSection() {
           </p>
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
             <Link
-              href={hero.primaryCtaHref}
+              href={marketingHref(hero.primaryCtaHref)}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-linear-to-r from-orange-600 to-orange-500 px-6 py-3 font-medium text-white shadow-md transition-transform hover:scale-[1.02] hover:shadow-lg"
             >
               {hero.primaryCtaLabel}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { landingPage, type PricingTier } from "@/lib/landingPage";
+import { marketingHref } from "@/lib/urls";
 
 export function PricingSection() {
   const { pricing } = landingPage;
@@ -73,7 +74,7 @@ function PricingCard({ tier }: { tier: PricingTier }) {
             </li>
           ))}
         </ul>
-        <Link href={tier.ctaHref} className={ctaClassName}>
+        <Link href={marketingHref(tier.ctaHref)} className={ctaClassName}>
           {tier.ctaLabel}
         </Link>
       </div>

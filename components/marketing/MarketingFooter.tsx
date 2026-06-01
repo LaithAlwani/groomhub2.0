@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { landingPage } from "@/lib/landingPage";
+import { marketingHref } from "@/lib/urls";
 
 export function MarketingFooter() {
   const { footer, brand } = landingPage;
@@ -35,7 +36,7 @@ export function MarketingFooter() {
               {column.links.map((link) => (
                 <li key={`${column.heading}-${link.label}`}>
                   <Link
-                    href={link.href}
+                    href={marketingHref(link.href)}
                     className="text-zinc-400 transition-colors hover:text-orange-400"
                   >
                     {link.label}
