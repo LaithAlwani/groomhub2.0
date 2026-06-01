@@ -1,6 +1,21 @@
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
+const rootDomain = process.env.ROOT_DOMAIN;
+
+// Clerk serves clerk-js + its Frontend API from `*.clerk.accounts.dev` on a
+// development instance, but from a CUSTOM domain (`clerk.<root>` and the account
+// portal `accounts.<root>`) on a production instance. Both must be allow-listed
+// or clerk-js fails to load ("Failed to load Clerk JS") and EVERY auth flow —
+// email and OAuth alike — breaks. The prod hosts are only added when ROOT_DOMAIN
+// is set, so dev behaviour is unchanged.
+const clerkHosts = [
+  "https://*.clerk.accounts.dev",
+  "https://*.clerk.com",
+  ...(rootDomain
+    ? [`https://clerk.${rootDomain}`, `https://accounts.${rootDomain}`]
+    : []),
+].join(" ");
 
 // Permissive CSP that lets Clerk + Convex + Next dev (which needs inline scripts
 // for HMR and eval for React error overlays) run without violations. Tighten
@@ -8,16 +23,16 @@ const isDev = process.env.NODE_ENV !== "production";
 // for the nonce-based pattern.
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://*.clerk.accounts.dev https://*.clerk.com https://challenges.cloudflare.com`,
-  "style-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://*.clerk.com",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${clerkHosts} https://challenges.cloudflare.com`,
+  `style-src 'self' 'unsafe-inline' ${clerkHosts}`,
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk-telemetry.com wss://*.convex.cloud https://*.convex.cloud https://*.convex.site",
-  "frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
+  `connect-src 'self' ${clerkHosts} https://clerk-telemetry.com wss://*.convex.cloud https://*.convex.cloud https://*.convex.site`,
+  `frame-src 'self' ${clerkHosts} https://challenges.cloudflare.com`,
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self' https://*.clerk.accounts.dev https://*.clerk.com",
+  `form-action 'self' ${clerkHosts}`,
 ].join("; ");
 
 const securityHeaders = [
