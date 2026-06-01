@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOrganization } from "@clerk/nextjs";
 import { Mail } from "lucide-react";
 
@@ -21,15 +21,30 @@ const ROLE_TONE: Record<string, string> = {
     "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300",
 };
 
-export function PendingInvitationsList({ refreshKey }: { refreshKey: number }) {
+export function PendingInvitationsList({
+  revalidateSignal,
+}: {
+  revalidateSignal: string;
+}) {
   const { invitations } = useOrganization({
     invitations: { infinite: false, pageSize: 50 },
   });
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  // Re-fetch when an invite is sent so the new pending row appears.
-  // Clerk's pagination cache sometimes lags otherwise.
-  void refreshKey;
+  // Clerk's invitations list isn't realtime (unlike the Convex-backed members
+  // list). `revalidateSignal` changes whenever an invite is sent or the
+  // realtime members list shifts (someone accepted / was removed), so we
+  // refetch then — keeping both lists in sync without polling. Skip the first
+  // run: the hook already fetches on mount.
+  const hasMounted = useRef(false);
+  useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
+    void invitations?.revalidate?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revalidateSignal]);
 
   if (!invitations) return null;
 
@@ -45,7 +60,6 @@ export function PendingInvitationsList({ refreshKey }: { refreshKey: number }) {
       await target.revoke();
       await invitations.revalidate?.();
     } catch (caught) {
-      // eslint-disable-next-line no-console
       console.error("Could not revoke invitation", caught);
     } finally {
       setRevokingId(null);

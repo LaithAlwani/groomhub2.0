@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { AddFAB } from "@/components/app/AddFAB";
 import { InviteMemberDialog } from "@/components/staff/InviteMemberDialog";
 import { MemberList } from "@/components/staff/MemberList";
@@ -16,6 +18,17 @@ import { PendingInvitationsList } from "@/components/staff/PendingInvitationsLis
 export function StaffPageBody() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [inviteOpen, setInviteOpen] = useState(false);
+
+  // Realtime active-members count. This subscribes to the same query
+  // `MemberList` already uses, so the Convex client dedupes it — no extra
+  // subscription cost. When the count changes (an invite was accepted, or a
+  // member was removed), it nudges the non-realtime Clerk invitations list to
+  // refetch so accepted invites drop off without a manual refresh.
+  const members = useQuery(api.memberships.forOrg, {});
+  const memberCount = members?.length ?? 0;
+  // `refreshKey` covers "invite just sent"; `memberCount` covers "invite
+  // accepted / member removed". Either change refetches the invitations list.
+  const revalidateSignal = `${refreshKey}:${memberCount}`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -35,7 +48,7 @@ export function StaffPageBody() {
         </button>
       </header>
 
-      <PendingInvitationsList refreshKey={refreshKey} />
+      <PendingInvitationsList revalidateSignal={revalidateSignal} />
       <MemberList />
 
       <AddFAB label="Invite member" onClick={() => setInviteOpen(true)} />
