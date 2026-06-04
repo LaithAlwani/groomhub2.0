@@ -41,7 +41,7 @@ export function LockedWidgetTeaser({
         {tagline}
       </p>
       <Link
-        href="/#pricing"
+        href={`/settings/billing?highlight=${requiredPlan}`}
         className="mt-auto inline-flex w-fit items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-600"
       >
         Upgrade to {planLabel}

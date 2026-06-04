@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "convex/react";
 import { MapPin, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -48,7 +49,10 @@ export function LocationsBody() {
       </header>
 
       {hasExisting && !canAddMore && (
-        <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+        <Link
+          href="/settings/billing?highlight=enterprise"
+          className="mt-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-950/50"
+        >
           <MapPin size={16} className="mt-0.5 shrink-0" aria-hidden />
           <div>
             <p className="font-medium">Upgrade to Enterprise</p>
@@ -56,7 +60,7 @@ export function LocationsBody() {
               Adding a second location requires the Enterprise plan.
             </p>
           </div>
-        </div>
+        </Link>
       )}
 
       <div className="mt-8">

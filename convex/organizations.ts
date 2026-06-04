@@ -7,6 +7,7 @@ import { requireRole } from "./lib/rbac";
 import { isDevDeployment } from "./lib/seedGating";
 import { softAuth, type AuthedIdentity } from "./lib/tenant";
 import { validateSlugShape } from "./lib/reservedSlugs";
+import { getEffectivePlan, TRIAL_DURATION_MS } from "./lib/plans";
 import {
   seedDefaultLocationHours,
   seedStaffScheduleFromLocation,
@@ -163,6 +164,7 @@ export const seedFromClerk = mutation({
     // Org row doesn't exist yet — the Clerk webhook hasn't reached us.
     // The caller is authenticated and just created this org in Clerk; trust
     // the call. The webhook will eventually arrive and reconcile name/slug.
+    const now = Date.now();
     const newOrgId = await ctx.db.insert("organizations", {
       clerkOrgId: args.clerkOrgId,
       name: args.name,
@@ -170,9 +172,10 @@ export const seedFromClerk = mutation({
       timezone: args.timezone,
       currency: args.currency,
       plan: "essential",
+      trialEndsAt: now + TRIAL_DURATION_MS,
       logoStorageId: args.logoStorageId,
       contactEmail: args.contactEmail?.trim() || undefined,
-      createdAt: Date.now(),
+      createdAt: now,
     });
     await ensureFirstLocation(ctx, {
       orgId: args.clerkOrgId,
@@ -301,7 +304,14 @@ export const getCurrent = query({
     const logoUrl = org.logoStorageId
       ? await ctx.storage.getUrl(org.logoStorageId)
       : null;
-    return { ...org, logoUrl };
+    // Effective plan reflects trial unlock + active subscription, NOT the
+    // raw `org.plan` field. Client gates (lib/usePlanFeature.ts) must read
+    // this, otherwise trialing orgs would see "Upgrade to use this" on Pro
+    // features they actually have access to.
+    const effectivePlan = await getEffectivePlan(ctx, identity.orgId);
+    const isTrialing =
+      org.trialEndsAt !== undefined && org.trialEndsAt > Date.now();
+    return { ...org, logoUrl, effectivePlan, isTrialing };
   },
 });
 

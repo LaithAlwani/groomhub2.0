@@ -46,6 +46,12 @@ export default defineSchema({
     contactEmail: v.optional(v.string()),
     contactPhone: v.optional(v.string()),
     stripeCustomerId: v.optional(v.string()),
+    // 14-day free trial expiry, set at org creation in `convex/clerkSync.ts`.
+    // While `now < trialEndsAt`, `getEffectivePlan` in `convex/lib/plans.ts`
+    // treats the org as Professional regardless of the `plan` field, so trial
+    // users can evaluate Pro features. After expiry the effective plan is the
+    // most recent active subscription's tier, or `essential` if none.
+    trialEndsAt: v.optional(v.number()),
     createdAt: v.number(),
     // Soft-delete timestamp. Set when the last active member of the org has
     // their account deleted (see `convex/clerkSync.ts`). Once set:
@@ -61,6 +67,38 @@ export default defineSchema({
     .index("by_clerkOrgId", ["clerkOrgId"])
     .index("by_slug", ["slug"])
     .index("by_deletedAt", ["deletedAt"]),
+
+  // Stripe Billing subscriptions, mirrored from Stripe via the webhook handler
+  // at `app/api/stripe/webhook/route.ts` → `convex/stripeWebhook.ts`. One row per
+  // Stripe subscription. The effective plan helper in `convex/lib/plans.ts`
+  // reads the most recent active row to decide what the org has access to;
+  // `paused`, `canceled`, `unpaid`, `incomplete_expired` mean "no access — fall
+  // back to essential or trial". `cancelAtPeriodEnd: true` keeps the row active
+  // until `currentPeriodEnd`, then the next webhook downgrades it.
+  subscriptions: defineTable({
+    orgId: v.string(),
+    stripeSubscriptionId: v.string(),
+    stripeCustomerId: v.string(),
+    plan: v.union(
+      v.literal("essential"),
+      v.literal("professional"),
+      v.literal("enterprise"),
+    ),
+    status: v.union(
+      v.literal("trialing"),
+      v.literal("active"),
+      v.literal("past_due"),
+      v.literal("canceled"),
+      v.literal("incomplete"),
+      v.literal("incomplete_expired"),
+      v.literal("unpaid"),
+      v.literal("paused"),
+    ),
+    currentPeriodEnd: v.number(),
+    cancelAtPeriodEnd: v.boolean(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_stripeSubscriptionId", ["stripeSubscriptionId"]),
 
   // One row per Clerk user — the global identity mirror.
   users: defineTable({

@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { roleValidator } from "./schema";
 import { seedStaffScheduleFromLocation } from "./locationHours";
+import { TRIAL_DURATION_MS } from "./lib/plans";
 
 /**
  * Internal mutations called by the Clerk webhook httpAction (convex/http.ts).
@@ -32,6 +33,7 @@ export const upsertOrganization = internalMutation({
       return existing._id;
     }
 
+    const now = Date.now();
     return await ctx.db.insert("organizations", {
       clerkOrgId: args.clerkOrgId,
       name: args.name,
@@ -39,7 +41,8 @@ export const upsertOrganization = internalMutation({
       timezone: "UTC",
       currency: "USD",
       plan: "essential",
-      createdAt: Date.now(),
+      trialEndsAt: now + TRIAL_DURATION_MS,
+      createdAt: now,
     });
   },
 });

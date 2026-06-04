@@ -130,9 +130,10 @@ export const landingPage = {
         features: [
           "1–2 staff accounts",
           "Booking calendar",
-          "Automated reminders",
+          "Email reminders",
           "Customer profiles & history",
           "Basic reports",
+          "SMS reminders — 300/mo (coming soon)",
           "Email support",
         ],
         ctaLabel: "Start free trial",
@@ -147,11 +148,9 @@ export const landingPage = {
         features: [
           "Up to 6 staff accounts",
           "Role-based staff permissions",
-          "Online booking system",
-          "SMS & email reminders",
-          "Recurring appointments",
-          "Inventory tracking",
-          "Workflow automation",
+          "Email reminders",
+          "Salon health dashboard",
+          "SMS reminders — 700/mo (coming soon)",
           "Priority email support",
         ],
         ctaLabel: "Start free trial",
@@ -165,14 +164,15 @@ export const landingPage = {
         features: [
           "Multiple locations",
           "Advanced analytics & reporting",
-          "API & integrations access",
-          "Centralized management dashboard",
+          "SMS reminders — 1000/mo (coming soon)",
           "Priority phone support",
         ],
         ctaLabel: "Talk to us",
         ctaHref: "#contact",
       },
     ] as ReadonlyArray<PricingTier>,
+    addonsNote:
+      "Need more SMS? +1000 messages for $19.99/mo or +2500 for $39.99/mo — available when SMS launches.",
   },
 
   contact: {

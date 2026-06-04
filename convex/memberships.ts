@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { appError } from "./lib/errors";
+import { getEffectivePlan, getStaffCap } from "./lib/plans";
 import { requireRole } from "./lib/rbac";
 import { readOrgClaims, softAuth } from "./lib/tenant";
 
@@ -172,12 +173,39 @@ export const recordInviteIntent = mutation({
         appError("FORBIDDEN", { reason: "LOCATION_WRONG_ORG" });
       }
     }
+
+    // Re-issuing an intent for someone who's already been invited (or is
+    // already a member) shouldn't be blocked by the cap — only NEW invites
+    // count. So skip the cap check when an intent already exists for this
+    // (orgId, email) or when an active membership exists for that email.
     const existing = await ctx.db
       .query("staffInviteIntents")
       .withIndex("by_org_email", (index) =>
         index.eq("orgId", orgId).eq("email", email),
       )
       .unique();
+    if (!existing) {
+      const currentPlan = await getEffectivePlan(ctx, orgId);
+      const cap = getStaffCap(currentPlan);
+      if (cap !== null) {
+        const activeMemberships = await ctx.db
+          .query("memberships")
+          .withIndex("by_org_active", (index) =>
+            index.eq("orgId", orgId).eq("isActive", true),
+          )
+          .collect();
+        if (activeMemberships.length >= cap) {
+          appError("PLAN_REQUIRED", {
+            reason: "STAFF_CAP_REACHED",
+            currentPlan,
+            cap,
+            activeCount: activeMemberships.length,
+            requiredPlan: currentPlan === "essential" ? "professional" : "enterprise",
+          });
+        }
+      }
+    }
+
     if (existing) {
       await ctx.db.patch(existing._id, { locationIds: args.locationIds });
       return existing._id;

@@ -41,6 +41,10 @@ import type * as organizations from "../organizations.js";
 import type * as pets from "../pets.js";
 import type * as seed from "../seed.js";
 import type * as services from "../services.js";
+import type * as stripe from "../stripe.js";
+import type * as stripeInternal from "../stripeInternal.js";
+import type * as stripeWebhook from "../stripeWebhook.js";
+import type * as subscriptions from "../subscriptions.js";
 import type * as users from "../users.js";
 import type * as vaccines from "../vaccines.js";
 
@@ -84,6 +88,10 @@ declare const fullApi: ApiFromModules<{
   pets: typeof pets;
   seed: typeof seed;
   services: typeof services;
+  stripe: typeof stripe;
+  stripeInternal: typeof stripeInternal;
+  stripeWebhook: typeof stripeWebhook;
+  subscriptions: typeof subscriptions;
   users: typeof users;
   vaccines: typeof vaccines;
 }>;

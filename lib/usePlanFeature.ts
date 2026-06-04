@@ -10,9 +10,12 @@ import {
 } from "@/convex/lib/plans";
 
 /**
- * Returns whether the active org's plan tier includes the named feature.
- * `loading` is true while the org query is in flight (e.g. during org switch);
- * UI should render a disabled-ish state until it settles, not assume blocked.
+ * Returns whether the active org's *effective* plan tier includes the named
+ * feature. Effective plan accounts for the 14-day trial (orgs in trial get
+ * Pro features) and active subscriptions — see `getEffectivePlan` in
+ * `convex/lib/plans.ts`. `loading` is true while the org query is in flight
+ * (e.g. during org switch); UI should render a disabled-ish state until it
+ * settles, not assume blocked.
  */
 export function usePlanFeature(feature: PlanFeature): {
   loading: boolean;
@@ -28,7 +31,7 @@ export function usePlanFeature(feature: PlanFeature): {
   if (org === null) {
     return { loading: false, allowed: false, currentPlan: null, requiredPlan };
   }
-  const currentPlan = org.plan as Plan;
+  const currentPlan = org.effectivePlan as Plan;
   return {
     loading: false,
     allowed: planAllows(currentPlan, feature),

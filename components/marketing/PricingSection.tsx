@@ -26,6 +26,10 @@ export function PricingSection() {
             <PricingCard key={tier.name} tier={tier} />
           ))}
         </div>
+
+        <p className="mt-8 text-center text-sm text-zinc-600 dark:text-zinc-400">
+          {pricing.addonsNote}
+        </p>
       </div>
     </section>
   );

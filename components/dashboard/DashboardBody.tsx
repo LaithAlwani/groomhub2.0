@@ -24,8 +24,9 @@ import { WeekMetricsCard } from "./WeekMetricsCard";
  * org's plan tier and the caller's role.
  *
  * Two independent dimensions:
- *   - **Plan tier** (`org.plan`) decides whether a widget renders live or
- *     as a `LockedWidgetTeaser` with an upgrade nudge.
+ *   - **Plan tier** (`org.effectivePlan`, which factors in the free trial)
+ *     decides whether a widget renders live or as a `LockedWidgetTeaser`
+ *     with an upgrade nudge.
  *   - **Role** decides whether owner-only financial cards (revenue, top
  *     clients) render at all. The underlying Convex queries also enforce
  *     these gates server-side — this is just to avoid sending blank UI.
@@ -41,7 +42,7 @@ export function DashboardBody() {
     return null;
   }
 
-  const plan = (org.plan ?? "essential") as Plan;
+  const plan = (org.effectivePlan ?? "essential") as Plan;
   const role = mapClerkOrgRole(membership?.role ?? null);
   const isOwner = role === "superAdmin";
   const isAdminPlus = role === "superAdmin" || role === "admin";

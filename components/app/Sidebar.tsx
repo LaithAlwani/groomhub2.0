@@ -7,6 +7,7 @@ import { useOrganization } from "@clerk/nextjs";
 import {
   CalendarClock,
   CalendarDays,
+  CreditCard,
   FileSignature,
   LayoutDashboard,
   MapPin,
@@ -23,6 +24,7 @@ import { mapClerkOrgRole, type Role } from "@/convex/lib/roles";
 import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
 import { LocationSwitcher } from "./LocationSwitcher";
 import { SidebarBrand } from "./SidebarBrand";
+import { TrialBanner } from "./TrialBanner";
 
 type NavLink = {
   href: string;
@@ -50,6 +52,12 @@ const NAV_LINKS: ReadonlyArray<NavLink> = [
     href: "/settings/import",
     label: "Import data",
     icon: Upload,
+    visibleTo: ["admin", "superAdmin"],
+  },
+  {
+    href: "/settings/billing",
+    label: "Billing",
+    icon: CreditCard,
     visibleTo: ["admin", "superAdmin"],
   },
   {
@@ -86,7 +94,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="flex flex-col gap-3 border-t border-zinc-200 p-4 dark:border-zinc-800">
+        <TrialBanner canManageBilling={role === "admin" || role === "superAdmin"} />
         <button
           type="button"
           onClick={() => {
