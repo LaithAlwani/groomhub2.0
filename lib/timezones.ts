@@ -32,15 +32,15 @@ export const NORTH_AMERICA_TIMEZONES: ReadonlyArray<TimezoneOption> = [
  * customer base grows.
  */
 export const INTERNATIONAL_TIMEZONES: ReadonlyArray<TimezoneOption> = [
-  { value: "Europe/London", label: "Greenwich Mean Time (GMT/BST)" },
-  { value: "Europe/Paris", label: "Central European Time (CET)" },
-  { value: "Asia/Amman", label: "Eastern European Time — Amman (EET)" },
-  { value: "Asia/Dubai", label: "Gulf Standard Time (GST)" },
-  { value: "Asia/Karachi", label: "Pakistan Standard Time (PKT)" },
-  { value: "Asia/Kolkata", label: "India Standard Time (IST)" },
-  { value: "Asia/Singapore", label: "Singapore Standard Time (SGT)" },
-  { value: "Asia/Tokyo", label: "Japan Standard Time (JST)" },
-  { value: "Australia/Sydney", label: "Australian Eastern Time (AEST)" },
+  { value: "Europe/London", label: "United Kingdom (GMT/BST)" },
+  { value: "Europe/Paris", label: "Central Europe — Paris (CET)" },
+  { value: "Asia/Amman", label: "Jordan — Amman (EET)" },
+  { value: "Asia/Dubai", label: "UAE — Dubai (GST)" },
+  { value: "Asia/Karachi", label: "Pakistan — Karachi (PKT)" },
+  { value: "Asia/Kolkata", label: "India — Kolkata (IST)" },
+  { value: "Asia/Singapore", label: "Singapore (SGT)" },
+  { value: "Asia/Tokyo", label: "Japan — Tokyo (JST)" },
+  { value: "Australia/Sydney", label: "Australia — Sydney (AEST)" },
 ];
 
 export const ALL_TIMEZONES: ReadonlyArray<TimezoneOption> = [

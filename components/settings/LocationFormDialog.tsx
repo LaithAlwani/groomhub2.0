@@ -7,6 +7,10 @@ import type { Doc } from "@/convex/_generated/dataModel";
 import { Field } from "@/components/forms/Field";
 import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import {
+  INTERNATIONAL_TIMEZONES,
+  NORTH_AMERICA_TIMEZONES,
+} from "@/lib/timezones";
 
 type FormState = {
   name: string;
@@ -164,13 +168,37 @@ export function LocationFormDialog({
             required
           />
           <div className="grid grid-cols-2 gap-3">
-            <Field
-              label="Timezone"
-              value={state.timezone}
-              onChange={(value) => setField("timezone", value)}
-              placeholder="America/Toronto"
-              required
-            />
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                Timezone
+              </span>
+              <select
+                value={state.timezone}
+                onChange={(event) => setField("timezone", event.target.value)}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-orange-900"
+                required
+              >
+                {!isKnownPickerTimezone(state.timezone) && (
+                  <option value={state.timezone}>
+                    {state.timezone} (current)
+                  </option>
+                )}
+                <optgroup label="North America">
+                  {NORTH_AMERICA_TIMEZONES.map((zone) => (
+                    <option key={zone.value} value={zone.value}>
+                      {zone.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="International">
+                  {INTERNATIONAL_TIMEZONES.map((zone) => (
+                    <option key={zone.value} value={zone.value}>
+                      {zone.label}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
             <Field
               label="Currency"
               value={state.currency}
@@ -243,4 +271,13 @@ export function LocationFormDialog({
         </form>
     </DialogShell>
   );
+}
+
+const PICKER_TIMEZONE_VALUES = new Set([
+  ...NORTH_AMERICA_TIMEZONES.map((zone) => zone.value),
+  ...INTERNATIONAL_TIMEZONES.map((zone) => zone.value),
+]);
+
+function isKnownPickerTimezone(value: string): boolean {
+  return PICKER_TIMEZONE_VALUES.has(value);
 }
