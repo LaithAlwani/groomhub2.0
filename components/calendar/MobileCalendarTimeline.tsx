@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { nowInTimezone } from "@/lib/locationTime";
 import type { CalendarEvent } from "./calendarStyles";
 import { isoDateKey } from "./calendarStyles";
 import { MobileTimelineEventCard } from "./MobileTimelineEventCard";
@@ -27,6 +28,7 @@ export function MobileCalendarTimeline({
   events,
   availabilityByDate,
   date,
+  locationTimezone,
   onDateChange,
   onSelectEvent,
   onSelectSlot,
@@ -34,6 +36,9 @@ export function MobileCalendarTimeline({
   events: ReadonlyArray<CalendarEvent>;
   availabilityByDate: Record<string, Array<{ startMin: number; endMin: number }>>;
   date: Date;
+  /** IANA timezone for the active location; drives "now" / "today" so they
+   *  agree with the wall-clock the timeline is rendering. */
+  locationTimezone: string;
   onDateChange: (next: Date) => void;
   onSelectEvent: (event: CalendarEvent) => void;
   onSelectSlot: (info: { start: Date; end: Date }) => void;
@@ -45,11 +50,19 @@ export function MobileCalendarTimeline({
     [dayEvents, daySlots],
   );
 
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  // Track "now" as a pseudo-Date getTime() in the location TZ so that
+  // `new Date(nowMs).getHours()` returns the shop's wall-clock hour, not
+  // the viewer's. Refreshes every minute.
+  const [nowMs, setNowMs] = useState(
+    () => nowInTimezone(locationTimezone).getTime(),
+  );
   useEffect(() => {
-    const id = window.setInterval(() => setNowMs(Date.now()), 60 * 1000);
+    const id = window.setInterval(
+      () => setNowMs(nowInTimezone(locationTimezone).getTime()),
+      60 * 1000,
+    );
     return () => window.clearInterval(id);
-  }, []);
+  }, [locationTimezone]);
 
   const isToday = isSameDay(new Date(nowMs), date);
   const hours = Array.from(

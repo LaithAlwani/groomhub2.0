@@ -1,17 +1,15 @@
 /**
- * North American timezones we expose in the shop-onboarding picker.
+ * Timezones we expose in the shop-onboarding picker.
  * Labels are the names people actually say out loud — "Eastern Time",
  * "Pacific Time", not "America/Toronto". One IANA value per common zone is
  * enough because zones that share offsets + DST rules (e.g. Toronto and New
  * York; Vancouver and Los Angeles) produce identical date formatting.
  *
- * Ordered roughly west → east so the list scans like a map. Special-case
- * no-DST zones (Arizona, Saskatchewan, Yukon) are listed inline next to
- * their DST-observing siblings.
- *
- * Shops outside this list (Europe / Asia / etc.) still work — Convex accepts
- * any IANA string. `resolveBrowserTimezone()` returns the browser's value
- * verbatim when nothing here matches.
+ * North America is listed first (the primary launch market), then a small
+ * set of international zones for the shops we're piloting outside it. Convex
+ * accepts any IANA string, so adding to this list is purely a UI affordance
+ * — `resolveBrowserTimezone()` falls back to the browser's value verbatim
+ * when nothing here matches.
  */
 
 export type TimezoneOption = {
@@ -28,8 +26,30 @@ export const NORTH_AMERICA_TIMEZONES: ReadonlyArray<TimezoneOption> = [
   { value: "America/Los_Angeles", label: "Pacific Standard Time (PST)" },
 ];
 
+/**
+ * International zones the picker exposes alongside North America. Kept small
+ * on purpose — only zones we have a concrete shop or pilot in. Add as the
+ * customer base grows.
+ */
+export const INTERNATIONAL_TIMEZONES: ReadonlyArray<TimezoneOption> = [
+  { value: "Europe/London", label: "Greenwich Mean Time (GMT/BST)" },
+  { value: "Europe/Paris", label: "Central European Time (CET)" },
+  { value: "Asia/Amman", label: "Eastern European Time — Amman (EET)" },
+  { value: "Asia/Dubai", label: "Gulf Standard Time (GST)" },
+  { value: "Asia/Karachi", label: "Pakistan Standard Time (PKT)" },
+  { value: "Asia/Kolkata", label: "India Standard Time (IST)" },
+  { value: "Asia/Singapore", label: "Singapore Standard Time (SGT)" },
+  { value: "Asia/Tokyo", label: "Japan Standard Time (JST)" },
+  { value: "Australia/Sydney", label: "Australian Eastern Time (AEST)" },
+];
+
+export const ALL_TIMEZONES: ReadonlyArray<TimezoneOption> = [
+  ...NORTH_AMERICA_TIMEZONES,
+  ...INTERNATIONAL_TIMEZONES,
+];
+
 const KNOWN: ReadonlySet<string> = new Set(
-  NORTH_AMERICA_TIMEZONES.map((zone) => zone.value),
+  ALL_TIMEZONES.map((zone) => zone.value),
 );
 
 // Map browser IANA → our canonical IANA. Lets a Vancouver browser still pick

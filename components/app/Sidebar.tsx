@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { mapClerkOrgRole, type Role } from "@/convex/lib/roles";
+import { useCurrentLocation } from "@/lib/useCurrentLocation";
 import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
 import { LocationSwitcher } from "./LocationSwitcher";
 import { SidebarBrand } from "./SidebarBrand";
@@ -65,6 +66,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { membership } = useOrganization();
   const role = mapClerkOrgRole(membership?.role ?? null);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const { current: currentLocation } = useCurrentLocation();
+  const locationTimezone =
+    currentLocation?.timezone ??
+    (typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : "UTC");
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col bg-zinc-50 dark:bg-zinc-950">
@@ -103,6 +110,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       {bookingOpen && (
         <AppointmentDialog
           appointmentId="new"
+          locationTimezone={locationTimezone}
           onClose={() => setBookingOpen(false)}
         />
       )}

@@ -13,6 +13,14 @@ import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
 import { CalendarHeader } from "@/components/calendar/CalendarHeader";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
+import {
+  isoDateInTimezone,
+  nowInTimezone,
+  roundedNowInTimezone,
+  startOfDayInTimezone,
+  utcToZonedPseudoDate,
+  zonedPseudoDateToUtc,
+} from "@/lib/locationTime";
 
 export function CalendarPageBody() {
   const me = useQuery(api.users.me);
@@ -21,6 +29,16 @@ export function CalendarPageBody() {
   const isStaffOnly = role === "staff";
   const { current: currentLocation } = useCurrentLocation();
   const locationId = currentLocation?._id ?? null;
+  // Every Date the calendar reasons about — events, click positions, "now",
+  // day boundaries — is a pseudo-Date in the location's timezone so that
+  // viewers in other timezones still see the shop's wall-clock hours. Falls
+  // back to the browser's TZ while `currentLocation` is loading so the
+  // calendar doesn't render with empty/wrong dates during that brief window.
+  const locationTimezone =
+    currentLocation?.timezone ??
+    (typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : "UTC");
 
   const allOrgStaff = useQuery(api.memberships.forOrg, {});
   // Filter staff dropdown by active location — `locationIds: []` rows
@@ -46,7 +64,7 @@ export function CalendarPageBody() {
     setView(readStoredView());
     setHydrated(true);
   }, []);
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState(() => nowInTimezone(locationTimezone));
   const [dialog, setDialog] = useState<
     | { mode: "new"; start: Date; staffId?: Id<"memberships"> }
     | { mode: "edit"; id: Id<"appointments"> }
@@ -54,9 +72,21 @@ export function CalendarPageBody() {
   >(null);
   const [dropError, setDropError] = useState<string | null>(null);
 
+  // Re-anchor the displayed day when the active location changes. Each
+  // location has its own clock — switching from a Toronto location to a
+  // Vancouver location should land the user on "today in Vancouver", not
+  // the prior pseudo-Date frozen in Toronto's frame.
+  useEffect(() => {
+    setDate(nowInTimezone(locationTimezone));
+  }, [locationTimezone]);
+
   // Fetch a 3-week window centred on `date` so navigating either the week
   // view or the 3-day view never lands on a date outside the fetched range.
-  const fromTime = useMemo(() => startOfDayMs(date) - 7 * 24 * 60 * 60 * 1000, [date]);
+  // Day boundaries are in LOCATION TZ so the range aligns with shop days.
+  const fromTime = useMemo(() => {
+    const dateUtc = zonedPseudoDateToUtc(date, locationTimezone);
+    return startOfDayInTimezone(dateUtc, locationTimezone) - 7 * 24 * 60 * 60 * 1000;
+  }, [date, locationTimezone]);
   const toTime = useMemo(() => fromTime + 21 * 24 * 60 * 60 * 1000, [fromTime]);
 
   const effectiveStaffId =
@@ -68,8 +98,14 @@ export function CalendarPageBody() {
       ? { fromTime, toTime, locationId }
       : { fromTime, toTime },
   );
-  const fromDate = useMemo(() => isoDate(new Date(fromTime)), [fromTime]);
-  const toDate = useMemo(() => isoDate(new Date(toTime - 1)), [toTime]);
+  const fromDate = useMemo(
+    () => isoDateInTimezone(fromTime, locationTimezone),
+    [fromTime, locationTimezone],
+  );
+  const toDate = useMemo(
+    () => isoDateInTimezone(toTime - 1, locationTimezone),
+    [toTime, locationTimezone],
+  );
   // Two queries (one always skipped) because Convex requires the query
   // reference to be stable per useQuery call — we swap between staff-scoped
   // and org-wide based on the active filter. Both need a locationId; while
@@ -100,19 +136,22 @@ export function CalendarPageBody() {
     return filtered.map((row) => ({
       id: row._id,
       title: `${row.petName} · ${row.serviceName} (${row.staffName})`,
-      start: new Date(row.startTime),
-      end: new Date(row.endTime),
+      // Events are positioned by their wall-clock in the LOCATION TZ — viewers
+      // outside that timezone still see "9 AM" on the shop's clock.
+      start: utcToZonedPseudoDate(row.startTime, locationTimezone),
+      end: utcToZonedPseudoDate(row.endTime, locationTimezone),
       status: row.status,
       color: row.serviceColor,
     }));
-  }, [appointments, effectiveStaffId]);
+  }, [appointments, effectiveStaffId, locationTimezone]);
 
   async function handleEventDrop(info: { id: string; start: Date }) {
     setDropError(null);
     try {
       await reschedule({
         id: info.id as Id<"appointments">,
-        startTime: info.start.getTime(),
+        // `info.start` is a pseudo-Date — reinterpret in the location's TZ.
+        startTime: zonedPseudoDateToUtc(info.start, locationTimezone),
       });
     } catch (caught) {
       setDropError(formatAppointmentError(caught));
@@ -126,7 +165,9 @@ export function CalendarPageBody() {
         allStaff={allStaff}
         filterStaffId={filterStaffId}
         onFilterStaffId={setFilterStaffId}
-        onNewAppointment={() => setDialog({ mode: "new", start: roundedNow() })}
+        onNewAppointment={() =>
+          setDialog({ mode: "new", start: roundedNowInTimezone(locationTimezone) })
+        }
       />
 
       {dropError && <ErrorBanner>{dropError}</ErrorBanner>}
@@ -138,6 +179,7 @@ export function CalendarPageBody() {
             availabilityByDate={availability ?? {}}
             view={view}
             date={date}
+            locationTimezone={locationTimezone}
             onViewChange={(next) => {
               setView(next);
               if (typeof window !== "undefined") {
@@ -164,7 +206,9 @@ export function CalendarPageBody() {
 
       <button
         type="button"
-        onClick={() => setDialog({ mode: "new", start: roundedNow() })}
+        onClick={() =>
+          setDialog({ mode: "new", start: roundedNowInTimezone(locationTimezone) })
+        }
         aria-label="New appointment"
         className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-b from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 min-[874px]:hidden"
       >
@@ -176,12 +220,14 @@ export function CalendarPageBody() {
           appointmentId="new"
           initialStartTime={dialog.start}
           initialStaffId={dialog.staffId}
+          locationTimezone={locationTimezone}
           onClose={() => setDialog(null)}
         />
       )}
       {dialog?.mode === "edit" && (
         <AppointmentDialog
           appointmentId={dialog.id}
+          locationTimezone={locationTimezone}
           onClose={() => setDialog(null)}
         />
       )}
@@ -201,18 +247,3 @@ function readStoredView(): string {
     : "week";
 }
 
-function startOfDayMs(date: Date): number {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-  return result.getTime();
-}
-
-function roundedNow(): Date {
-  const now = new Date();
-  now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
-  return now;
-}
-
-function isoDate(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}

@@ -6,6 +6,7 @@ import { Download, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { useCurrentLocation } from "@/lib/useCurrentLocation";
 import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
 import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
 import { ClientCards } from "./ClientCards";
@@ -25,6 +26,12 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
   const [bookingClientId, setBookingClientId] = useState<Id<"clients"> | null>(
     null,
   );
+  const { current: currentLocation } = useCurrentLocation();
+  const locationTimezone =
+    currentLocation?.timezone ??
+    (typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : "UTC");
   const debouncedSearch = useDebouncedValue(search, 200);
 
   const rows = useQuery(api.clients.listWithPets, {
@@ -145,6 +152,7 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
         <AppointmentDialog
           appointmentId="new"
           initialClientId={bookingClientId}
+          locationTimezone={locationTimezone}
           onClose={() => setBookingClientId(null)}
         />
       )}

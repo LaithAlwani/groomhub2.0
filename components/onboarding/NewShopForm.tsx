@@ -10,7 +10,10 @@ import { RequiredMark } from "@/components/forms/RequiredMark";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { validateSlugShape } from "@/convex/lib/reservedSlugs";
 import { compressImage } from "@/lib/imageCompress";
-import { NORTH_AMERICA_TIMEZONES } from "@/lib/timezones";
+import {
+  INTERNATIONAL_TIMEZONES,
+  NORTH_AMERICA_TIMEZONES,
+} from "@/lib/timezones";
 import { ShopLogoUploader } from "./ShopLogoUploader";
 import { SlugInput } from "./SlugInput";
 import {
@@ -149,11 +152,20 @@ export function NewShopForm({
             onChange={(event) => form.setTimezone(event.target.value)}
             className="rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-orange-900"
           >
-            {NORTH_AMERICA_TIMEZONES.map((zone) => (
-              <option key={zone.value} value={zone.value}>
-                {zone.label}
-              </option>
-            ))}
+            <optgroup label="North America">
+              {NORTH_AMERICA_TIMEZONES.map((zone) => (
+                <option key={zone.value} value={zone.value}>
+                  {zone.label}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="International">
+              {INTERNATIONAL_TIMEZONES.map((zone) => (
+                <option key={zone.value} value={zone.value}>
+                  {zone.label}
+                </option>
+              ))}
+            </optgroup>
           </select>
           {fieldErrors.timezone && (
             <span className="text-xs text-red-600 dark:text-red-400">

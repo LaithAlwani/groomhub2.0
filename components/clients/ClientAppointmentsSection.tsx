@@ -47,8 +47,13 @@ export function ClientAppointmentsSection({
   clientId: Id<"clients">;
 }) {
   const appointments = useQuery(api.appointments.listForClient, { clientId });
-  const { locations } = useCurrentLocation();
+  const { current: currentLocation, locations } = useCurrentLocation();
   const showLocation = locations.length > 1;
+  const locationTimezone =
+    currentLocation?.timezone ??
+    (typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : "UTC");
   const [dialog, setDialog] = useState<
     | { mode: "new" }
     | { mode: "edit"; id: Id<"appointments"> }
@@ -196,12 +201,14 @@ export function ClientAppointmentsSection({
         <AppointmentDialog
           appointmentId="new"
           initialClientId={clientId}
+          locationTimezone={locationTimezone}
           onClose={() => setDialog(null)}
         />
       )}
       {dialog?.mode === "edit" && (
         <AppointmentDialog
           appointmentId={dialog.id}
+          locationTimezone={locationTimezone}
           onClose={() => setDialog(null)}
         />
       )}

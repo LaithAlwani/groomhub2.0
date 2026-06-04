@@ -15,6 +15,7 @@ import { enUS } from "date-fns/locale/en-US";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import "./calendarTheme.css";
+import { nowInTimezone } from "@/lib/locationTime";
 import { ThreeDayView } from "./ThreeDayView";
 import { CalendarDayHeader } from "./CalendarDayHeader";
 import { CalendarEventCard } from "./CalendarEventCard";
@@ -71,6 +72,7 @@ export function Calendar({
   availabilityByDate,
   view,
   date,
+  locationTimezone,
   onViewChange,
   onDateChange,
   onSelectSlot,
@@ -81,6 +83,10 @@ export function Calendar({
   availabilityByDate: Record<string, Array<{ startMin: number; endMin: number }>>;
   view: string;
   date: Date;
+  /** IANA timezone for the active location. Calendar Dates are pseudo-Dates
+   *  in this zone (see `lib/locationTime.ts`) so wall-clock comparisons work
+   *  regardless of where the viewer is. */
+  locationTimezone: string;
   onViewChange: (view: string) => void;
   onDateChange: (date: Date) => void;
   onSelectSlot: (info: { start: Date; end: Date }) => void;
@@ -91,7 +97,17 @@ export function Calendar({
     () => computeBounds(availabilityByDate),
     [availabilityByDate],
   );
-  const now = useMemo(() => Date.now(), [date]);
+  // `now` is a pseudo-Date getTime() so it can be compared against
+  // pseudo-Date slot positions on the same scale. Using real `Date.now()`
+  // here would compare real UTC ms against pseudo-Date getTime() (which
+  // reports the location wall-clock interpreted as browser-local).
+  const now = useMemo(
+    () => nowInTimezone(locationTimezone).getTime(),
+    // Dep on `date` keeps the original re-render semantics (re-evaluate
+    // "now" when the user navigates), `locationTimezone` for org switches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [date, locationTimezone],
+  );
 
   const slotPropGetter = useMemo(
     () => (slotDate: Date) => {
@@ -128,6 +144,7 @@ export function Calendar({
           events={events}
           availabilityByDate={availabilityByDate}
           date={date}
+          locationTimezone={locationTimezone}
           onDateChange={onDateChange}
           onSelectEvent={onSelectEvent}
           onSelectSlot={onSelectSlot}
@@ -167,9 +184,10 @@ export function Calendar({
           onSelectSlot={(info) => {
             // Allow clicks on the current 15-min slot even when its start is
             // a few minutes in the past — the user can still book the next
-            // available time from the dialog.
+            // available time from the dialog. Comparing pseudo-Date getTime
+            // against pseudo-now so both sides are in the same frame.
             const slotMs = info.start.getTime();
-            if (slotMs < Date.now() - 15 * 60 * 1000) return;
+            if (slotMs < now - 15 * 60 * 1000) return;
             onSelectSlot({ start: info.start, end: info.end });
           }}
           onSelectEvent={(event) => onSelectEvent(event as CalendarEvent)}
