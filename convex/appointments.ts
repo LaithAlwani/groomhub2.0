@@ -539,6 +539,92 @@ export const updateNotes = mutation({
   },
 });
 
+const imageStageValidator = v.union(v.literal("before"), v.literal("after"));
+const MAX_IMAGES_PER_STAGE = 12;
+
+/** Short-lived upload URL for an appointment before/after photo. staff+. */
+export const generateImageUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/**
+ * Append a before/after photo to an appointment. Same own-row privacy rule as
+ * `updateNotes`. Caps each stage at `MAX_IMAGES_PER_STAGE`.
+ */
+export const addAppointmentImage = mutation({
+  args: {
+    id: v.id("appointments"),
+    stage: imageStageValidator,
+    storageId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    const existing = await loadEditableAppointment(ctx, args.id);
+    const current =
+      (args.stage === "before"
+        ? existing.beforeImageStorageIds
+        : existing.afterImageStorageIds) ?? [];
+    if (current.length >= MAX_IMAGES_PER_STAGE) {
+      appError("VALIDATION", { field: args.stage, reason: "TOO_MANY_IMAGES" });
+    }
+    const next = [...current, args.storageId];
+    if (args.stage === "before") {
+      await ctx.db.patch(existing._id, { beforeImageStorageIds: next });
+    } else {
+      await ctx.db.patch(existing._id, { afterImageStorageIds: next });
+    }
+  },
+});
+
+/**
+ * Remove a before/after photo from an appointment and delete the underlying
+ * file. Same own-row privacy rule as `updateNotes`.
+ */
+export const removeAppointmentImage = mutation({
+  args: {
+    id: v.id("appointments"),
+    stage: imageStageValidator,
+    storageId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    const existing = await loadEditableAppointment(ctx, args.id);
+    const current =
+      (args.stage === "before"
+        ? existing.beforeImageStorageIds
+        : existing.afterImageStorageIds) ?? [];
+    const next = current.filter((storageId) => storageId !== args.storageId);
+    if (args.stage === "before") {
+      await ctx.db.patch(existing._id, { beforeImageStorageIds: next });
+    } else {
+      await ctx.db.patch(existing._id, { afterImageStorageIds: next });
+    }
+    await ctx.storage.delete(args.storageId);
+  },
+});
+
+/**
+ * Loads an appointment the caller is allowed to edit: same org, and for staff,
+ * only their own row. Mirrors the inline check in `updateNotes`.
+ */
+async function loadEditableAppointment(
+  ctx: MutationCtx,
+  id: Id<"appointments">,
+): Promise<Doc<"appointments">> {
+  const identity = await requireAuth(ctx);
+  const { role } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+  const existing = await loadOwnAppointment(ctx, id, identity.orgId);
+  if (role === "staff") {
+    const { membership } = await ensureMembership(ctx, identity);
+    if (existing.staffId !== membership._id) {
+      appError("FORBIDDEN", { reason: "NOT_OWN_APPOINTMENT" });
+    }
+  }
+  return existing;
+}
+
 /**
  * Reassign a still-pending or declined booking to a different groomer.
  * Admin / superAdmin only. Re-runs availability + overlap checks for the new
@@ -633,6 +719,13 @@ export const hardDelete = mutation({
   handler: async (ctx, args) => {
     const { orgId } = await requireRole(ctx, ["superAdmin"]);
     const existing = await loadOwnAppointment(ctx, args.id, orgId);
+    const orphanedFiles = [
+      ...(existing.beforeImageStorageIds ?? []),
+      ...(existing.afterImageStorageIds ?? []),
+    ];
+    for (const storageId of orphanedFiles) {
+      await ctx.storage.delete(storageId);
+    }
     await ctx.db.delete(existing._id);
   },
 });
@@ -651,6 +744,15 @@ export type EnrichedAppointment = Doc<"appointments"> & {
   // still render cleanly. UI surfaces decide whether to show it (typically
   // only when the org has more than one location).
   locationName: string;
+  // Before/after photos paired with signed URLs for rendering. Entries whose
+  // file vanished resolve to `url: null`.
+  beforeImages: AppointmentImage[];
+  afterImages: AppointmentImage[];
+};
+
+export type AppointmentImage = {
+  storageId: Id<"_storage">;
+  url: string | null;
 };
 
 async function enrichAppointment(
@@ -672,6 +774,10 @@ async function enrichAppointment(
       staffName = fullName || user.email || "Unknown";
     }
   }
+  const [beforeImages, afterImages] = await Promise.all([
+    resolveImages(ctx, row.beforeImageStorageIds),
+    resolveImages(ctx, row.afterImageStorageIds),
+  ]);
   return {
     ...row,
     clientName: client?.fullName ?? "Removed client",
@@ -683,7 +789,22 @@ async function enrichAppointment(
     serviceColor: service?.color,
     serviceDurationMin: service?.durationMin ?? 60,
     locationName: location?.name ?? "Removed location",
+    beforeImages,
+    afterImages,
   };
+}
+
+async function resolveImages(
+  ctx: QueryCtx,
+  storageIds: ReadonlyArray<Id<"_storage">> | undefined,
+): Promise<AppointmentImage[]> {
+  if (!storageIds || storageIds.length === 0) return [];
+  return await Promise.all(
+    storageIds.map(async (storageId) => ({
+      storageId,
+      url: await ctx.storage.getUrl(storageId),
+    })),
+  );
 }
 
 async function loadOwnAppointment(

@@ -87,7 +87,6 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
       date: isoDateInTimezone(startUtc, props.locationTimezone),
       time: isoTimeInTimezone(startUtc, props.locationTimezone),
       notes: "",
-      status: "scheduled",
     };
   });
   const [errors, setErrors] = useState<AppointmentFormErrors>({});
@@ -115,7 +114,6 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
       date: isoDateInTimezone(existing.startTime, props.locationTimezone),
       time: isoTimeInTimezone(existing.startTime, props.locationTimezone),
       notes: existing.notes ?? "",
-      status: existing.status,
     };
     setState(next);
     setInitialSnapshot(JSON.stringify(next));
@@ -168,9 +166,6 @@ export function useAppointmentDialog(props: AppointmentDialogProps) {
             startTime,
             staffId: state.staffId ?? undefined,
           });
-        }
-        if (state.status !== existing.status) {
-          await updateStatus({ id: existing._id, status: state.status });
         }
         if ((state.notes || "") !== (existing.notes ?? "")) {
           await updateNotes({

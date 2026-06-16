@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { useQuery } from "convex/react";
+import { useRouter } from "next/navigation";
 import { CalendarDays } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -41,14 +40,9 @@ const STATUS_TONE: Record<string, string> = {
  */
 export function PetAppointmentsSection({ petId }: { petId: Id<"pets"> }) {
   const appointments = useQuery(api.appointments.listForPet, { petId });
-  const { current: currentLocation, locations } = useCurrentLocation();
+  const router = useRouter();
+  const { locations } = useCurrentLocation();
   const showLocation = locations.length > 1;
-  const locationTimezone =
-    currentLocation?.timezone ??
-    (typeof Intl !== "undefined"
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone
-      : "UTC");
-  const [editId, setEditId] = useState<Id<"appointments"> | null>(null);
   const count = appointments?.length ?? 0;
 
   return (
@@ -76,7 +70,7 @@ export function PetAppointmentsSection({ petId }: { petId: Id<"pets"> }) {
             {appointments.map((appointment) => (
               <li
                 key={appointment._id}
-                onClick={() => setEditId(appointment._id)}
+                onClick={() => router.push(`/appointments/${appointment._id}`)}
                 className="grid cursor-pointer grid-cols-[1.4fr_1.2fr_0.9fr] items-center gap-2 border-b border-zinc-100 px-4 py-3 transition-colors last:border-b-0 hover:bg-zinc-50 dark:border-zinc-900 dark:hover:bg-zinc-900/60"
               >
                 <div className="min-w-0">
@@ -109,14 +103,6 @@ export function PetAppointmentsSection({ petId }: { petId: Id<"pets"> }) {
           </ul>
         )}
       </div>
-
-      {editId && (
-        <AppointmentDialog
-          appointmentId={editId}
-          locationTimezone={locationTimezone}
-          onClose={() => setEditId(null)}
-        />
-      )}
     </section>
   );
 }

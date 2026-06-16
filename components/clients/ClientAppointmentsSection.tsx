@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+import { useRouter } from "next/navigation";
 import { CalendarDays, CalendarPlus, MapPin } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -54,11 +55,8 @@ export function ClientAppointmentsSection({
     (typeof Intl !== "undefined"
       ? Intl.DateTimeFormat().resolvedOptions().timeZone
       : "UTC");
-  const [dialog, setDialog] = useState<
-    | { mode: "new" }
-    | { mode: "edit"; id: Id<"appointments"> }
-    | null
-  >(null);
+  const router = useRouter();
+  const [bookingOpen, setBookingOpen] = useState(false);
   // null = "All pets" tab. Reset implicitly when the underlying query
   // changes (e.g. appointment booked) — useMemo recomputes the pet list
   // and an invalid pet name just falls back to "All" via the filter.
@@ -108,7 +106,7 @@ export function ClientAppointmentsSection({
         </h2>
         <button
           type="button"
-          onClick={() => setDialog({ mode: "new" })}
+          onClick={() => setBookingOpen(true)}
           className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600"
         >
           <CalendarPlus size={14} />
@@ -153,7 +151,7 @@ export function ClientAppointmentsSection({
               <li
                 key={appointment._id}
                 onClick={() =>
-                  setDialog({ mode: "edit", id: appointment._id })
+                  router.push(`/appointments/${appointment._id}`)
                 }
                 className="grid cursor-pointer grid-cols-[1.4fr_1.2fr_1fr_0.9fr] items-center gap-2 border-b border-zinc-100 px-4 py-3 transition-colors last:border-b-0 hover:bg-zinc-50 dark:border-zinc-900 dark:hover:bg-zinc-900/60"
               >
@@ -197,19 +195,12 @@ export function ClientAppointmentsSection({
         )}
       </div>
 
-      {dialog?.mode === "new" && (
+      {bookingOpen && (
         <AppointmentDialog
           appointmentId="new"
           initialClientId={clientId}
           locationTimezone={locationTimezone}
-          onClose={() => setDialog(null)}
-        />
-      )}
-      {dialog?.mode === "edit" && (
-        <AppointmentDialog
-          appointmentId={dialog.id}
-          locationTimezone={locationTimezone}
-          onClose={() => setDialog(null)}
+          onClose={() => setBookingOpen(false)}
         />
       )}
     </section>

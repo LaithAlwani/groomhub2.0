@@ -30,7 +30,6 @@ export function SchedulingFields({
   staffId,
   date,
   time,
-  status,
   notes,
   isEdit,
   lockedStaff,
@@ -39,13 +38,11 @@ export function SchedulingFields({
   onChangeStaff,
   onChangeDate,
   onChangeTime,
-  onChangeStatus,
   onChangeNotes,
 }: {
   staffId: Id<"memberships"> | null;
   date: string;
   time: string;
-  status: AppointmentStatus;
   notes: string;
   isEdit: boolean;
   lockedStaff: boolean;
@@ -54,7 +51,6 @@ export function SchedulingFields({
   onChangeStaff: (value: Id<"memberships">) => void;
   onChangeDate: (value: string) => void;
   onChangeTime: (value: string) => void;
-  onChangeStatus: (value: AppointmentStatus) => void;
   onChangeNotes: (value: string) => void;
 }) {
   const allStaff = useQuery(api.memberships.forOrg, {});
@@ -125,26 +121,6 @@ export function SchedulingFields({
         excludeAppointmentId={excludeAppointmentId}
         allowCurrentSelection={isEdit}
       />
-      {isEdit && status !== "pendingApproval" && (
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            Status
-          </span>
-          <select
-            value={status}
-            onChange={(event) =>
-              onChangeStatus(event.target.value as AppointmentStatus)
-            }
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Notes

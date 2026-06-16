@@ -19,7 +19,6 @@ export type AppointmentFormState = {
   date: string;
   time: string;
   notes: string;
-  status: AppointmentStatus;
 };
 
 export type AppointmentFormErrors = Partial<
@@ -117,7 +116,6 @@ export function AppointmentFormFields({
         staffId={state.staffId}
         date={state.date}
         time={state.time}
-        status={state.status}
         notes={state.notes}
         isEdit={isEdit}
         lockedStaff={lockedStaff}
@@ -126,7 +124,6 @@ export function AppointmentFormFields({
         onChangeStaff={(value) => onChange("staffId", value)}
         onChangeDate={(value) => onChange("date", value)}
         onChangeTime={(value) => onChange("time", value)}
-        onChangeStatus={(value) => onChange("status", value)}
         onChangeNotes={(value) => onChange("notes", value)}
       />
       {inlineCreate.dialogs}

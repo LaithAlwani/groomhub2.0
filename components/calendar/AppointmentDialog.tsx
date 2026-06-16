@@ -9,6 +9,8 @@ import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { ReassignDialog } from "@/components/dashboard/ReassignDialog";
 import { formatPhone } from "@/lib/phone";
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { AppointmentFormFields } from "./AppointmentFormFields";
 import { AppointmentDialogFooter } from "./AppointmentDialogFooter";
 import { AppointmentDialogSkeleton } from "./AppointmentDialogSkeleton";
@@ -95,6 +97,15 @@ export function AppointmentDialog(props: AppointmentDialogProps) {
                 editingAppointmentId={isEdit ? existing?._id : undefined}
                 onChange={setField}
               />
+              {isEdit && existing && (
+                <Link
+                  href={`/appointments/${existing._id}`}
+                  className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-blue-700 transition-colors hover:underline dark:text-blue-300"
+                >
+                  <ExternalLink size={14} />
+                  Open full view (photos &amp; forms)
+                </Link>
+              )}
               {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
               <AppointmentDialogFooter
                 isEdit={isEdit}

@@ -382,6 +382,11 @@ export default defineSchema({
     ),
     paymentIntentId: v.optional(v.string()),
     notes: v.optional(v.string()),
+    // Before/after grooming photos. Multiple per stage; resolved to signed
+    // URLs at read time. Managed from the appointment dialog via
+    // `addAppointmentImage` / `removeAppointmentImage`.
+    beforeImageStorageIds: v.optional(v.array(v.id("_storage"))),
+    afterImageStorageIds: v.optional(v.array(v.id("_storage"))),
     clientUuid: v.string(),
     createdBy: v.id("memberships"),
     createdAt: v.number(),
