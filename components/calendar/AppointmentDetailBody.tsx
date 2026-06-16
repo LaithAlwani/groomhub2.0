@@ -9,6 +9,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
 import { AppointmentDialog } from "./AppointmentDialog";
 import { AppointmentImagesSection } from "./AppointmentImagesSection";
+import { AppointmentReleaseSection } from "./AppointmentReleaseSection";
 import { AppointmentStatusControl } from "./AppointmentStatusControl";
 
 /**
@@ -115,6 +116,11 @@ export function AppointmentDetailBody({
           after={appointment.afterImages}
         />
       </div>
+
+      <AppointmentReleaseSection
+        appointmentId={appointment._id}
+        petId={appointment.petId}
+      />
 
       {editing && (
         <AppointmentDialog

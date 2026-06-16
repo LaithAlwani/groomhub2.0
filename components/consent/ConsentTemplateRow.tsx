@@ -26,11 +26,12 @@ export function ConsentTemplateRow({
   onEdit: () => void;
   onArchive: () => void;
 }) {
-  const preview = template.body
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 120);
-  const truncated = template.body.length > 120;
+  // PDF-import templates have no text body — show a label instead of a preview.
+  const cleanedBody = (template.body ?? "").replace(/\s+/g, " ").trim();
+  const preview = template.fileStorageId
+    ? "Imported PDF"
+    : cleanedBody.slice(0, 120);
+  const truncated = !template.fileStorageId && cleanedBody.length > 120;
 
   return (
     <li

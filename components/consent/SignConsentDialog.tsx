@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Eraser } from "lucide-react";
 import SignaturePad from "react-signature-canvas";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Field } from "@/components/forms/Field";
 import { DialogShell } from "@/components/ui/DialogShell";
-import { ErrorBanner } from "@/components/ui/ErrorBanner";
-import { buildConsentPdf } from "@/lib/consent/buildConsentPdf";
+import { assembleSignedPdf } from "@/lib/consent/buildConsentPdf";
+import {
+  decodeDataUrlToBytes,
+  uploadToStorage,
+} from "@/lib/consent/signingHelpers";
+import { SignConsentForm } from "./SignConsentForm";
 
 /**
  * The tablet-friendly signing modal. Staff opens it from the client detail
@@ -26,15 +28,17 @@ import { buildConsentPdf } from "@/lib/consent/buildConsentPdf";
  * a finger sign-and-tap works comfortably on a tablet.
  */
 export function SignConsentDialog({
-  clientId,
+  petId,
+  appointmentId,
   onClose,
 }: {
-  clientId: Id<"clients">;
+  petId: Id<"pets">;
+  appointmentId?: Id<"appointments">;
   onClose: () => void;
 }) {
   const templates = useQuery(api.consentForms.listTemplates, {});
   const org = useQuery(api.organizations.getCurrent);
-  const client = useQuery(api.clients.get, { id: clientId });
+  const pet = useQuery(api.pets.getDetail, { id: petId });
   const generateUploadUrl = useMutation(api.consentForms.generateUploadUrl);
   const recordSigning = useMutation(api.consentForms.recordSigning);
   const deleteOrphan = useMutation(api.consentForms.deleteOrphanStorage);
@@ -60,16 +64,13 @@ export function SignConsentDialog({
   // else by the time the live query resettles).
   useEffect(() => {
     if (signerTouched) return;
-    if (client?.fullName && signerName.length === 0) {
-      setSignerName(client.fullName);
+    const ownerName = pet?.owner?.fullName;
+    if (ownerName && signerName.length === 0) {
+      setSignerName(ownerName);
     }
-  }, [client, signerName, signerTouched]);
+  }, [pet, signerName, signerTouched]);
 
   const selectedTemplate = templates?.find((row) => row._id === templateId);
-
-  function clearPad() {
-    padRef.current?.clear();
-  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -103,17 +104,16 @@ export function SignConsentDialog({
       });
 
       // 2. Upload the signature PNG.
-      uploadedSignatureId = await uploadToStorage(
+      uploadedSignatureId = (await uploadToStorage(
         await generateUploadUrl(),
         signatureBlob,
         "image/png",
-      );
+      )) as Id<"_storage">;
 
-      // 3. Assemble the PDF locally.
-      const pdfBytes = await buildConsentPdf({
+      // 3. Assemble the PDF locally (text template or imported-PDF template).
+      const pdfBytes = await assembleSignedPdf({
         shopName: org?.name ?? "GroomHub",
-        templateName: selectedTemplate.name,
-        templateBody: selectedTemplate.body,
+        template: selectedTemplate,
         signerName: trimmedSigner,
         signedAt: new Date(),
         signaturePngBytes: signatureBytes,
@@ -123,16 +123,17 @@ export function SignConsentDialog({
       const pdfBlob = new Blob([pdfBytes as BlobPart], {
         type: "application/pdf",
       });
-      uploadedPdfId = await uploadToStorage(
+      uploadedPdfId = (await uploadToStorage(
         await generateUploadUrl(),
         pdfBlob,
         "application/pdf",
-      );
+      )) as Id<"_storage">;
 
       // 5. Record the signing event. If this fails we clean the storage
       // objects below to avoid orphans.
       await recordSigning({
-        clientId,
+        petId,
+        appointmentId,
         templateId,
         signerName: trimmedSigner,
         signatureStorageId: uploadedSignatureId,
@@ -165,139 +166,22 @@ export function SignConsentDialog({
       title="Sign consent form"
       maxWidth="lg"
     >
-      <form
-          onSubmit={handleSubmit}
-          className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5"
-        >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                Template
-              </span>
-              <select
-                value={templateId}
-                onChange={(event) =>
-                  setTemplateId(event.target.value as Id<"consentTemplates">)
-                }
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-              >
-                <option value="" disabled>
-                  {templates === undefined
-                    ? "Loading…"
-                    : templates.length === 0
-                      ? "No templates yet — add one in /consent-forms"
-                      : "Pick a template"}
-                </option>
-                {templates?.map((template) => (
-                  <option key={template._id} value={template._id}>
-                    {template.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <Field
-              label="Signer's full name"
-              value={signerName}
-              onChange={(value) => {
-                setSignerName(value);
-                setSignerTouched(true);
-              }}
-              placeholder="Jane Doe"
-              autoComplete="name"
-            />
-          </div>
-
-          {selectedTemplate && (
-            <div className="max-h-105 flex-1 overflow-y-auto whitespace-pre-wrap rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-base leading-relaxed text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-              {selectedTemplate.body}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                Signature
-              </span>
-              <button
-                type="button"
-                onClick={clearPad}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900"
-              >
-                <Eraser size={12} />
-                Clear
-              </button>
-            </div>
-            <div className="rounded-lg border border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-              <SignaturePad
-                ref={padRef}
-                penColor="#0f172a"
-                canvasProps={{
-                  className:
-                    "block h-32 w-full touch-none rounded-lg bg-white",
-                }}
-              />
-            </div>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              Sign with your finger or a stylus.
-            </span>
-          </div>
-
-          {error && <ErrorBanner>{error}</ErrorBanner>}
-
-          <div className="mt-auto flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="rounded-lg border border-zinc-300 px-4 py-3 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:py-2"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="rounded-lg bg-orange-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500 sm:py-2"
-            >
-              {submitting ? "Saving…" : "Confirm signature"}
-            </button>
-          </div>
-        </form>
+      <SignConsentForm
+        templates={templates}
+        selectedTemplate={selectedTemplate}
+        templateId={templateId}
+        onTemplateChange={setTemplateId}
+        signerName={signerName}
+        onSignerChange={(value) => {
+          setSignerName(value);
+          setSignerTouched(true);
+        }}
+        padRef={padRef}
+        error={error}
+        submitting={submitting}
+        onSubmit={handleSubmit}
+        onCancel={onClose}
+      />
     </DialogShell>
   );
-}
-
-/**
- * Decode a `data:image/png;base64,…` URL straight to a `Uint8Array` without
- * going through `fetch()`. Avoids two failure modes seen on the previous
- * fetch-based path: strict CSPs that block `data:` URL fetches, and
- * "Failed to fetch" TypeErrors in some browser configurations.
- */
-function decodeDataUrlToBytes(dataUrl: string): Uint8Array {
-  const commaAt = dataUrl.indexOf(",");
-  if (commaAt < 0) throw new Error("Invalid data URL");
-  const payload = dataUrl.slice(commaAt + 1);
-  const binary = atob(payload);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-async function uploadToStorage(
-  uploadUrl: string,
-  blob: Blob,
-  contentType: string,
-): Promise<Id<"_storage">> {
-  const response = await fetch(uploadUrl, {
-    method: "POST",
-    headers: { "Content-Type": contentType },
-    body: blob,
-  });
-  if (!response.ok) throw new Error("Upload failed");
-  const { storageId } = (await response.json()) as {
-    storageId: Id<"_storage">;
-  };
-  return storageId;
 }

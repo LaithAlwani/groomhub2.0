@@ -127,7 +127,11 @@ export default defineSchema({
   consentTemplates: defineTable({
     orgId: v.string(),
     name: v.string(),
-    body: v.string(),
+    // A template is authored either as plain text (`body`) OR as an uploaded
+    // PDF (`fileStorageId`) — exactly one is set. Both optional at the schema
+    // level; the mutation enforces "exactly one".
+    body: v.optional(v.string()),
+    fileStorageId: v.optional(v.id("_storage")),
     isActive: v.boolean(),
     deletedAt: v.optional(v.number()),
   })
@@ -142,8 +146,15 @@ export default defineSchema({
   signedConsents: defineTable({
     orgId: v.string(),
     clientId: v.id("clients"),
+    // Per-pet going forward. Optional only so pre-existing rows (signed before
+    // the per-pet move) still validate; `recordSigning` always sets it now.
+    // Backfilled by `consentForms.backfillSignedConsentPets` where unambiguous.
+    petId: v.optional(v.id("pets")),
+    // Set when the form was signed from a specific appointment's page.
+    appointmentId: v.optional(v.id("appointments")),
     templateId: v.id("consentTemplates"),
     templateNameSnapshot: v.string(),
+    // Empty for PDF-import templates — the assembled PDF carries the content.
     templateBodySnapshot: v.string(),
     signerName: v.string(),
     signedAt: v.number(),
@@ -152,6 +163,8 @@ export default defineSchema({
     witnessMembershipId: v.id("memberships"),
   })
     .index("by_client", ["clientId"])
+    .index("by_pet", ["petId"])
+    .index("by_appointment", ["appointmentId"])
     .index("by_org_signed", ["orgId", "signedAt"]),
 
   // Read-only audit of historical appointments imported from a competitor

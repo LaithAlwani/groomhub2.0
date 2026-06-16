@@ -151,6 +151,140 @@ export async function buildConsentPdf(input: {
 }
 
 /**
+ * Signs an *uploaded* consent PDF: loads the original and stamps the signature
+ * block (shop label, signer name + date, signature image) at the BOTTOM of the
+ * last page. Used for PDF-import templates, where the consent text already
+ * lives in the uploaded document and we only need to attach the signature.
+ *
+ * A faint white panel is painted behind the block first so the signature stays
+ * legible even if the page already has content near the bottom margin.
+ */
+export async function buildSignedPdfFromImported(input: {
+  shopName: string;
+  importedPdfBytes: Uint8Array;
+  signerName: string;
+  signedAt: Date;
+  signaturePngBytes: Uint8Array;
+}): Promise<Uint8Array> {
+  const MARGIN = 54;
+  const BLOCK_HEIGHT = 92; // panel that hosts the signature block
+
+  const doc = await PDFDocument.load(input.importedPdfBytes);
+  const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const signatureImage = await doc.embedPng(input.signaturePngBytes);
+
+  // Stamp the last existing page rather than appending a new one.
+  const pages = doc.getPages();
+  const page = pages[pages.length - 1];
+  const { width: pageWidth } = page.getSize();
+  const contentLeft = MARGIN;
+  const contentRight = pageWidth - MARGIN;
+
+  // Backing panel so the block reads over any underlying content.
+  page.drawRectangle({
+    x: contentLeft - 8,
+    y: MARGIN - 8,
+    width: contentRight - contentLeft + 16,
+    height: BLOCK_HEIGHT,
+    color: rgb(1, 1, 1),
+    opacity: 0.9,
+    borderColor: rgb(0.85, 0.85, 0.85),
+    borderWidth: 0.5,
+  });
+
+  // Layout, bottom-up: name/date line, divider, signature image above it, and
+  // a small shop label at the top of the panel.
+  const NAME_BASELINE_Y = MARGIN + 6;
+  const DIVIDER_Y = MARGIN + 28;
+  const IMAGE_BOTTOM_Y = DIVIDER_Y + 2;
+  const LABEL_Y = MARGIN + BLOCK_HEIGHT - 22;
+
+  page.drawText(`Signed — ${input.shopName}`, {
+    x: contentLeft,
+    y: LABEL_Y,
+    size: 9,
+    font: fontRegular,
+    color: rgb(0.45, 0.45, 0.45),
+  });
+
+  const scale = Math.min(
+    200 / signatureImage.width,
+    44 / signatureImage.height,
+    1,
+  );
+  page.drawImage(signatureImage, {
+    x: contentLeft,
+    y: IMAGE_BOTTOM_Y,
+    width: signatureImage.width * scale,
+    height: signatureImage.height * scale,
+  });
+  page.drawLine({
+    start: { x: contentLeft, y: DIVIDER_Y },
+    end: { x: contentRight, y: DIVIDER_Y },
+    thickness: 0.5,
+    color: rgb(0.7, 0.7, 0.7),
+  });
+  page.drawText(input.signerName, {
+    x: contentLeft,
+    y: NAME_BASELINE_Y,
+    size: 12,
+    font: fontBold,
+    color: rgb(0.1, 0.1, 0.1),
+  });
+  const dateText = formatDate(input.signedAt);
+  const dateWidth = fontRegular.widthOfTextAtSize(dateText, 11);
+  page.drawText(dateText, {
+    x: contentRight - dateWidth,
+    y: NAME_BASELINE_Y,
+    size: 11,
+    font: fontRegular,
+    color: rgb(0.3, 0.3, 0.3),
+  });
+
+  return await doc.save();
+}
+
+/**
+ * Picks the right assembler for a template: imported-PDF templates get a
+ * signature page appended to the fetched original; text templates render the
+ * body + signature. Keeps the branching out of the signing dialog.
+ */
+export async function assembleSignedPdf(input: {
+  shopName: string;
+  template: {
+    name: string;
+    body?: string;
+    fileStorageId?: string | null;
+    fileUrl?: string | null;
+  };
+  signerName: string;
+  signedAt: Date;
+  signaturePngBytes: Uint8Array;
+}): Promise<Uint8Array> {
+  const { template } = input;
+  if (template.fileStorageId && template.fileUrl) {
+    const response = await fetch(template.fileUrl);
+    if (!response.ok) throw new Error("Could not load the template PDF");
+    return await buildSignedPdfFromImported({
+      shopName: input.shopName,
+      importedPdfBytes: new Uint8Array(await response.arrayBuffer()),
+      signerName: input.signerName,
+      signedAt: input.signedAt,
+      signaturePngBytes: input.signaturePngBytes,
+    });
+  }
+  return await buildConsentPdf({
+    shopName: input.shopName,
+    templateName: template.name,
+    templateBody: template.body ?? "",
+    signerName: input.signerName,
+    signedAt: input.signedAt,
+    signaturePngBytes: input.signaturePngBytes,
+  });
+}
+
+/**
  * Greedy line-break: take words one at a time and start a new line as soon
  * as the next word would overflow the available width. `font.widthOfTextAtSize`
  * is the canonical pdf-lib measurement helper.
