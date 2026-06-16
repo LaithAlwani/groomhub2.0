@@ -136,6 +136,28 @@ export const listForClient = query({
 });
 
 /**
+ * Pet-scoped appointment history, newest first. Powers the appointment section
+ * on the pet detail page. Same enrichment as `listForClient`; refuses cross-org
+ * pet IDs. Returns `[]` for unauthenticated callers.
+ */
+export const listForPet = query({
+  args: { petId: v.id("pets") },
+  handler: async (ctx, args) => {
+    const identity = await softAuth(ctx);
+    if (!identity) return [];
+    const pet = await ctx.db.get(args.petId);
+    if (!pet) appError("NOT_FOUND", { reason: "PET_NOT_FOUND" });
+    if (pet.orgId !== identity.orgId) appError("FORBIDDEN", { reason: "WRONG_ORG" });
+    const rows = await ctx.db
+      .query("appointments")
+      .withIndex("by_pet", (index) => index.eq("petId", args.petId))
+      .take(MAX_RESULTS);
+    const sorted = rows.sort((a, b) => b.startTime - a.startTime);
+    return await Promise.all(sorted.map((row) => enrichAppointment(ctx, row)));
+  },
+});
+
+/**
  * Returns the current user's appointments still awaiting their approval. Used
  * by the dashboard "Needs approval" tile. Each row is enriched so the tile
  * doesn't need extra joins. Returns `[]` for users not yet in any org.

@@ -62,7 +62,6 @@ export function PetFormDialog({
       temperament: existing.temperament ?? "",
       medicalConditions: (existing.medicalConditions ?? []).join(", "),
       notes: existing.notes ?? "",
-      vaccinations: existing.vaccinations.map((row) => ({ ...row })),
       imageStorageId: existing.imageStorageId,
       imagePreviewUrl: existing.imageUrl,
     };
@@ -90,12 +89,6 @@ export function PetFormDialog({
     } else if (Number.isNaN(sizeLbNumber) || sizeLbNumber < 0) {
       next.sizeLb = "Must be 0 or greater";
     }
-    for (const row of state.vaccinations) {
-      if (!row.vaccineId || !/^\d{4}-\d{2}-\d{2}$/.test(row.expiresOn)) {
-        next.vaccinations = "Each vaccination needs a vaccine and a valid expiry date";
-        break;
-      }
-    }
     if (Object.keys(next).length > 0) {
       setErrors(next);
       return;
@@ -107,15 +100,6 @@ export function PetFormDialog({
         .split(",")
         .map((entry) => entry.trim())
         .filter((entry) => entry.length > 0);
-      // Narrow `vaccineId: Id | ""` to `Id` — validation above already proved
-      // every row has a non-empty vaccine selected.
-      const persistedVaccinations = state.vaccinations
-        .filter((row) => row.vaccineId !== "")
-        .map((row) => ({
-          vaccineId: row.vaccineId as Exclude<typeof row.vaccineId, "">,
-          expiresOn: row.expiresOn,
-          verified: row.verified,
-        }));
       const sharedPayload = {
         name: state.name,
         species: state.species,
@@ -130,7 +114,6 @@ export function PetFormDialog({
         temperament: state.temperament || undefined,
         medicalConditions: conditions.length > 0 ? conditions : undefined,
         notes: state.notes || undefined,
-        vaccinations: persistedVaccinations,
       };
       if (isEdit) {
         // The photo is already saved by the uploader's `setImage` call, so we

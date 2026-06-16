@@ -59,6 +59,29 @@ export const get = query({
 });
 
 /**
+ * Fetch a pet plus its owner for the pet detail page. Same `imageUrl`
+ * enrichment as `get`, with a minimal `owner` ({ id, fullName }) so the page
+ * can render the breadcrumb back to the client without a second round trip.
+ * Refuses cross-org IDs; returns null when unauthenticated.
+ */
+export const getDetail = query({
+  args: { id: v.id("pets") },
+  handler: async (ctx, args) => {
+    const identity = await softAuth(ctx);
+    if (!identity) return null;
+    const pet = await loadOwnPet(ctx, args.id, identity.orgId);
+    const client = await ctx.db.get(pet.clientId);
+    const withImage = await withImageUrl(ctx, pet);
+    return {
+      ...withImage,
+      owner: client
+        ? { id: client._id, fullName: client.fullName }
+        : null,
+    };
+  },
+});
+
+/**
  * Returns a short-lived upload URL the client posts the image file to.
  * Auth is required so we don't hand out free storage to random callers; the
  * returned `storageId` is then attached to a pet via `create`/`update`.
@@ -97,6 +120,54 @@ export const setImage = mutation({
 });
 
 /**
+ * Toggle a pet's status flags (deceased / banned) directly, without going
+ * through the full edit form. Powers the toggle buttons on the pet detail
+ * page. Only the flags passed are changed. staff+ — matches `update`.
+ */
+export const setFlags = mutation({
+  args: {
+    id: v.id("pets"),
+    isDeceased: v.optional(v.boolean()),
+    isBanned: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    const existing = await loadOwnPet(ctx, args.id, orgId);
+    const patch: { isDeceased?: boolean; isBanned?: boolean } = {};
+    if (args.isDeceased !== undefined) patch.isDeceased = args.isDeceased;
+    if (args.isBanned !== undefined) patch.isBanned = args.isBanned;
+    await ctx.db.patch(existing._id, patch);
+  },
+});
+
+/**
+ * Replace a pet's vaccination records. Powers the standalone vaccinations
+ * form on the pet detail page (kept out of the add/edit pet form to keep that
+ * form short). staff+ — matches `update`. Validates each expiry date.
+ */
+export const setVaccinations = mutation({
+  args: {
+    id: v.id("pets"),
+    vaccinations: v.array(vaccinationValidator),
+  },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    const existing = await loadOwnPet(ctx, args.id, orgId);
+    for (const vaccination of args.vaccinations) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(vaccination.expiresOn)) {
+        appError("VALIDATION", {
+          field: "vaccinations.expiresOn",
+          reason: "INVALID_DATE",
+        });
+      }
+    }
+    await ctx.db.patch(existing._id, {
+      vaccinations: cleanVaccinations(args.vaccinations),
+    });
+  },
+});
+
+/**
  * Best-effort cleanup for the create-pet flow: the user uploads a photo,
  * never clicks Create, then closes the dialog. We call this with whatever
  * storageId we were holding so it doesn't sit forever in storage.
@@ -128,7 +199,6 @@ const petInputValidator = {
   temperament: v.optional(v.string()),
   medicalConditions: v.optional(v.array(v.string())),
   notes: v.optional(v.string()),
-  vaccinations: v.array(vaccinationValidator),
   imageStorageId: v.optional(v.id("_storage")),
 };
 
@@ -146,11 +216,6 @@ function buildPetPatch(args: {
   temperament?: string;
   medicalConditions?: ReadonlyArray<string>;
   notes?: string;
-  vaccinations: ReadonlyArray<{
-    vaccineId: Id<"vaccines">;
-    expiresOn: string;
-    verified: boolean;
-  }>;
   imageStorageId?: Id<"_storage">;
 }) {
   return {
@@ -167,7 +232,6 @@ function buildPetPatch(args: {
     temperament: args.temperament?.trim() || undefined,
     medicalConditions: cleanMedicalConditions(args.medicalConditions ?? []),
     notes: args.notes?.trim() || undefined,
-    vaccinations: cleanVaccinations(args.vaccinations),
     imageStorageId: args.imageStorageId,
   };
 }
@@ -186,6 +250,9 @@ export const create = mutation({
     return await ctx.db.insert("pets", {
       orgId,
       clientId: args.clientId,
+      // Vaccinations are managed separately on the pet detail page via
+      // `setVaccinations`, so new pets start with none.
+      vaccinations: [],
       ...buildPetPatch(args),
     });
   },
@@ -205,7 +272,6 @@ const petUpdateValidator = {
   temperament: v.optional(v.string()),
   medicalConditions: v.optional(v.array(v.string())),
   notes: v.optional(v.string()),
-  vaccinations: v.array(vaccinationValidator),
   imageStorageId: v.optional(v.id("_storage")),
 };
 
@@ -282,24 +348,12 @@ async function loadOwnPet(
   return row;
 }
 
-function validateInput(args: {
-  name: string;
-  sizeLb?: number;
-  vaccinations: ReadonlyArray<{ vaccineId: Id<"vaccines">; expiresOn: string }>;
-}): void {
+function validateInput(args: { name: string; sizeLb?: number }): void {
   if (args.name.trim().length === 0) {
     appError("VALIDATION", { field: "name", reason: "REQUIRED" });
   }
   if (args.sizeLb !== undefined && (args.sizeLb < 0 || args.sizeLb > 450)) {
     appError("VALIDATION", { field: "sizeLb", reason: "OUT_OF_RANGE" });
-  }
-  for (const vaccination of args.vaccinations) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(vaccination.expiresOn)) {
-      appError("VALIDATION", {
-        field: "vaccinations.expiresOn",
-        reason: "INVALID_DATE",
-      });
-    }
   }
 }
 

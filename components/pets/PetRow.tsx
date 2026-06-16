@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { AlertTriangle, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { PetImage } from "./PetImage";
@@ -37,6 +38,7 @@ export function PetRow({
   onEdit: () => void;
   onArchive: () => void;
 }) {
+  const router = useRouter();
   const subtitle = formatSubtitle(pet);
   const today = new Date().toISOString().slice(0, 10);
   const expiredVaccines = pet.vaccinations.filter(
@@ -52,16 +54,14 @@ export function PetRow({
     : pet.isDeceased
       ? "border-zinc-200 bg-zinc-50/60 dark:border-zinc-800 dark:bg-zinc-900/40"
       : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950";
-  const hoverClass = canEdit
-    ? pet.isBanned
-      ? "cursor-pointer hover:border-red-400 hover:bg-red-50 dark:hover:border-red-900 dark:hover:bg-red-950/30"
-      : "cursor-pointer hover:border-zinc-300 hover:bg-zinc-50 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
-    : "";
+  const hoverClass = pet.isBanned
+    ? "cursor-pointer hover:border-red-400 hover:bg-red-50 dark:hover:border-red-900 dark:hover:bg-red-950/30"
+    : "cursor-pointer hover:border-zinc-300 hover:bg-zinc-50 dark:hover:border-zinc-700 dark:hover:bg-zinc-900";
 
   return (
     <li
       onClick={() => {
-        if (canEdit && !busy) onEdit();
+        if (!busy) router.push(`/pets/${pet._id}`);
       }}
       className={`flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm transition-colors ${cardClass} ${hoverClass}`}
     >

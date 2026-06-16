@@ -14,7 +14,6 @@ export const INITIAL_PET_STATE: PetFormState = {
   temperament: "",
   medicalConditions: "",
   notes: "",
-  vaccinations: [],
   imageStorageId: undefined,
   imagePreviewUrl: null,
 };

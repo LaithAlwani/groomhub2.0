@@ -391,6 +391,7 @@ export default defineSchema({
     .index("by_org_location_start", ["orgId", "locationId", "startTime"])
     .index("by_staff_start", ["staffId", "startTime"])
     .index("by_client", ["clientId"])
+    .index("by_pet", ["petId"])
     .index("by_clientUuid", ["clientUuid"]),
 
   // Per-day override for the next ~60 days: PTO, extra shifts, holiday closures.
