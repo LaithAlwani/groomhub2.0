@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useOrganization, useUser } from "@clerk/nextjs";
 import { Bell, HelpCircle } from "lucide-react";
 import { mapClerkOrgRole } from "@/convex/lib/roles";
+import { InstallAppButton } from "./InstallAppButton";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { UserMenu } from "./UserMenu";
 
@@ -31,6 +32,7 @@ export function TopbarActions() {
   return (
     <div className="flex items-center gap-2 md:gap-3">
       <OfflineIndicator />
+      <InstallAppButton />
       <button
         type="button"
         aria-label="Notifications (coming soon)"

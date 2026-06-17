@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { ensureInstallPromptCapture } from "@/lib/installPrompt";
 
 /**
  * Tiny client island that registers `/sw.js` once per session, but only in
@@ -12,6 +13,10 @@ import { useEffect } from "react";
  */
 export function RegisterServiceWorker() {
   useEffect(() => {
+    // Capture `beforeinstallprompt` as early as possible — it can fire before
+    // the install modal mounts. Runs app-wide (root layout), every env.
+    ensureInstallPromptCapture();
+
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
 

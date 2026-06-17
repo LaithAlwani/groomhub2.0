@@ -17,7 +17,7 @@ export type Feature = {
     | "CalendarDays"
     | "BellRing"
     | "PawPrint"
-    | "WifiOff"
+    | "Smartphone"
     | "ShieldCheck"
     | "Users";
   // Optional Tailwind classes that scope the bento card's accent color.
@@ -100,10 +100,10 @@ export const landingPage = {
         accentClassName: "bg-violet-50 text-violet-700",
       },
       {
-        title: "Works offline",
+        title: "Install as an app",
         description:
-          "A PWA you can install on any phone or iPad. Flaky Wi-Fi in the back room won't cost you an appointment — bookings sync the moment you reconnect.",
-        icon: "WifiOff",
+          "Add GroomHub to any phone or iPad's home screen for full-screen, one-tap access — no app store, no download.",
+        icon: "Smartphone",
         accentClassName: "bg-amber-50 text-amber-700",
       },
       {

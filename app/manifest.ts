@@ -6,21 +6,17 @@ import type { MetadataRoute } from "next";
  * browser chrome (no URL bar, no tabs). `start_url` points at the dashboard
  * so opening from the home screen drops the groomer straight into work.
  *
- * Icons currently reference our brand webp at 512px (any/maskable). Before
- * public launch we should ship dedicated 192px + maskable variants:
- *   - public/icons/icon-192.png        — Android home-screen
- *   - public/icons/icon-512.png        — splash / install prompt
- *   - public/icons/maskable-512.png    — Android adaptive-icon safe zone
- *
- * webp is fine for Chrome / Edge / modern Safari install prompts; iOS may
- * fall back to its default add-to-home behaviour without a proper PNG.
+ * Icons are dedicated PNGs in `public/icons/` (generated from the brand logo):
+ * a 192 + 512 for the home-screen / install prompt, plus a padded 512 maskable
+ * for Android adaptive icons. Declared sizes must match the files exactly —
+ * Chrome refuses to offer install when they don't.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "GroomHub",
     short_name: "GroomHub",
     description:
-      "Booking, clients and pet records for grooming salons. Works offline.",
+      "Booking, clients and pet records for grooming salons.",
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
@@ -28,15 +24,21 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#00273c",
     icons: [
       {
-        src: "/logo_wide.webp",
-        sizes: "512x512",
-        type: "image/webp",
+        src: "/icons/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
         purpose: "any",
       },
       {
-        src: "/logo_wide.webp",
+        src: "/icons/icon-512.png",
         sizes: "512x512",
-        type: "image/webp",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/icons/maskable-512.png",
+        sizes: "512x512",
+        type: "image/png",
         purpose: "maskable",
       },
     ],

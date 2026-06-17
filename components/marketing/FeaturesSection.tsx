@@ -3,8 +3,8 @@ import {
   CalendarDays,
   PawPrint,
   ShieldCheck,
+  Smartphone,
   Users,
-  WifiOff,
   type LucideIcon,
 } from "lucide-react";
 import { landingPage, type Feature } from "@/lib/landingPage";
@@ -13,7 +13,7 @@ const ICONS: Record<Feature["icon"], LucideIcon> = {
   CalendarDays,
   BellRing,
   PawPrint,
-  WifiOff,
+  Smartphone,
   ShieldCheck,
   Users,
 };

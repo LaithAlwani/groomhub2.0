@@ -4,7 +4,9 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
-import { LogOut, Settings, UserRound } from "lucide-react";
+import { Download, LogOut, Settings, UserRound } from "lucide-react";
+import { useInstallPrompt } from "@/lib/useInstallPrompt";
+import { InstallInstructionsModal } from "./InstallInstructionsModal";
 
 /**
  * Custom replacement for Clerk's `<UserButton />`. Avatar trigger opens a
@@ -15,7 +17,9 @@ export function UserMenu() {
   const { user, isLoaded } = useUser();
   const clerk = useClerk();
   const router = useRouter();
+  const { mode: installMode, promptInstall } = useInstallPrompt();
   const [open, setOpen] = useState(false);
+  const [installInstructionsOpen, setInstallInstructionsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -54,6 +58,15 @@ export function UserMenu() {
     await clerk.signOut(() => window.location.assign("/"));
   }
 
+  async function handleInstall() {
+    setOpen(false);
+    if (installMode === "native") {
+      await promptInstall();
+    } else {
+      setInstallInstructionsOpen(true);
+    }
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -90,6 +103,19 @@ export function UserMenu() {
             <Settings size={16} />
             Manage account
           </button>
+          {installMode !== "hidden" && (
+            <div className="px-3 py-2 md:hidden">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleInstall}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600"
+              >
+                <Download size={16} />
+                Install app
+              </button>
+            </div>
+          )}
           <div className="border-t border-zinc-200 dark:border-zinc-800">
             <button
               type="button"
@@ -102,6 +128,12 @@ export function UserMenu() {
             </button>
           </div>
         </div>
+      )}
+
+      {installInstructionsOpen && (
+        <InstallInstructionsModal
+          onClose={() => setInstallInstructionsOpen(false)}
+        />
       )}
     </div>
   );
