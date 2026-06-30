@@ -112,8 +112,8 @@ export function AppointmentDetailBody({
       <div className="mt-8">
         <AppointmentImagesSection
           appointmentId={appointment._id}
-          before={appointment.beforeImages}
-          after={appointment.afterImages}
+          before={appointment.beforeImages ?? []}
+          after={appointment.afterImages ?? []}
         />
       </div>
 

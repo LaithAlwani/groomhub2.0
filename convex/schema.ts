@@ -175,6 +175,10 @@ export default defineSchema({
   legacyAppointments: defineTable({
     orgId: v.string(),
     clientId: v.id("clients"),
+    // Optional link to a specific pet so a migrated visit can show on that
+    // pet's page (not just the client's). `petName` stays as a text fallback
+    // for rows that couldn't be matched to a pet.
+    petId: v.optional(v.id("pets")),
     petName: v.optional(v.string()),
     serviceName: v.optional(v.string()),
     staffName: v.optional(v.string()),
@@ -187,6 +191,7 @@ export default defineSchema({
     importBatchId: v.string(),
   })
     .index("by_client", ["clientId"])
+    .index("by_pet", ["petId"])
     .index("by_org_imported", ["orgId", "importedAt"])
     .index("by_org_batch", ["orgId", "importBatchId"]),
 
