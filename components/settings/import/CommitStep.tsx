@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
@@ -84,7 +85,7 @@ export function CommitStep({
       setPhase({
         state: "error",
         message:
-          caught instanceof Error ? caught.message : "Import failed mid-batch.",
+          formatError(caught, "Import failed mid-batch."),
       });
     }
   }

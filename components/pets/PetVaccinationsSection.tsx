@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
@@ -58,7 +59,7 @@ export function PetVaccinationsSection({ pet }: { pet: Doc<"pets"> }) {
       });
     } catch (caught) {
       setServerError(
-        caught instanceof Error ? caught.message : "Could not save",
+        formatError(caught, "Could not save"),
       );
     } finally {
       setSaving(false);

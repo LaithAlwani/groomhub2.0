@@ -392,7 +392,11 @@ export default defineSchema({
       v.literal("noShow"),
       v.literal("cancelled"),
     ),
+    // Base price captured from the service (+ location override) at booking.
     priceCentsSnapshot: v.number(),
+    // Optional manual override of the charged total. Unset = use the base
+    // (`priceCentsSnapshot`). Edited on the appointment detail page.
+    totalPriceCents: v.optional(v.number()),
     paymentStatus: v.union(
       v.literal("unpaid"),
       v.literal("paid"),

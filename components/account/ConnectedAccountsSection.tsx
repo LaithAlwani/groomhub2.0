@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
@@ -47,9 +48,7 @@ export function ConnectedAccountsSection() {
       setConfirmTarget(null);
     } catch (caught) {
       setServerError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not disconnect this account",
+        formatError(caught, "Could not disconnect this account"),
       );
     } finally {
       setBusy(false);

@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useState } from "react";
 import { useOrganizationList } from "@clerk/nextjs";
@@ -33,9 +34,7 @@ export function PendingInvitationsBanner() {
     } catch (caught) {
       setAcceptingId(null);
       setErrorMessage(
-        caught instanceof Error
-          ? caught.message
-          : "Could not accept the invitation",
+        formatError(caught, "Could not accept the invitation"),
       );
     }
   }

@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
@@ -49,7 +50,7 @@ export function AddEmailForm({ onDone }: { onDone: () => void }) {
       setPhase("code");
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not add this email",
+        formatError(caught, "Could not add this email"),
       );
     } finally {
       setBusy(false);
@@ -71,7 +72,7 @@ export function AddEmailForm({ onDone }: { onDone: () => void }) {
       onDone();
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Verification failed",
+        formatError(caught, "Verification failed"),
       );
     } finally {
       setBusy(false);

@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
@@ -89,7 +90,7 @@ export function ServiceLocationOverrideDialog({
       });
       onClose();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save");
+      setError(formatError(caught, "Could not save"));
     } finally {
       setSaving(false);
     }
@@ -102,7 +103,7 @@ export function ServiceLocationOverrideDialog({
       await clear({ serviceId: service._id, locationId: location._id });
       onClose();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not clear");
+      setError(formatError(caught, "Could not clear"));
     } finally {
       setRemoving(false);
     }

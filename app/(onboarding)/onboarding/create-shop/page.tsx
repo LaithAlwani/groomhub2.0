@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import { useAuth, useOrganizationList } from "@clerk/nextjs";
@@ -40,9 +41,7 @@ export default function CreateShopPage() {
       } catch (caught) {
         setAutoJoining(false);
         setServerError(
-          caught instanceof Error
-            ? caught.message
-            : "Could not open your shop",
+          formatError(caught, "Could not open your shop"),
         );
       }
     })();
@@ -57,7 +56,7 @@ export default function CreateShopPage() {
     } catch (caught) {
       setSubmitting(false);
       setServerError(
-        caught instanceof Error ? caught.message : "Could not switch shops",
+        formatError(caught, "Could not switch shops"),
       );
     }
   }

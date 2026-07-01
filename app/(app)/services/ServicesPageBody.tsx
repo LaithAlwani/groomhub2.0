@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -68,7 +69,7 @@ export function ServicesPageBody({ canEdit }: { canEdit: boolean }) {
       setConfirmTarget(null);
     } catch (caught) {
       setErrorMessage(
-        caught instanceof Error ? caught.message : "Could not archive",
+        formatError(caught, "Could not archive"),
       );
       setConfirmTarget(null);
     } finally {

@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -113,7 +114,7 @@ export function ConsentTemplateFormDialog({
       onClose();
     } catch (caught) {
       setServerError(
-        caught instanceof Error ? caught.message : "Could not save",
+        formatError(caught, "Could not save"),
       );
     } finally {
       setSubmitting(false);

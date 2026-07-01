@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useState } from "react";
 import { useMutation } from "convex/react";
@@ -55,7 +56,7 @@ export function SignedFormsTable({
       setConfirmTarget(null);
     } catch (caught) {
       setErrorMessage(
-        caught instanceof Error ? caught.message : "Could not delete",
+        formatError(caught, "Could not delete"),
       );
       setConfirmTarget(null);
     } finally {

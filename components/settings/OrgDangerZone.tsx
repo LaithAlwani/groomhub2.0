@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useState } from "react";
 import { useOrganization, useUser } from "@clerk/nextjs";
@@ -45,7 +46,7 @@ export function OrgDangerZone({ orgName }: { orgName: string }) {
       window.location.assign("/onboarding/create-shop");
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not leave organization",
+        formatError(caught, "Could not leave organization"),
       );
       setConfirmLeave(false);
       setBusy(null);
@@ -61,7 +62,7 @@ export function OrgDangerZone({ orgName }: { orgName: string }) {
       window.location.assign("/onboarding/create-shop");
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not delete organization",
+        formatError(caught, "Could not delete organization"),
       );
       setConfirmDelete(false);
       setBusy(null);

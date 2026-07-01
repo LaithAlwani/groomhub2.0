@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
@@ -74,7 +75,7 @@ export function MemberLocationsEditor({
       });
       setOpen(false);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save");
+      setError(formatError(caught, "Could not save"));
     } finally {
       setSaving(false);
     }

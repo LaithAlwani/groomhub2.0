@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useCallback, useRef, useState } from "react";
 import { FileSpreadsheet, FileText, Loader2, Upload } from "lucide-react";
@@ -36,7 +37,7 @@ export function UploadStep({
         onParsed(parsed);
       } catch (caught) {
         setErrorMessage(
-          caught instanceof Error ? caught.message : "Could not parse file.",
+          formatError(caught, "Could not parse file."),
         );
       } finally {
         setBusy(false);

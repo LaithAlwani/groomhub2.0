@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useState } from "react";
 import { useClerk, useUser } from "@clerk/nextjs";
@@ -53,7 +54,7 @@ export function DangerZoneSection() {
       });
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not delete your account",
+        formatError(caught, "Could not delete your account"),
       );
       setBusy(false);
     }

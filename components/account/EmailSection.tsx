@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
@@ -48,7 +49,7 @@ export function EmailSection() {
       setConfirmRemove(null);
     } catch (caught) {
       setServerError(
-        caught instanceof Error ? caught.message : "Could not remove email",
+        formatError(caught, "Could not remove email"),
       );
     } finally {
       setBusyId(null);
@@ -64,7 +65,7 @@ export function EmailSection() {
       setSavedMessage("Primary email updated.");
     } catch (caught) {
       setServerError(
-        caught instanceof Error ? caught.message : "Could not update primary email",
+        formatError(caught, "Could not update primary email"),
       );
     } finally {
       setBusyId(null);

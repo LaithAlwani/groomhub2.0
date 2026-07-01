@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
@@ -72,7 +73,7 @@ export function DayOverrideDialog({
       }
       await onSetCustom(sorted);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save");
+      setError(formatError(caught, "Could not save"));
     }
   }
 

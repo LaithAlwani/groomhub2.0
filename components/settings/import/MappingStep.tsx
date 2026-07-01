@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useMemo, useState } from "react";
 import { useAction } from "convex/react";
@@ -172,7 +173,7 @@ export function MappingStep({
       }
     } catch (caught) {
       setAiError(
-        caught instanceof Error ? caught.message : "AI suggestion failed.",
+        formatError(caught, "AI suggestion failed."),
       );
     } finally {
       setAiBusy(false);

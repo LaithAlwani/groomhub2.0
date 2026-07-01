@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useRef, useState } from "react";
 import { useMutation } from "convex/react";
@@ -81,7 +82,7 @@ export function PetImageUploader({
       }
       onUploaded(storageId, localPreviewUrl);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not upload");
+      setError(formatError(caught, "Could not upload"));
     } finally {
       setBusy(false);
     }
@@ -95,7 +96,7 @@ export function PetImageUploader({
       if (petId) await setImage({ id: petId, storageId: null });
       onCleared();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not remove");
+      setError(formatError(caught, "Could not remove"));
     } finally {
       setBusy(false);
     }

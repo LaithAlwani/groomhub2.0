@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -149,9 +150,7 @@ export function SignConsentDialog({
         await deleteOrphan({ storageId: uploadedPdfId }).catch(() => {});
       }
       setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not save the signature",
+        formatError(caught, "Could not save the signature"),
       );
     } finally {
       setSubmitting(false);

@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useMemo, useState } from "react";
 import { WEEKDAYS_SHORT } from "@/lib/time";
@@ -142,7 +143,7 @@ export function WeeklyTimelineEditor({
       await onSave(flat);
       setDirty(false);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save");
+      setError(formatError(caught, "Could not save"));
     }
   }
 

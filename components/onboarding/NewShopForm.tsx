@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useState } from "react";
 import { useOrganizationList } from "@clerk/nextjs";
@@ -103,7 +104,7 @@ export function NewShopForm({
       window.location.assign("/dashboard");
     } catch (caught) {
       onSubmitError(
-        caught instanceof Error ? caught.message : "Could not create your shop",
+        formatError(caught, "Could not create your shop"),
       );
     }
   }

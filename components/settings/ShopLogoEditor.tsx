@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useRef, useState } from "react";
 import { useMutation } from "convex/react";
@@ -59,7 +60,7 @@ export function ShopLogoEditor({
       };
       await setLogo({ storageId });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not upload");
+      setError(formatError(caught, "Could not upload"));
     } finally {
       setBusy(false);
     }

@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -170,7 +171,7 @@ export function ClientFormDialog({
       }
       onClose();
     } catch (caught) {
-      setServerError(caught instanceof Error ? caught.message : "Could not save");
+      setServerError(formatError(caught, "Could not save"));
     } finally {
       setSubmitting(false);
     }

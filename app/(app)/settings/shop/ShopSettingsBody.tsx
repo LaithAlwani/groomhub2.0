@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import { useOrganization } from "@clerk/nextjs";
@@ -95,7 +96,7 @@ export function ShopSettingsBody() {
       setSavedAt(Date.now());
     } catch (caught) {
       setServerError(
-        caught instanceof Error ? caught.message : "Could not save",
+        formatError(caught, "Could not save"),
       );
     } finally {
       setSubmitting(false);

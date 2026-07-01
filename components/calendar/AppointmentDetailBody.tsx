@@ -3,14 +3,23 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
+import { useOrganization } from "@clerk/nextjs";
 import { ArrowLeft, CalendarDays, MapPin, Pencil, User } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { mapClerkOrgRole } from "@/convex/lib/roles";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
 import { AppointmentDialog } from "./AppointmentDialog";
 import { AppointmentImagesSection } from "./AppointmentImagesSection";
 import { AppointmentReleaseSection } from "./AppointmentReleaseSection";
 import { AppointmentStatusControl } from "./AppointmentStatusControl";
+import { AppointmentTotalPrice } from "./AppointmentTotalPrice";
+import {
+  AppointmentDetailSkeleton,
+  Detail,
+  formatDateTime,
+  formatTime,
+} from "./appointmentDetailParts";
 
 /**
  * Appointment detail / working page. Hosts the documentation side of an
@@ -24,6 +33,9 @@ export function AppointmentDetailBody({
   appointmentId: Id<"appointments">;
 }) {
   const appointment = useQuery(api.appointments.get, { id: appointmentId });
+  const me = useQuery(api.users.me);
+  const { membership } = useOrganization();
+  const role = mapClerkOrgRole(membership?.role ?? null);
   const { current, locations } = useCurrentLocation();
   const showLocation = locations.length > 1;
   const timezone =
@@ -33,7 +45,7 @@ export function AppointmentDetailBody({
       : "UTC");
   const [editing, setEditing] = useState(false);
 
-  if (appointment === undefined) return <DetailSkeleton />;
+  if (appointment === undefined) return <AppointmentDetailSkeleton />;
   if (appointment === null) {
     return (
       <p className="mt-6 rounded-lg border border-zinc-200 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
@@ -41,6 +53,14 @@ export function AppointmentDetailBody({
       </p>
     );
   }
+
+  // Editing opens the dialog, whose slot picker reads the assigned groomer's
+  // availability — staff may only view their own. So only admins or the
+  // assigned groomer can edit; others just see a note.
+  const canEdit =
+    role === "admin" ||
+    role === "superAdmin" ||
+    me?.membership?._id === appointment.staffId;
 
   return (
     <>
@@ -93,14 +113,28 @@ export function AppointmentDetailBody({
               )}
             </dl>
           </div>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
-          >
-            <Pencil size={14} />
-            Edit
-          </button>
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+            >
+              <Pencil size={14} />
+              Edit
+            </button>
+          ) : (
+            <span className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
+              Only the assigned groomer or an admin can edit this booking.
+            </span>
+          )}
+        </div>
+        <div className="mt-4 border-t border-zinc-200/70 pt-4 dark:border-zinc-800/70">
+          <AppointmentTotalPrice
+            appointmentId={appointment._id}
+            baseCents={appointment.priceCentsSnapshot}
+            overrideCents={appointment.totalPriceCents}
+            currency={appointment.serviceCurrency}
+          />
         </div>
         {appointment.notes && (
           <p className="mt-4 whitespace-pre-line rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-300">
@@ -122,7 +156,7 @@ export function AppointmentDetailBody({
         petId={appointment.petId}
       />
 
-      {editing && (
+      {editing && canEdit && (
         <AppointmentDialog
           appointmentId={appointment._id}
           locationTimezone={timezone}
@@ -130,48 +164,5 @@ export function AppointmentDetailBody({
         />
       )}
     </>
-  );
-}
-
-function Detail({
-  icon,
-  children,
-}: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <dd className="flex items-center gap-2">
-      <span className="text-zinc-400" aria-hidden>
-        {icon}
-      </span>
-      <span>{children}</span>
-    </dd>
-  );
-}
-
-function formatDateTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function DetailSkeleton() {
-  return (
-    <div className="mt-6 flex flex-col gap-4">
-      <div className="h-40 w-full animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-900" />
-      <div className="h-48 w-full animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-900" />
-    </div>
   );
 }

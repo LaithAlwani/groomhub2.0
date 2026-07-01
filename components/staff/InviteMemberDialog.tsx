@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import { useOrganization } from "@clerk/nextjs";
@@ -92,7 +93,7 @@ export function InviteMemberDialog({
       onClose();
     } catch (caught) {
       setServerError(
-        caught instanceof Error ? caught.message : "Could not send invitation",
+        formatError(caught, "Could not send invitation"),
       );
     } finally {
       setSubmitting(false);

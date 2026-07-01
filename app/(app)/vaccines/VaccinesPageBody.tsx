@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -39,7 +40,7 @@ export function VaccinesPageBody({ canDelete }: { canDelete: boolean }) {
       setConfirmTarget(null);
     } catch (caught) {
       setErrorMessage(
-        caught instanceof Error ? caught.message : "Could not delete",
+        formatError(caught, "Could not delete"),
       );
       setConfirmTarget(null);
     } finally {

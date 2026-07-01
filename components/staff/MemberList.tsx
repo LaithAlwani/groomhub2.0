@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import { useOrganization, useUser } from "@clerk/nextjs";
@@ -104,7 +105,7 @@ export function MemberList() {
       setConfirmTarget(null);
     } catch (caught) {
       setRemoveError(
-        caught instanceof Error ? caught.message : "Could not remove member",
+        formatError(caught, "Could not remove member"),
       );
       setConfirmTarget(null);
     } finally {

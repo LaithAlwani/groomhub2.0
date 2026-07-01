@@ -539,6 +539,30 @@ export const updateNotes = mutation({
   },
 });
 
+/**
+ * Set (or clear) the manual total-price override on an appointment. Passing
+ * `undefined` reverts to the service base price. Same own-row rule as
+ * `updateNotes`.
+ */
+export const updateTotalPrice = mutation({
+  args: {
+    id: v.id("appointments"),
+    totalPriceCents: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Pricing is a front-desk/checkout action — any staff+ in the org can set
+    // it (not restricted to the assigned groomer like notes/photos).
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    const existing = await loadOwnAppointment(ctx, args.id, orgId);
+    if (args.totalPriceCents !== undefined && args.totalPriceCents < 0) {
+      appError("VALIDATION", { field: "totalPriceCents", reason: "NEGATIVE" });
+    }
+    await ctx.db.patch(existing._id, {
+      totalPriceCents: args.totalPriceCents,
+    });
+  },
+});
+
 const imageStageValidator = v.union(v.literal("before"), v.literal("after"));
 const MAX_IMAGES_PER_STAGE = 12;
 
@@ -738,6 +762,7 @@ export type EnrichedAppointment = Doc<"appointments"> & {
   staffName: string;
   serviceName: string;
   serviceColor?: string;
+  serviceCurrency: string;
   serviceDurationMin: number;
   // Snapshot of the location row at read time. `locationName` falls back to
   // a generic label if the location was soft-deleted so historical rows
@@ -787,6 +812,7 @@ async function enrichAppointment(
     staffName,
     serviceName: service?.name ?? "Removed service",
     serviceColor: service?.color,
+    serviceCurrency: service?.currency || "USD",
     serviceDurationMin: service?.durationMin ?? 60,
     locationName: location?.name ?? "Removed location",
     beforeImages,

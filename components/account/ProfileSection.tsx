@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
@@ -62,7 +63,7 @@ export function ProfileSection() {
       setSavedMessage("Profile updated.");
     } catch (caught) {
       setServerError(
-        caught instanceof Error ? caught.message : "Could not save your profile",
+        formatError(caught, "Could not save your profile"),
       );
     } finally {
       setSaving(false);
@@ -80,7 +81,7 @@ export function ProfileSection() {
       setSavedMessage("Photo updated.");
     } catch (caught) {
       setServerError(
-        caught instanceof Error ? caught.message : "Could not update photo",
+        formatError(caught, "Could not update photo"),
       );
     } finally {
       setSaving(false);

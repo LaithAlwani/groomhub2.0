@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
@@ -86,7 +87,7 @@ export function PasswordSection() {
       setSavedMessage("Password updated.");
     } catch (caught) {
       setServerError(
-        caught instanceof Error ? caught.message : "Could not update password",
+        formatError(caught, "Could not update password"),
       );
     } finally {
       setSaving(false);

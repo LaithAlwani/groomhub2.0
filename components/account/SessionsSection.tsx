@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import { useSession, useUser } from "@clerk/nextjs";
@@ -56,7 +57,7 @@ export function SessionsSection() {
       await reload();
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not revoke session",
+        formatError(caught, "Could not revoke session"),
       );
     } finally {
       setBusyId(null);
@@ -74,7 +75,7 @@ export function SessionsSection() {
       setConfirmRevokeAll(false);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not revoke sessions",
+        formatError(caught, "Could not revoke sessions"),
       );
     } finally {
       setBusyId(null);

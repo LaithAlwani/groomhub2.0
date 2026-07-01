@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useRef, useState } from "react";
 import { useMutation } from "convex/react";
@@ -75,7 +76,7 @@ export function ConsentTemplateSourceFields({
       onUploaded(storageId, file.name);
     } catch (caught) {
       setUploadError(
-        caught instanceof Error ? caught.message : "Could not upload",
+        formatError(caught, "Could not upload"),
       );
     } finally {
       setUploading(false);

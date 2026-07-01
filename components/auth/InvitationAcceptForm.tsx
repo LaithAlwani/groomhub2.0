@@ -1,4 +1,5 @@
 "use client";
+import { formatError } from "@/lib/formatError";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -131,9 +132,7 @@ export function InvitationAcceptForm({
       onAccepted();
     } catch (caught) {
       const message =
-        caught instanceof Error
-          ? caught.message
-          : "Could not accept the invitation";
+        formatError(caught, "Could not accept the invitation");
       setServerError(message);
       onError(message);
     } finally {
