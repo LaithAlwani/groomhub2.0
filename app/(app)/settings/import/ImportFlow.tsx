@@ -2,93 +2,58 @@
 
 import { useMemo, useState } from "react";
 import { Check, ChevronRight } from "lucide-react";
-import {
-  type ColumnMapping,
-  type ImportMode,
-  type PreviewRow,
-  detectImportMode,
-  suggestMapping,
-} from "@/lib/import/applyMapping";
+import type { ClientImport } from "@/lib/import/parseImport";
 import { UploadStep } from "@/components/settings/import/UploadStep";
-import { MappingStep } from "@/components/settings/import/MappingStep";
 import { PreviewStep } from "@/components/settings/import/PreviewStep";
 import { CommitStep } from "@/components/settings/import/CommitStep";
 
 /**
- * Four-step wizard for the legacy data importer.
- *   1. Upload      — file pick + parse → headers + rows.
- *   2. Mapping     — radio for mode + dropdown per source column.
- *   3. Preview     — apply mapping, flag duplicates, let user resolve.
- *   4. Commit      — batched mutation calls with progress.
+ * Three-step importer. The file is assumed to already match the import
+ * schema (see `lib/import/parseImport.ts`), so there is no column-mapping
+ * step:
+ *   1. Upload   — pick a JSON / CSV file → typed `ClientImport[]`.
+ *   2. Preview  — show the first handful of clients (pets + legacy history).
+ *   3. Save     — batched mutation calls with progress.
  * All state lives here; each step component is a controlled view.
  */
-type Step = "upload" | "mapping" | "preview" | "commit";
-
-type Parsed = { headers: string[]; rows: Record<string, string>[] };
+type Step = "upload" | "preview" | "commit";
 
 const STEP_ORDER: ReadonlyArray<{ key: Step; label: string }> = [
   { key: "upload", label: "Upload" },
-  { key: "mapping", label: "Map columns" },
   { key: "preview", label: "Preview" },
-  { key: "commit", label: "Import" },
+  { key: "commit", label: "Save" },
 ];
 
 export function ImportFlow() {
   const [step, setStep] = useState<Step>("upload");
   const [sourceSystem, setSourceSystem] = useState("");
-  const [parsed, setParsed] = useState<Parsed | null>(null);
-  const [mode, setMode] = useState<ImportMode>("clientsAndPets");
-  const [mapping, setMapping] = useState<ColumnMapping>({});
-  // Preview is owned here so resolutions survive Back → Preview round-trips.
-  const [preview, setPreview] = useState<PreviewRow[] | null>(null);
+  const [clients, setClients] = useState<ClientImport[] | null>(null);
+  // The exact subset handed to the commit step — the whole file, or just the
+  // first N when the user picks the "test import" option on the preview.
+  const [commitClients, setCommitClients] = useState<ClientImport[] | null>(
+    null,
+  );
 
   const stepIndex = useMemo(
     () => STEP_ORDER.findIndex((entry) => entry.key === step),
     [step],
   );
 
-  function handleParsed(next: Parsed) {
-    setParsed(next);
-    // Auto-detect the right mode from the file's headers so the radio
-    // opens on the correct option without the user clicking through.
-    const detected = detectImportMode(next.headers);
-    setMode(detected);
-    setMapping(suggestMapping(next.headers, detected));
-    setPreview(null);
-    setStep("mapping");
-  }
-
-  function handleModeChange(next: ImportMode, mappingOverride?: ColumnMapping) {
-    setMode(next);
-    // `mappingOverride` lets callers (e.g. the AI suggest button) hand us
-    // a mode + mapping atomically. Without it we reset to the heuristic
-    // map for the new mode, since the previous mapping's targets may not
-    // be valid for the mode the user just picked.
-    if (parsed) {
-      setMapping(mappingOverride ?? suggestMapping(parsed.headers, next));
-    }
-    setPreview(null);
-  }
-
-  function handleMappingContinue() {
-    setPreview(null);
+  function handleParsed(next: ClientImport[]) {
+    setClients(next);
     setStep("preview");
   }
 
-  function handlePreviewBack() {
-    setStep("mapping");
-  }
-
-  function handlePreviewContinue(rows: PreviewRow[]) {
-    setPreview(rows);
+  function handleContinue(limit?: number) {
+    if (!clients) return;
+    setCommitClients(limit ? clients.slice(0, limit) : clients);
     setStep("commit");
   }
 
   function handleStartOver() {
     setStep("upload");
-    setParsed(null);
-    setMapping({});
-    setPreview(null);
+    setClients(null);
+    setCommitClients(null);
     setSourceSystem("");
   }
 
@@ -98,6 +63,11 @@ export function ImportFlow() {
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
           Import data
         </h1>
+        <p className="max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
+          Upload a JSON or CSV file that already matches the import schema. We
+          show a preview of the first few clients — with their pets and legacy
+          appointments — then save everything to your database.
+        </p>
       </header>
 
       <StepRail currentIndex={stepIndex} />
@@ -110,31 +80,16 @@ export function ImportFlow() {
             onParsed={handleParsed}
           />
         )}
-        {step === "mapping" && parsed && (
-          <MappingStep
-            headers={parsed.headers}
-            rows={parsed.rows}
-            mode={mode}
-            mapping={mapping}
-            onModeChange={handleModeChange}
-            onMappingChange={setMapping}
-            onContinue={handleMappingContinue}
-            onBack={() => setStep("upload")}
-          />
-        )}
-        {step === "preview" && parsed && (
+        {step === "preview" && clients && (
           <PreviewStep
-            mode={mode}
-            rows={parsed.rows}
-            mapping={mapping}
-            initialPreview={preview}
-            onBack={handlePreviewBack}
-            onContinue={handlePreviewContinue}
+            clients={clients}
+            onBack={() => setStep("upload")}
+            onContinue={handleContinue}
           />
         )}
-        {step === "commit" && preview && (
+        {step === "commit" && commitClients && (
           <CommitStep
-            preview={preview}
+            clients={commitClients}
             sourceSystem={sourceSystem}
             onStartOver={handleStartOver}
           />

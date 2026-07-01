@@ -538,6 +538,87 @@ export const reschedule = mutation({
 });
 
 /**
+ * Edit the "log a visit" fields of an existing appointment — pet, service,
+ * price, and notes — without touching its date/time/staff/status. Powers the
+ * simplified edit form on the appointment detail page. Staff can only edit
+ * their own appointment; admin/superAdmin can edit any in their org.
+ *
+ * The charged amount is treated like a logged visit: it lands on
+ * `priceCentsSnapshot` and any manual `totalPriceCents` override is cleared,
+ * so the detail page's total reflects exactly what was entered here. `endTime`
+ * is re-derived from the (possibly new) service's effective duration.
+ */
+export const editDetails = mutation({
+  args: {
+    id: v.id("appointments"),
+    petId: v.id("pets"),
+    serviceId: v.id("services"),
+    priceCents: v.optional(v.number()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx);
+    const { role } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    const existing = await loadOwnAppointment(ctx, args.id, identity.orgId);
+    if (role === "staff") {
+      const { membership } = await ensureMembership(ctx, identity);
+      if (existing.staffId !== membership._id) {
+        appError("FORBIDDEN", { reason: "NOT_OWN_APPOINTMENT" });
+      }
+    }
+
+    const pet = await ctx.db.get(args.petId);
+    if (!pet || pet.orgId !== identity.orgId) {
+      appError("NOT_FOUND", { reason: "PET_NOT_FOUND" });
+    }
+    // Only enforce ownership + deceased/banned when actually switching pets, so
+    // editing price/notes still works if the appointment's pet later became
+    // blocked. The pet must belong to the appointment's client either way.
+    if (args.petId !== existing.petId) {
+      if (pet.clientId !== existing.clientId) {
+        appError("VALIDATION", { field: "petId", reason: "PET_WRONG_CLIENT" });
+      }
+      if (pet.isDeceased === true) {
+        appError("VALIDATION", { field: "petId", reason: "PET_DECEASED" });
+      }
+      if (pet.isBanned === true) {
+        appError("VALIDATION", { field: "petId", reason: "PET_BANNED" });
+      }
+    }
+
+    const service = await ctx.db.get(args.serviceId);
+    if (!service || service.orgId !== identity.orgId) {
+      appError("NOT_FOUND", { reason: "SERVICE_NOT_FOUND" });
+    }
+    if (args.priceCents !== undefined && args.priceCents < 0) {
+      appError("VALIDATION", { field: "priceCents", reason: "NEGATIVE" });
+    }
+
+    // Re-derive endTime + list price from the service's per-location override
+    // (if any), mirroring what the booking flow uses.
+    const override = await ctx.db
+      .query("serviceLocationOverrides")
+      .withIndex("by_service_location", (index) =>
+        index
+          .eq("serviceId", service._id)
+          .eq("locationId", existing.locationId),
+      )
+      .unique();
+    const effectiveDuration = override?.durationMin ?? service.durationMin;
+    const effectivePrice = override?.priceCents ?? service.priceCents;
+    const durationMin = effectiveDuration > 0 ? effectiveDuration : 30;
+    await ctx.db.patch(existing._id, {
+      petId: pet._id,
+      serviceId: service._id,
+      endTime: existing.startTime + durationMin * 60 * 1000,
+      priceCentsSnapshot: args.priceCents ?? effectivePrice,
+      totalPriceCents: undefined,
+      notes: args.notes?.trim() || undefined,
+    });
+  },
+});
+
+/**
  * Update an appointment's status (no time change). Staff can only update their
  * own appointment; admin/superAdmin can update any.
  */
@@ -620,30 +701,6 @@ export const updateNotes = mutation({
     }
     await ctx.db.patch(existing._id, {
       notes: args.notes?.trim() || undefined,
-    });
-  },
-});
-
-/**
- * Set (or clear) the manual total-price override on an appointment. Passing
- * `undefined` reverts to the service base price. Same own-row rule as
- * `updateNotes`.
- */
-export const updateTotalPrice = mutation({
-  args: {
-    id: v.id("appointments"),
-    totalPriceCents: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Pricing is a front-desk/checkout action — any staff+ in the org can set
-    // it (not restricted to the assigned groomer like notes/photos).
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
-    const existing = await loadOwnAppointment(ctx, args.id, orgId);
-    if (args.totalPriceCents !== undefined && args.totalPriceCents < 0) {
-      appError("VALIDATION", { field: "totalPriceCents", reason: "NEGATIVE" });
-    }
-    await ctx.db.patch(existing._id, {
-      totalPriceCents: args.totalPriceCents,
     });
   },
 });

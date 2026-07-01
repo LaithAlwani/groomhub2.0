@@ -20,6 +20,7 @@ export function PetPicker({
   disabled,
   onCreateNew,
   error,
+  autoSelectSingle,
 }: {
   clientId: Id<"clients"> | null;
   value: Id<"pets"> | null;
@@ -27,6 +28,9 @@ export function PetPicker({
   disabled?: boolean;
   onCreateNew?: () => void;
   error?: string;
+  // When set, and the client has exactly one bookable pet, select it
+  // automatically so single-pet clients need no extra tap.
+  autoSelectSingle?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -34,6 +38,16 @@ export function PetPicker({
     api.pets.listForClient,
     clientId ? { clientId } : "skip",
   );
+
+  useEffect(() => {
+    if (!autoSelectSingle || value !== null || !pets) return;
+    // Deceased / banned pets can't be booked, so only auto-pick when there's
+    // exactly one otherwise-eligible pet on file.
+    const selectable = pets.filter(
+      (pet) => pet.isDeceased !== true && pet.isBanned !== true,
+    );
+    if (selectable.length === 1) onChange(selectable[0]._id);
+  }, [autoSelectSingle, value, pets, onChange]);
 
   useEffect(() => {
     if (!open) return;

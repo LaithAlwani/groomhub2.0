@@ -9,15 +9,15 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { mapClerkOrgRole } from "@/convex/lib/roles";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
-import { AppointmentDialog } from "./AppointmentDialog";
+import { EditVisitDialog } from "./EditVisitDialog";
 import { AppointmentImagesSection } from "./AppointmentImagesSection";
 import { AppointmentReleaseSection } from "./AppointmentReleaseSection";
 import { AppointmentStatusControl } from "./AppointmentStatusControl";
-import { AppointmentTotalPrice } from "./AppointmentTotalPrice";
 import {
   AppointmentDetailSkeleton,
   Detail,
   formatDateTime,
+  formatMoney,
   formatTime,
 } from "./appointmentDetailParts";
 
@@ -36,13 +36,8 @@ export function AppointmentDetailBody({
   const me = useQuery(api.users.me);
   const { membership } = useOrganization();
   const role = mapClerkOrgRole(membership?.role ?? null);
-  const { current, locations } = useCurrentLocation();
+  const { locations } = useCurrentLocation();
   const showLocation = locations.length > 1;
-  const timezone =
-    current?.timezone ??
-    (typeof Intl !== "undefined"
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone
-      : "UTC");
   const [editing, setEditing] = useState(false);
 
   if (appointment === undefined) return <AppointmentDetailSkeleton />;
@@ -129,12 +124,15 @@ export function AppointmentDetailBody({
           )}
         </div>
         <div className="mt-4 border-t border-zinc-200/70 pt-4 dark:border-zinc-800/70">
-          <AppointmentTotalPrice
-            appointmentId={appointment._id}
-            baseCents={appointment.priceCentsSnapshot}
-            overrideCents={appointment.totalPriceCents}
-            currency={appointment.serviceCurrency}
-          />
+          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Total
+          </span>
+          <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            {formatMoney(
+              appointment.totalPriceCents ?? appointment.priceCentsSnapshot,
+              appointment.serviceCurrency,
+            )}
+          </p>
         </div>
         {appointment.notes && (
           <p className="mt-4 whitespace-pre-line rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-300">
@@ -157,9 +155,8 @@ export function AppointmentDetailBody({
       />
 
       {editing && canEdit && (
-        <AppointmentDialog
+        <EditVisitDialog
           appointmentId={appointment._id}
-          locationTimezone={timezone}
           onClose={() => setEditing(false)}
         />
       )}

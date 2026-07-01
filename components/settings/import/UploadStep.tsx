@@ -2,13 +2,14 @@
 import { formatError } from "@/lib/formatError";
 
 import { useCallback, useRef, useState } from "react";
-import { FileSpreadsheet, FileText, Loader2, Upload } from "lucide-react";
-import { parseFile, type ParsedFile } from "@/lib/import/parseFile";
+import { Loader2, Upload } from "lucide-react";
+import { parseImport, type ClientImport } from "@/lib/import/parseImport";
 
 /**
- * Step 1 — file drop / pick. Hands the parsed `{ headers, rows }` back to
- * the parent. Accepts CSV / Excel / JSON / XML; bigger formats are dynamic-
- * imported inside `parseFile` so the bundle cost only lands when needed.
+ * Step 1 — file drop / pick. Parses a JSON or CSV file that already matches
+ * the import schema and hands the typed `ClientImport[]` back to the parent.
+ * papaparse (CSV) is dynamic-imported inside `parseImport` so it only loads
+ * when a CSV is actually chosen.
  */
 export function UploadStep({
   sourceSystem,
@@ -17,7 +18,7 @@ export function UploadStep({
 }: {
   sourceSystem: string;
   onSourceSystemChange: (next: string) => void;
-  onParsed: (parsed: ParsedFile) => void;
+  onParsed: (clients: ClientImport[]) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,15 +31,10 @@ export function UploadStep({
       setErrorMessage(null);
       setBusy(true);
       try {
-        const parsed = await parseFile(file);
-        if (parsed.rows.length === 0) {
-          throw new Error("The file is empty or has no readable rows.");
-        }
-        onParsed(parsed);
+        const clients = await parseImport(file);
+        onParsed(clients);
       } catch (caught) {
-        setErrorMessage(
-          formatError(caught, "Could not parse file."),
-        );
+        setErrorMessage(formatError(caught, "Could not parse file."));
       } finally {
         setBusy(false);
       }
@@ -92,14 +88,14 @@ export function UploadStep({
             Drop a file here, or click to choose
           </p>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            CSV · Excel (.xlsx) · JSON · XML — up to 50 MB
+            JSON or CSV matching the import schema — up to 50 MB
           </p>
         </div>
         <input
           ref={inputRef}
           type="file"
           className="hidden"
-          accept=".csv,.xlsx,.xls,.json,.xml,text/csv,application/json,application/xml,text/xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          accept=".json,.csv,application/json,text/csv"
           onChange={(event) => void handleFile(event.target.files?.[0])}
         />
         <button
@@ -119,44 +115,20 @@ export function UploadStep({
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <FormatCard
-          icon={<FileText size={14} />}
-          title="Clients + pets"
-          body="One row per client, optionally with one pet attached. Lands in the regular Clients / Pets tables."
-        />
-        <FormatCard
-          icon={<FileSpreadsheet size={14} />}
-          title="Appointment history"
-          body="One row per past visit. Looked up against an existing client by email or phone and stored as read-only history."
-        />
-      </div>
-    </div>
-  );
-}
-
-function FormatCard({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <span
-        aria-hidden
-        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
-      >
-        {icon}
-      </span>
-      <div>
-        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {title}
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+        <p className="font-semibold text-zinc-700 dark:text-zinc-200">
+          Expected shape
         </p>
-        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{body}</p>
+        <p className="mt-1">
+          A top-level array of clients. Each client may carry a{" "}
+          <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">pets</code>{" "}
+          array and a{" "}
+          <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">
+            legacyAppointments
+          </code>{" "}
+          array. Fields use the same names as the client, pet, and legacy
+          appointment records.
+        </p>
       </div>
     </div>
   );

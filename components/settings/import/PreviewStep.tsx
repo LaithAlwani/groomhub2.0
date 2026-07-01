@@ -1,431 +1,186 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
-import { AlertTriangle, ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
-import {
-  buildPreview,
-  type ColumnMapping,
-  type ImportMode,
-  type PreviewIssue,
-  type PreviewRow,
-} from "@/lib/import/applyMapping";
+import { ArrowLeft, PawPrint, History } from "lucide-react";
+import type { ClientImport } from "@/lib/import/parseImport";
+import { formatPhone } from "@/lib/phone";
 
 /**
- * Step 3 — apply the mapping to all rows, look up existing clients for
- * history mode, flag duplicates, and let the user pick Skip vs Insert as
- * new on a per-row basis. The committed result is handed back to the
- * parent (which advances to the Commit step).
- *
- * Duplicate detection is one round-trip: collect every email + phone in
- * the file, ask the server which already exist, then build a `Set` for
- * O(1) row-by-row checks during `buildPreview`.
+ * Step 2 — show the first handful of parsed clients so the user can eyeball
+ * that the file mapped correctly (contact details, pets, and legacy
+ * appointment history), then save the whole set to the database.
  */
+const PREVIEW_LIMIT = 8;
+// Cap legacy appointments shown per client card so heavy-history clients
+// (some have 20+) don't blow up the preview. The full set is still imported.
+const LEGACY_LIMIT = 5;
+// Size of the "test import" — save just the first N clients to sanity-check
+// the whole pipeline against a real database without committing thousands.
+const TEST_LIMIT = 50;
+
 export function PreviewStep({
-  mode,
-  rows,
-  mapping,
-  initialPreview,
+  clients,
   onBack,
   onContinue,
 }: {
-  mode: ImportMode;
-  rows: Record<string, string>[];
-  mapping: ColumnMapping;
-  initialPreview: PreviewRow[] | null;
+  clients: ClientImport[];
   onBack: () => void;
-  onContinue: (rows: PreviewRow[]) => void;
+  onContinue: (limit?: number) => void;
 }) {
-  const { emails, phones } = useMemo(
-    () => collectEmailsAndPhones(rows, mapping, mode),
-    [rows, mapping, mode],
+  const preview = clients.slice(0, PREVIEW_LIMIT);
+  const petCount = clients.reduce((sum, client) => sum + client.pets.length, 0);
+  const legacyCount = clients.reduce(
+    (sum, client) => sum + client.legacyAppointments.length,
+    0,
   );
-  const duplicates = useQuery(api.imports.checkDuplicates, { emails, phones });
-  const clientLookupSeed = useMemo(
-    () =>
-      mode === "appointmentHistory"
-        ? { emails, phones }
-        : { emails: [], phones: [] },
-    [mode, emails, phones],
-  );
-  const clientMatches = useQuery(
-    api.imports.matchClients,
-    clientLookupSeed.emails.length === 0 && clientLookupSeed.phones.length === 0
-      ? "skip"
-      : clientLookupSeed,
-  );
-
-  const [preview, setPreview] = useState<PreviewRow[] | null>(initialPreview);
-
-  useEffect(() => {
-    if (duplicates === undefined) return;
-    if (mode === "appointmentHistory" && clientMatches === undefined) return;
-    const knownEmails = new Set(duplicates.emails);
-    const knownPhones = new Set(duplicates.phones);
-    const lookup = new Map<string, { id: Id<"clients">; fullName: string }>();
-    if (clientMatches) {
-      for (const entry of clientMatches) {
-        if (entry.email) lookup.set(entry.email, { id: entry.id, fullName: entry.fullName });
-        if (entry.phone) lookup.set(entry.phone, { id: entry.id, fullName: entry.fullName });
-      }
-    }
-    setPreview(
-      buildPreview({
-        mode,
-        rows,
-        mapping,
-        knownEmails,
-        knownPhones,
-        clientLookup: lookup,
-      }),
-    );
-  }, [duplicates, clientMatches, mode, rows, mapping]);
-
-  if (!preview) {
-    return (
-      <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-        Building preview…
-      </div>
-    );
-  }
-
-  const summary = summarize(preview);
-
-  function setResolution(rowId: string, value: PreviewRow["resolution"]) {
-    setPreview((current) =>
-      current
-        ? current.map((row) =>
-            row.rowId === rowId ? { ...row, resolution: value } : row,
-          )
-        : current,
-    );
-  }
 
   return (
     <div className="flex flex-col gap-6">
-      <SummaryBar summary={summary} />
-
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="grid grid-cols-[40px_1.4fr_1.6fr_1.2fr_1fr] items-center gap-2 border-b border-zinc-200 bg-zinc-900 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 dark:border-zinc-800">
-          <span>#</span>
-          <span>Client</span>
-          <span>Details</span>
-          <span>Issues</span>
-          <span className="text-right">Action</span>
-        </div>
-        <ul className="max-h-[480px] overflow-y-auto">
-          {preview.map((row, index) => (
-            <PreviewRowItem
-              key={row.rowId}
-              row={row}
-              index={index}
-              mode={mode}
-              onResolutionChange={setResolution}
-            />
-          ))}
-        </ul>
+      <div className="flex flex-wrap gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/60">
+        <Tile label="Clients" value={clients.length} />
+        <Tile label="Pets" value={petCount} />
+        <Tile label="Legacy appointments" value={legacyCount} />
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          Showing the first {preview.length} of {clients.length} client
+          {clients.length === 1 ? "" : "s"}
+        </p>
+        {preview.map((client, index) => (
+          <ClientCard key={index} client={client} />
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <button
           type="button"
           onClick={onBack}
           className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
         >
           <ArrowLeft size={14} />
-          Back to mapping
+          Choose a different file
         </button>
-        <button
-          type="button"
-          onClick={() => onContinue(preview)}
-          disabled={summary.insertable === 0}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#00273c] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#013a58] disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800"
-        >
-          Import {summary.insertable} row{summary.insertable === 1 ? "" : "s"}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          {clients.length > TEST_LIMIT && (
+            <button
+              type="button"
+              onClick={() => onContinue(TEST_LIMIT)}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#00273c] px-4 py-2 text-sm font-medium text-[#00273c] transition-colors hover:bg-[#00273c]/5 dark:border-orange-300 dark:text-orange-200 dark:hover:bg-orange-950/20"
+            >
+              Save first {TEST_LIMIT} only (test)
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onContinue()}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#00273c] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#013a58]"
+          >
+            Save {clients.length === 1 ? "1 client" : `all ${clients.length} clients`}{" "}
+            to database
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function SummaryBar({ summary }: { summary: PreviewSummary }) {
-  return (
-    <div className="flex flex-wrap gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/60">
-      <Tile label="Total rows" value={summary.total} tone="neutral" />
-      <Tile label="Ready" value={summary.insertable} tone="ok" />
-      <Tile label="Conflicts" value={summary.conflicts} tone="warn" />
-      <Tile label="Errors" value={summary.errors} tone="bad" />
-    </div>
-  );
+function truncate(value: string, max: number): string {
+  const trimmed = value.trim();
+  return trimmed.length > max ? `${trimmed.slice(0, max)}…` : trimmed;
 }
 
-function Tile({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "neutral" | "ok" | "warn" | "bad";
-}) {
-  const palette = {
-    neutral: "text-zinc-900 dark:text-zinc-100",
-    ok: "text-emerald-700 dark:text-emerald-300",
-    warn: "text-amber-700 dark:text-amber-300",
-    bad: "text-red-700 dark:text-red-300",
-  }[tone];
+function Tile({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex flex-col">
       <span className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         {label}
       </span>
-      <span className={`text-lg font-semibold ${palette}`}>{value}</span>
+      <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+        {value}
+      </span>
     </div>
   );
 }
 
-function PreviewRowItem({
-  row,
-  index,
-  mode,
-  onResolutionChange,
-}: {
-  row: PreviewRow;
-  index: number;
-  mode: ImportMode;
-  onResolutionChange: (rowId: string, value: PreviewRow["resolution"]) => void;
-}) {
-  const isDup =
-    row.issues.includes("duplicate-email") ||
-    row.issues.includes("duplicate-phone");
-  const isError = hasBlockingError(row.issues);
-
+function ClientCard({ client }: { client: ClientImport }) {
+  const contact = [
+    client.email,
+    client.phone ? formatPhone(client.phone) : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <li className="grid grid-cols-[40px_1.4fr_1.6fr_1.2fr_1fr] items-center gap-2 border-b border-zinc-100 px-4 py-3 last:border-b-0 dark:border-zinc-900">
-      <span className="text-xs text-zinc-400 dark:text-zinc-500">
-        {index + 1}
-      </span>
-      <ClientCell row={row} mode={mode} />
-      <DetailsCell row={row} mode={mode} />
-      <IssuesCell issues={row.issues} />
-      <div className="flex justify-end">
-        {isError ? (
-          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
-            Skipped
-          </span>
-        ) : isDup ? (
-          <select
-            value={row.resolution}
-            onChange={(event) =>
-              onResolutionChange(
-                row.rowId,
-                event.target.value as PreviewRow["resolution"],
-              )
-            }
-            className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-          >
-            <option value="skip">Skip</option>
-            <option value="insertNew">Insert as new</option>
-          </select>
-        ) : (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-            Ready
-          </span>
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {client.fullName || (
+            <span className="italic text-red-500">Missing name</span>
+          )}
+        </p>
+        {contact && (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">{contact}</p>
         )}
       </div>
-    </li>
-  );
-}
 
-function ClientCell({ row, mode }: { row: PreviewRow; mode: ImportMode }) {
-  if (mode === "appointmentHistory") {
-    if (row.matchedClient) {
-      return (
-        <div>
-          <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            {row.matchedClient.fullName}
-          </p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Matched existing
-          </p>
-        </div>
-      );
-    }
-    return (
-      <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">
-        No match
-      </p>
-    );
-  }
-  const name = row.built.client?.kind === "insert"
-    ? row.built.client.data.fullName
-    : null;
-  return (
-    <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-      {name || <span className="italic text-zinc-400">No name</span>}
-    </p>
-  );
-}
-
-function DetailsCell({ row, mode }: { row: PreviewRow; mode: ImportMode }) {
-  if (mode === "appointmentHistory") {
-    const legacy = row.built.legacy?.[0];
-    if (!legacy) return <span className="text-xs text-zinc-400">—</span>;
-    const parts = [
-      legacy.dateLabel,
-      legacy.serviceName,
-      legacy.petName,
-      legacy.priceLabel,
-    ].filter(Boolean);
-    return (
-      <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-        {parts.length > 0 ? parts.join(" · ") : "—"}
-      </p>
-    );
-  }
-  const client = row.built.client?.kind === "insert"
-    ? row.built.client.data
-    : null;
-  const pets = row.built.pets ?? [];
-  const legacy = row.built.legacy?.[0];
-  return (
-    <div className="min-w-0 text-xs text-zinc-500 dark:text-zinc-400">
-      {client && (
-        <p className="truncate">
-          {[client.email, client.phone].filter(Boolean).join(" · ") || "—"}
-        </p>
+      {client.pets.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-1">
+          {client.pets.map((pet, index) => (
+            <li
+              key={index}
+              className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300"
+            >
+              <PawPrint size={12} className="shrink-0 text-zinc-400" />
+              <span className="font-medium text-zinc-800 dark:text-zinc-100">
+                {pet.name}
+              </span>
+              <span className="text-zinc-500 dark:text-zinc-400">
+                {[pet.species, pet.breed].filter(Boolean).join(" · ")}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
-      {pets.map((pet, index) => (
-        <p
-          key={index}
-          className="mt-0.5 truncate text-zinc-600 dark:text-zinc-300"
-        >
-          {pet.name} · {pet.species}
-          {pet.breed ? ` · ${pet.breed}` : ""}
-        </p>
-      ))}
-      {legacy && (
-        <p className="mt-0.5 truncate text-orange-600 dark:text-orange-300">
-          {[legacy.dateLabel, legacy.serviceName, legacy.priceLabel]
-            .filter(Boolean)
-            .join(" · ") || "Past appointment"}
-        </p>
-      )}
-    </div>
-  );
-}
 
-function IssuesCell({ issues }: { issues: PreviewIssue[] }) {
-  if (issues.length === 0) {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300">
-        <CheckCircle2 size={12} /> Looks good
-      </span>
-    );
-  }
-  return (
-    <div className="flex flex-col gap-0.5">
-      {issues.map((issue) => (
-        <span
-          key={issue}
-          className={`inline-flex items-center gap-1 text-xs ${issueTone(issue)}`}
-        >
-          {hasBlockingError([issue]) ? (
-            <XCircle size={12} />
-          ) : (
-            <AlertTriangle size={12} />
+      {client.legacyAppointments.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-900">
+          {client.legacyAppointments.slice(0, LEGACY_LIMIT).map((legacy, index) => {
+            const heading =
+              [
+                legacy.dateLabel,
+                legacy.serviceName,
+                legacy.petName,
+                legacy.priceLabel,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Past appointment";
+            return (
+              <li key={index} className="flex items-start gap-2 text-xs">
+                <History
+                  size={12}
+                  className="mt-0.5 shrink-0 text-orange-500"
+                />
+                <div className="min-w-0">
+                  <p className="text-orange-600 dark:text-orange-300">
+                    {heading}
+                  </p>
+                  {legacy.notes && (
+                    <p className="mt-0.5 whitespace-pre-line text-zinc-500 dark:text-zinc-400">
+                      {truncate(legacy.notes, 220)}
+                    </p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+          {client.legacyAppointments.length > LEGACY_LIMIT && (
+            <li className="pl-5 text-xs text-zinc-400 dark:text-zinc-500">
+              + {client.legacyAppointments.length - LEGACY_LIMIT} more
+              appointment
+              {client.legacyAppointments.length - LEGACY_LIMIT === 1 ? "" : "s"}
+            </li>
           )}
-          {ISSUE_LABEL[issue]}
-        </span>
-      ))}
+        </ul>
+      )}
     </div>
   );
-}
-
-function issueTone(issue: PreviewIssue): string {
-  if (hasBlockingError([issue])) return "text-red-700 dark:text-red-300";
-  return "text-amber-700 dark:text-amber-300";
-}
-
-const ISSUE_LABEL: Record<PreviewIssue, string> = {
-  "missing-client-name": "Missing client name",
-  "missing-history-lookup": "No email or phone to match",
-  "missing-history-date": "Missing date",
-  "unknown-client": "No matching client",
-  "duplicate-email": "Email already on file",
-  "duplicate-phone": "Phone already on file",
-};
-
-function hasBlockingError(issues: PreviewIssue[]): boolean {
-  return issues.some((issue) =>
-    issue === "missing-client-name" ||
-    issue === "missing-history-lookup" ||
-    issue === "missing-history-date" ||
-    issue === "unknown-client",
-  );
-}
-
-type PreviewSummary = {
-  total: number;
-  insertable: number;
-  conflicts: number;
-  errors: number;
-};
-
-function summarize(rows: PreviewRow[]): PreviewSummary {
-  let insertable = 0;
-  let conflicts = 0;
-  let errors = 0;
-  for (const row of rows) {
-    if (hasBlockingError(row.issues)) {
-      errors += 1;
-      continue;
-    }
-    const isDup =
-      row.issues.includes("duplicate-email") ||
-      row.issues.includes("duplicate-phone");
-    if (isDup) {
-      conflicts += 1;
-      if (row.resolution === "insertNew") insertable += 1;
-    } else {
-      insertable += 1;
-    }
-  }
-  return { total: rows.length, insertable, conflicts, errors };
-}
-
-function collectEmailsAndPhones(
-  rows: Record<string, string>[],
-  mapping: ColumnMapping,
-  mode: ImportMode,
-): { emails: string[]; phones: string[] } {
-  const emailColumns: string[] = [];
-  const phoneColumns: string[] = [];
-  for (const [header, target] of Object.entries(mapping)) {
-    if (target === "client.email" || target === "history.clientEmail") {
-      emailColumns.push(header);
-    }
-    if (target === "client.phone" || target === "history.clientPhone") {
-      phoneColumns.push(header);
-    }
-  }
-  // For clients/clientsAndPets, the dup-check uses the client.* mapped
-  // columns; for history mode it uses history.client* — collectors above
-  // capture both. Mode is left as a hook for future asymmetric behaviour.
-  void mode;
-  const emails = new Set<string>();
-  const phones = new Set<string>();
-  for (const row of rows) {
-    for (const column of emailColumns) {
-      const value = (row[column] ?? "").trim().toLowerCase();
-      if (value) emails.add(value);
-    }
-    for (const column of phoneColumns) {
-      const digits = (row[column] ?? "").replace(/\D/g, "");
-      if (digits) phones.add(digits);
-    }
-  }
-  return { emails: Array.from(emails), phones: Array.from(phones) };
 }

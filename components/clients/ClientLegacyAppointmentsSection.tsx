@@ -4,17 +4,21 @@ import { useQuery } from "convex/react";
 import { Archive } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { LegacyAppointmentRow } from "./LegacyAppointmentRow";
 
 /**
- * Read-only audit of legacy appointment rows imported from a competitor
- * system. Hidden when the client has no imported history (most clients).
- * Pet / service / staff fields are stored as text — no foreign keys —
- * because the source data rarely lines up with our schema's typed enums.
+ * Audit of legacy appointment rows imported from a competitor system. Hidden
+ * when the client has no imported history (most clients). Pet / service /
+ * staff fields are stored as text — no foreign keys — because the source
+ * data rarely lines up with our schema's typed enums. Admins (`canEdit`) can
+ * edit or delete individual rows inline.
  */
 export function ClientLegacyAppointmentsSection({
   clientId,
+  canEdit,
 }: {
   clientId: Id<"clients">;
+  canEdit: boolean;
 }) {
   const rows = useQuery(api.imports.legacyAppointmentsForClient, { clientId });
 
@@ -43,47 +47,9 @@ export function ClientLegacyAppointmentsSection({
       </header>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="grid grid-cols-[1.2fr_1.2fr_1fr_0.9fr_0.7fr] items-center gap-2 border-b border-zinc-200 bg-zinc-900 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 dark:border-zinc-800">
-          <span>Date</span>
-          <span>Service</span>
-          <span>Pet</span>
-          <span>Staff</span>
-          <span className="text-right">Price</span>
-        </div>
-        <ul>
+        <ul className="flex flex-col">
           {rows.map((row) => (
-            <li
-              key={row._id}
-              className="grid grid-cols-[1.2fr_1.2fr_1fr_0.9fr_0.7fr] items-start gap-2 border-b border-zinc-100 px-4 py-3 last:border-b-0 dark:border-zinc-900"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  {row.dateLabel || "—"}
-                </p>
-                {row.timeLabel && (
-                  <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                    {row.timeLabel}
-                  </p>
-                )}
-              </div>
-              <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
-                {row.serviceName || "—"}
-              </p>
-              <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
-                {row.petName || "—"}
-              </p>
-              <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">
-                {row.staffName || "—"}
-              </p>
-              <p className="truncate text-right text-sm text-zinc-700 dark:text-zinc-300">
-                {row.priceLabel || "—"}
-              </p>
-              {row.notes && (
-                <p className="col-span-5 mt-1 whitespace-pre-line text-xs italic text-zinc-500 dark:text-zinc-400">
-                  {row.notes}
-                </p>
-              )}
-            </li>
+            <LegacyAppointmentRow key={row._id} row={row} canEdit={canEdit} />
           ))}
         </ul>
       </div>

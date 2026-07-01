@@ -1,20 +1,18 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { action, mutation, query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { normalizePhone } from "./lib/phone";
 import { requireRole } from "./lib/rbac";
-import { mapClerkOrgRole } from "./lib/roles";
-import { readOrgClaims, softAuth } from "./lib/tenant";
+import { softAuth } from "./lib/tenant";
 import { speciesValidator, sexValidator } from "./schema";
 
 /**
- * Convex backend for the legacy data importer at `/settings/import`. The
- * client wizard parses the file + applies a column mapping in the browser;
- * by the time it hits these functions every row is already typed.
+ * Convex backend for the data importer at `/settings/import`. The client
+ * parses a JSON / CSV file that already matches the import schema (see
+ * `lib/import/parseImport.ts`); by the time it hits these functions every
+ * row is already typed.
  *
- * Three entry points:
- *   - `checkDuplicates` — single round-trip to flag preview rows that match
- *     existing clients by email or phone digits.
+ * Two entry points:
  *   - `commitBatch`     — admin-only batched insert (≤50 rows per call) for
  *     clients + their pets + their legacy appointment history.
  *   - `legacyAppointmentsForClient` — read for the client detail page.
@@ -82,60 +80,6 @@ const importRowValidator = v.object({
 });
 
 /**
- * Returns the set of (lowercased) emails and digits-only phones that already
- * exist on `clients` in the caller's org. The preview UI calls this once
- * with every email + phone in the file and uses the response to flag rows
- * as duplicates.
- *
- * Admin / superAdmin only — the legacy importer is admin-only.
- */
-export const checkDuplicates = query({
-  args: {
-    emails: v.array(v.string()),
-    phones: v.array(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const identity = await softAuth(ctx);
-    if (!identity) return { emails: [], phones: [] };
-    const inputEmails = new Set(
-      args.emails
-        .map((value) => value.trim().toLowerCase())
-        .filter((value) => value.length > 0),
-    );
-    const inputPhones = new Set(
-      args.phones.map(phoneDigits).filter((value) => value.length > 0),
-    );
-    if (inputEmails.size === 0 && inputPhones.size === 0) {
-      return { emails: [], phones: [] };
-    }
-    // Scan the org's clients once. `take(5000)` is a defensive cap — shops
-    // with more than that should split their imports anyway. The UI calls
-    // this from the preview step, so latency matters; this is the cheaper
-    // path than per-row lookups.
-    const clients = await ctx.db
-      .query("clients")
-      .withIndex("by_org", (index) => index.eq("orgId", identity.orgId))
-      .take(5000);
-    const matchedEmails = new Set<string>();
-    const matchedPhones = new Set<string>();
-    for (const row of clients) {
-      if (row.deletedAt !== undefined) continue;
-      if (row.email && inputEmails.has(row.email.trim().toLowerCase())) {
-        matchedEmails.add(row.email.trim().toLowerCase());
-      }
-      const digits = phoneDigits(row.phone);
-      if (digits.length > 0 && inputPhones.has(digits)) {
-        matchedPhones.add(digits);
-      }
-    }
-    return {
-      emails: Array.from(matchedEmails),
-      phones: Array.from(matchedPhones),
-    };
-  },
-});
-
-/**
  * Commits one chunk (≤50 rows) of the import. The wizard calls this in a
  * loop, advancing a progress bar per batch. Each row either lands cleanly
  * (counted in `created`) or fails (collected in `failures` with a reason)
@@ -151,6 +95,9 @@ export const commitBatch = mutation({
     rows: v.array(importRowValidator),
   },
   handler: async (ctx, args) => {
+    // Every insert is stamped with the caller's ACTIVE org from the JWT — the
+    // `orgId` (and `_id` / `clientId` / `petId`) baked into the source file are
+    // deliberately ignored so an import always lands in the current shop.
     const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
     let createdClients = 0;
     let createdPets = 0;
@@ -267,60 +214,6 @@ export const commitBatch = mutation({
 });
 
 /**
- * For appointment-history imports: given a list of emails + phones found in
- * the source file, return the existing client (id + fullName) each value
- * matches. Used by the preview step to attach legacy rows to the right
- * client and to surface "No matching client" rows so the user can fix the
- * source data before committing.
- */
-export const matchClients = query({
-  args: {
-    emails: v.array(v.string()),
-    phones: v.array(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const identity = await softAuth(ctx);
-    if (!identity) return [];
-    const wantedEmails = new Set(
-      args.emails
-        .map((value) => value.trim().toLowerCase())
-        .filter((value) => value.length > 0),
-    );
-    const wantedPhones = new Set(
-      args.phones.map(phoneDigits).filter((value) => value.length > 0),
-    );
-    if (wantedEmails.size === 0 && wantedPhones.size === 0) return [];
-    const clients = await ctx.db
-      .query("clients")
-      .withIndex("by_org", (index) => index.eq("orgId", identity.orgId))
-      .take(5000);
-    type Match = {
-      id: Id<"clients">;
-      fullName: string;
-      email: string | null;
-      phone: string | null;
-    };
-    const result: Match[] = [];
-    for (const row of clients) {
-      if (row.deletedAt !== undefined) continue;
-      const email = row.email?.trim().toLowerCase() ?? "";
-      const phone = phoneDigits(row.phone);
-      const matchEmail = email && wantedEmails.has(email);
-      const matchPhone = phone && wantedPhones.has(phone);
-      if (matchEmail || matchPhone) {
-        result.push({
-          id: row._id,
-          fullName: row.fullName,
-          email: matchEmail ? email : null,
-          phone: matchPhone ? phone : null,
-        });
-      }
-    }
-    return result;
-  },
-});
-
-/**
  * Reads imported legacy appointments for one client, newest first. Used by
  * the client detail page's "Imported history" section. Any signed-in
  * member of the org can read.
@@ -341,255 +234,51 @@ export const legacyAppointmentsForClient = query({
 });
 
 /**
- * AI-assisted column mapping. Takes the parsed file's headers + a few
- * sample rows and asks Claude Haiku 4.5 to guess which GroomHub field
- * each source column belongs to. Returns a `header → target` map the
- * client merges into the existing dropdown state.
- *
- * Admin / superAdmin only. Required Convex env var:
- *   ANTHROPIC_API_KEY  — `sk-ant-...` from console.anthropic.com.
- * Set with:  npx convex env set ANTHROPIC_API_KEY sk-ant-...
+ * Edit a single imported legacy appointment's text fields. Admin / superAdmin
+ * only. Empty / whitespace values clear the field (Convex removes optional
+ * fields patched to `undefined`).
  */
-const IMPORT_MODE_TARGETS: Record<string, ReadonlyArray<string>> = {
-  clients: [
-    "skip",
-    "client.fullName",
-    "client.firstName",
-    "client.middleName",
-    "client.lastName",
-    "client.email",
-    "client.phone",
-    "client.altPhone",
-    "client.addressLine1",
-    "client.city",
-    "client.state",
-    "client.postalCode",
-    "client.country",
-    "client.notes",
-  ],
-  clientsAndPets: [
-    "skip",
-    "client.fullName",
-    "client.firstName",
-    "client.middleName",
-    "client.lastName",
-    "client.email",
-    "client.phone",
-    "client.altPhone",
-    "client.addressLine1",
-    "client.city",
-    "client.state",
-    "client.postalCode",
-    "client.country",
-    "client.notes",
-    "pet.name",
-    "pet.species",
-    "pet.breed",
-    "pet.birthDate",
-    "pet.sex",
-    "pet.sizeLb",
-    "pet.notes",
-    "pet2.name",
-    "pet2.species",
-    "pet2.breed",
-    "pet2.birthDate",
-    "pet2.sex",
-    "pet2.sizeLb",
-    "pet2.notes",
-    "pet3.name",
-    "pet3.species",
-    "pet3.breed",
-    "pet3.birthDate",
-    "pet3.sex",
-    "pet3.sizeLb",
-    "pet3.notes",
-    "pet4.name",
-    "pet4.species",
-    "pet4.breed",
-    "pet4.birthDate",
-    "pet4.sex",
-    "pet4.sizeLb",
-    "pet4.notes",
-    "pet5.name",
-    "pet5.species",
-    "pet5.breed",
-    "pet5.birthDate",
-    "pet5.sex",
-    "pet5.sizeLb",
-    "pet5.notes",
-    // Inline last-appointment columns for the merged "clients + pets +
-    // history" import. The clientEmail/clientPhone lookup fields stay out
-    // — they only make sense in the standalone appointmentHistory mode.
-    "history.petName",
-    "history.serviceName",
-    "history.staffName",
-    "history.dateLabel",
-    "history.timeLabel",
-    "history.priceLabel",
-    "history.notes",
-  ],
-  appointmentHistory: [
-    "skip",
-    "history.clientEmail",
-    "history.clientPhone",
-    "history.petName",
-    "history.serviceName",
-    "history.staffName",
-    "history.dateLabel",
-    "history.timeLabel",
-    "history.priceLabel",
-    "history.notes",
-  ],
-};
-
-type AIImportMode = "clients" | "clientsAndPets" | "appointmentHistory";
-
-export const suggestMappingFromAI = action({
+export const updateLegacyAppointment = mutation({
   args: {
-    mode: v.union(
-      v.literal("clients"),
-      v.literal("clientsAndPets"),
-      v.literal("appointmentHistory"),
-    ),
-    headers: v.array(v.string()),
-    samples: v.array(v.record(v.string(), v.string())),
+    id: v.id("legacyAppointments"),
+    petName: v.optional(v.string()),
+    serviceName: v.optional(v.string()),
+    staffName: v.optional(v.string()),
+    dateLabel: v.optional(v.string()),
+    timeLabel: v.optional(v.string()),
+    priceLabel: v.optional(v.string()),
+    notes: v.optional(v.string()),
   },
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ mode: AIImportMode; mapping: Record<string, string> }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Sign in to use AI suggestions.");
-    const claims = readOrgClaims(identity);
-    const role = mapClerkOrgRole(claims?.orgRole ?? null);
-    if (role !== "admin" && role !== "superAdmin") {
-      throw new Error("Only admins can use AI suggestions.");
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const row = await ctx.db.get(args.id);
+    if (!row || row.orgId !== orgId) {
+      throw new Error("Legacy appointment not found in this org.");
     }
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error(
-        "AI suggestions need ANTHROPIC_API_KEY set in Convex env.",
-      );
-    }
-
-    const prompt = buildSuggestPrompt(args.headers, args.samples, args.mode);
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5",
-        max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }],
-      }),
+    await ctx.db.patch(args.id, {
+      petName: args.petName?.trim() || undefined,
+      serviceName: args.serviceName?.trim() || undefined,
+      staffName: args.staffName?.trim() || undefined,
+      dateLabel: args.dateLabel?.trim() || undefined,
+      timeLabel: args.timeLabel?.trim() || undefined,
+      priceLabel: args.priceLabel?.trim() || undefined,
+      notes: args.notes?.trim() || undefined,
     });
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      console.error("Anthropic error:", response.status, body);
-      throw new Error(
-        `AI suggestion failed (${response.status}). Try again or map manually.`,
-      );
-    }
-    const payload = (await response.json()) as {
-      content: Array<{ type: string; text?: string }>;
-    };
-    const text =
-      payload.content.find((part) => part.type === "text")?.text ?? "";
-    const parsed = parseAIResponse(text, args.headers, args.mode);
-    return parsed;
   },
 });
 
-function buildSuggestPrompt(
-  headers: string[],
-  samples: Array<Record<string, string>>,
-  userMode: AIImportMode,
-): string {
-  const sampleTable = samples
-    .slice(0, 3)
-    .map((row, index) => {
-      const values = headers
-        .map((header) => `${header}=${truncate(row[header] ?? "")}`)
-        .join(" | ");
-      return `Row ${index + 1}: ${values}`;
-    })
-    .join("\n");
-  return [
-    "You are mapping a pet grooming shop's exported data file into GroomHub's schema.",
-    "",
-    "Step 1 — pick the best import mode. The shop currently has '" + userMode + "' selected, but override that if the data clearly fits another mode:",
-    "- clients              → every row is a customer record (no pets)",
-    "- clientsAndPets       → every row is a customer record with one pet attached",
-    "- appointmentHistory   → every row is a past visit, matched to an existing customer by email/phone",
-    "",
-    "Step 2 — for the mode you chose, map each source column to ONE target field.",
-    "Allowed target fields per mode:",
-    ...Object.entries(IMPORT_MODE_TARGETS).map(
-      ([modeName, targets]) =>
-        `  ${modeName}: ${targets.join(", ")}`,
-    ),
-    "",
-    'Use "skip" for source columns that have no good match.',
-    "",
-    "Source columns and three sample rows:",
-    `Headers: ${headers.join(", ")}`,
-    sampleTable || "(no sample rows)",
-    "",
-    "Reply with ONLY this exact format — a <result> block containing JSON. No prose, no markdown:",
-    '<result>{"mode":"clientsAndPets","mapping":{"Owner Email":"client.email","Phone #":"client.phone","Random ID":"skip"}}</result>',
-  ].join("\n");
-}
-
-function parseAIResponse(
-  text: string,
-  headers: string[],
-  fallbackMode: AIImportMode,
-): { mode: AIImportMode; mapping: Record<string, string> } {
-  // Accept either the new <result>{ mode, mapping }</result> envelope or
-  // the legacy <mapping>{...}</mapping> shape so a confused model still
-  // gives us something usable.
-  const resultMatch = text.match(/<result>([\s\S]*?)<\/result>/);
-  const mappingMatch = text.match(/<mapping>([\s\S]*?)<\/mapping>/);
-  const raw = resultMatch?.[1] ?? mappingMatch?.[1] ?? text;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw.trim());
-  } catch {
-    console.log("[suggestMappingFromAI] could not parse:", text);
-    return { mode: fallbackMode, mapping: {} };
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { mode: fallbackMode, mapping: {} };
-  }
-  const envelope = parsed as Record<string, unknown>;
-  // Legacy shape — `<mapping>{ "col": "target" }</mapping>` (no mode key)
-  const rawMapping =
-    typeof envelope.mapping === "object" && envelope.mapping !== null
-      ? (envelope.mapping as Record<string, unknown>)
-      : envelope;
-  const mode: AIImportMode =
-    envelope.mode === "clients" ||
-    envelope.mode === "clientsAndPets" ||
-    envelope.mode === "appointmentHistory"
-      ? envelope.mode
-      : fallbackMode;
-  const allowed = new Set(IMPORT_MODE_TARGETS[mode]);
-  const headerSet = new Set(headers);
-  const mapping: Record<string, string> = {};
-  for (const [key, value] of Object.entries(rawMapping)) {
-    if (!headerSet.has(key)) continue;
-    if (typeof value !== "string") continue;
-    if (!allowed.has(value)) continue;
-    mapping[key] = value;
-  }
-  console.log("[suggestMappingFromAI] mode:", mode, "mapping:", mapping);
-  return { mode, mapping };
-}
-
-function truncate(value: string): string {
-  const trimmed = value.trim();
-  return trimmed.length > 40 ? `${trimmed.slice(0, 40)}…` : trimmed;
-}
+/**
+ * Permanently delete one imported legacy appointment. Admin / superAdmin only.
+ * These are read-only audit rows with no dependents, so a hard delete is safe.
+ */
+export const deleteLegacyAppointment = mutation({
+  args: { id: v.id("legacyAppointments") },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const row = await ctx.db.get(args.id);
+    if (!row || row.orgId !== orgId) {
+      throw new Error("Legacy appointment not found in this org.");
+    }
+    await ctx.db.delete(args.id);
+  },
+});

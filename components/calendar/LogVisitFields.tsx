@@ -62,6 +62,7 @@ export function LogVisitFields({
         disabled={!state.clientId}
         onCreateNew={openCreatePet}
         error={petError}
+        autoSelectSingle
       />
       <ServiceSelectField value={state.serviceId} onChange={onChangeService} />
       <label className="flex flex-col gap-1.5">

@@ -44,3 +44,18 @@ export function formatTime(timestamp: number): string {
     minute: "2-digit",
   });
 }
+
+/**
+ * Format a cents amount as currency, guarding against a missing/invalid
+ * currency on older rows (Intl throws without a currency code).
+ */
+export function formatMoney(cents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "USD",
+    }).format(cents / 100);
+  } catch {
+    return `$${(cents / 100).toFixed(2)}`;
+  }
+}

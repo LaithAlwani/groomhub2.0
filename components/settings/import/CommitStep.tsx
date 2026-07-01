@@ -3,14 +3,16 @@ import { formatError } from "@/lib/formatError";
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
-import { CheckCircle2, Loader2, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import type { PreviewRow } from "@/lib/import/applyMapping";
+import type { ClientImport } from "@/lib/import/parseImport";
+import { toCommitRow } from "@/lib/import/toCommitRow";
+import { CommitFailureList } from "@/components/settings/import/CommitFailureList";
 
 /**
- * Step 4 — drives `commitBatch` in 50-row chunks with a progress bar and
- * a per-row failure log. Each batch reports its own created counts so the
- * final summary is the sum across batches.
+ * Step 3 — drives `commitBatch` in 50-row chunks with a progress bar and a
+ * per-row failure log. Each batch reports its own created counts so the final
+ * summary is the sum across batches. Starts automatically on mount.
  */
 
 const BATCH_SIZE = 50;
@@ -29,11 +31,11 @@ type Phase =
   | { state: "error"; message: string };
 
 export function CommitStep({
-  preview,
+  clients,
   sourceSystem,
   onStartOver,
 }: {
-  preview: PreviewRow[];
+  clients: ClientImport[];
   sourceSystem: string;
   onStartOver: () => void;
 }) {
@@ -47,54 +49,55 @@ export function CommitStep({
   });
   const startedRef = useRef(false);
 
-  const eligibleRows = preview.filter((row) => isEligible(row));
-  const total = eligibleRows.length;
-  const batchId = useStableBatchId();
+  const eligible = clients.filter((client) => client.fullName.trim().length > 0);
+  const total = eligible.length;
 
   useEffect(() => {
     if (startedRef.current) return;
     if (phase.state !== "idle") return;
     startedRef.current = true;
+    async function runCommit() {
+      // Built post-render (React purity) and stable across the loop below.
+      const batchId = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setPhase({ state: "running", sent: 0 });
+      const aggregate: Tally = { clients: 0, pets: 0, legacy: 0, failures: [] };
+      try {
+        for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+          const slice = eligible.slice(offset, offset + BATCH_SIZE);
+          const rows = slice.map((client, index) =>
+            toCommitRow(client, offset + index),
+          );
+          const result = await commit({
+            batchId,
+            sourceSystem: sourceSystem.trim() || undefined,
+            rows,
+          });
+          aggregate.clients += result.created.clients;
+          aggregate.pets += result.created.pets;
+          aggregate.legacy += result.created.legacy;
+          aggregate.failures.push(...result.failures);
+          setTally({ ...aggregate });
+          setPhase({ state: "running", sent: offset + slice.length });
+        }
+        setPhase({ state: "done" });
+      } catch (caught) {
+        setPhase({
+          state: "error",
+          message: formatError(caught, "Import failed mid-batch."),
+        });
+      }
+    }
+
     void runCommit();
-    // The mutation reference + values are captured in closure on first
-    // call. Avoid retriggering on every render.
+    // Runs exactly once; empty dep array is intentional.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function runCommit() {
-    setPhase({ state: "running", sent: 0 });
-    const aggregate: Tally = { clients: 0, pets: 0, legacy: 0, failures: [] };
-    try {
-      for (let offset = 0; offset < total; offset += BATCH_SIZE) {
-        const slice = eligibleRows.slice(offset, offset + BATCH_SIZE);
-        const rows = slice.map((row) => stripPreview(row));
-        const result = await commit({
-          batchId,
-          sourceSystem: sourceSystem.trim() || undefined,
-          rows,
-        });
-        aggregate.clients += result.created.clients;
-        aggregate.pets += result.created.pets;
-        aggregate.legacy += result.created.legacy;
-        aggregate.failures.push(...result.failures);
-        setTally({ ...aggregate });
-        setPhase({ state: "running", sent: offset + slice.length });
-      }
-      setPhase({ state: "done" });
-    } catch (caught) {
-      setPhase({
-        state: "error",
-        message:
-          formatError(caught, "Import failed mid-batch."),
-      });
-    }
-  }
 
   if (total === 0) {
     return (
       <div className="rounded-2xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-950">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Nothing to import — every row was skipped or had a blocking error.
+          Nothing to import — every client was missing a name.
         </p>
         <button
           type="button"
@@ -152,7 +155,7 @@ export function CommitStep({
       )}
 
       {tally.failures.length > 0 && (
-        <FailureList failures={tally.failures} />
+        <CommitFailureList failures={tally.failures} />
       )}
 
       {phase.state === "done" && (
@@ -194,63 +197,4 @@ function Counter({ label, value }: { label: string; value: number }) {
       </p>
     </div>
   );
-}
-
-function FailureList({
-  failures,
-}: {
-  failures: Array<{ rowId: string; reason: string }>;
-}) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm dark:border-red-900/40 dark:bg-zinc-950">
-      <div className="flex items-center gap-2 border-b border-red-100 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-900 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
-        <XCircle size={14} />
-        {failures.length} row{failures.length === 1 ? "" : "s"} could not be saved
-      </div>
-      <ul className="max-h-64 overflow-y-auto divide-y divide-red-100 dark:divide-red-900/30">
-        {failures.map((failure) => (
-          <li
-            key={failure.rowId}
-            className="flex items-start justify-between gap-3 px-4 py-2 text-xs"
-          >
-            <span className="text-zinc-500 dark:text-zinc-400">
-              Row {Number(failure.rowId) + 1}
-            </span>
-            <span className="flex-1 text-right text-red-700 dark:text-red-300">
-              {failure.reason}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function isEligible(row: PreviewRow): boolean {
-  if (row.issues.includes("missing-client-name")) return false;
-  if (row.issues.includes("missing-history-lookup")) return false;
-  if (row.issues.includes("missing-history-date")) return false;
-  if (row.issues.includes("unknown-client")) return false;
-  const isDup =
-    row.issues.includes("duplicate-email") ||
-    row.issues.includes("duplicate-phone");
-  if (isDup && row.resolution === "skip") return false;
-  return true;
-}
-
-function stripPreview(row: PreviewRow) {
-  return {
-    rowId: row.rowId,
-    client: row.built.client,
-    pets: row.built.pets,
-    legacy: row.built.legacy,
-  };
-}
-
-function useStableBatchId(): string {
-  const ref = useRef<string | null>(null);
-  if (ref.current === null) {
-    ref.current = `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-  return ref.current;
 }
