@@ -35,11 +35,11 @@ type NavLink = {
 const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/clients", label: "Clients", icon: PawPrint },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/calendar", label: "Bookings", icon: CalendarDays },
+  { href: "/availability", label: "My availability", icon: CalendarClock },
   { href: "/services", label: "Services", icon: Scissors },
   { href: "/vaccines", label: "Vaccines", icon: Syringe },
   { href: "/consent-forms", label: "Consent forms", icon: FileSignature },
-  { href: "/availability", label: "My availability", icon: CalendarClock },
   { href: "/staff", label: "Staff", icon: Users, visibleTo: ["admin", "superAdmin"] },
   {
     href: "/settings/locations",
