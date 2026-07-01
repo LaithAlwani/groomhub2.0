@@ -3,10 +3,11 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { RequiredMark } from "@/components/forms/RequiredMark";
+import { ClientNameDisplay } from "./ClientNameDisplay";
 import { ClientPicker } from "./ClientPicker";
 import { PetPicker } from "./PetPicker";
 import { SchedulingFields, type AppointmentStatus } from "./SchedulingFields";
+import { ServiceSelectField } from "./ServiceSelectField";
 import { useBookingInlineCreate } from "./useBookingInlineCreate";
 
 export type { AppointmentStatus };
@@ -89,29 +90,11 @@ export function AppointmentFormFields({
         onCreateNew={canInlineCreate ? inlineCreate.openCreatePet : undefined}
         error={errors.petId}
       />
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          Service
-          <RequiredMark />
-        </span>
-        <select
-          value={state.serviceId ?? ""}
-          onChange={(event) =>
-            onChange("serviceId", event.target.value as Id<"services">)
-          }
-          disabled={isEdit}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-        >
-          <option value="" disabled>
-            {services === undefined ? "Loading…" : "Choose a service"}
-          </option>
-          {services?.map((service) => (
-            <option key={service._id} value={service._id}>
-              {service.name} · {service.durationMin} min
-            </option>
-          ))}
-        </select>
-      </label>
+      <ServiceSelectField
+        value={state.serviceId}
+        onChange={(id) => onChange("serviceId", id)}
+        disabled={isEdit}
+      />
       <SchedulingFields
         staffId={state.staffId}
         date={state.date}
@@ -128,20 +111,5 @@ export function AppointmentFormFields({
       />
       {inlineCreate.dialogs}
     </>
-  );
-}
-
-function ClientNameDisplay({ clientId }: { clientId: Id<"clients"> | null }) {
-  const client = useQuery(api.clients.get, clientId ? { id: clientId } : "skip");
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-        Client
-        <RequiredMark />
-      </span>
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-        {client?.fullName ?? "Loading…"}
-      </div>
-    </div>
   );
 }

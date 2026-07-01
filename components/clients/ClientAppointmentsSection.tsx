@@ -3,10 +3,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, CalendarPlus, MapPin } from "lucide-react";
+import { CalendarDays, MapPin, NotebookPen } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
+import { LogVisitDialog } from "@/components/calendar/LogVisitDialog";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -48,13 +48,8 @@ export function ClientAppointmentsSection({
   clientId: Id<"clients">;
 }) {
   const appointments = useQuery(api.appointments.listForClient, { clientId });
-  const { current: currentLocation, locations } = useCurrentLocation();
+  const { locations } = useCurrentLocation();
   const showLocation = locations.length > 1;
-  const locationTimezone =
-    currentLocation?.timezone ??
-    (typeof Intl !== "undefined"
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone
-      : "UTC");
   const router = useRouter();
   const [bookingOpen, setBookingOpen] = useState(false);
   // null = "All pets" tab. Reset implicitly when the underlying query
@@ -97,7 +92,7 @@ export function ClientAppointmentsSection({
     <section className="mt-8">
       <header className="mb-3 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          Appointment history
+          History
           {appointments !== undefined && (
             <span className="text-sm font-medium text-zinc-400 dark:text-zinc-500">
               {countLabel}
@@ -109,8 +104,8 @@ export function ClientAppointmentsSection({
           onClick={() => setBookingOpen(true)}
           className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600"
         >
-          <CalendarPlus size={14} />
-          Book appointment
+          <NotebookPen size={14} />
+          Add note
         </button>
       </header>
 
@@ -196,10 +191,8 @@ export function ClientAppointmentsSection({
       </div>
 
       {bookingOpen && (
-        <AppointmentDialog
-          appointmentId="new"
+        <LogVisitDialog
           initialClientId={clientId}
-          locationTimezone={locationTimezone}
           onClose={() => setBookingOpen(false)}
         />
       )}

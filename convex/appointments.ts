@@ -369,6 +369,91 @@ export const create = mutation({
 });
 
 /**
+ * Log a *completed* visit that already happened — the pilot's minimal
+ * front-desk flow (client + pet + service + notes). Unlike `create`, this is a
+ * historical record, so it:
+ *   - assumes the acting member is the groomer (no `staffId` arg),
+ *   - stamps `startTime = now`, `endTime = now + service duration`,
+ *   - lands as `completed` immediately,
+ *   - deliberately SKIPS the availability + overlap checks (a past visit can't
+ *     be blocked by "no open slot" or "slot taken"), and
+ *   - sends no emails.
+ * The deceased/banned guards and `clientUuid` idempotency stay, so it still
+ * can't record a nonsense visit or duplicate on a double-submit.
+ */
+export const logVisit = mutation({
+  args: {
+    clientUuid: v.string(),
+    locationId: v.id("locations"),
+    clientId: v.id("clients"),
+    petId: v.id("pets"),
+    serviceId: v.id("services"),
+    // The amount actually charged for this visit, in cents. Optional — falls
+    // back to the service's list price. Stored as `priceCentsSnapshot` so the
+    // appointment reads the right total on open with no follow-up mutation.
+    priceCents: v.optional(v.number()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx);
+    const { membership: actor } = await ensureMembership(ctx, identity);
+    await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+
+    const existing = await ctx.db
+      .query("appointments")
+      .withIndex("by_clientUuid", (index) =>
+        index.eq("clientUuid", args.clientUuid),
+      )
+      .unique();
+    if (existing) return existing._id;
+
+    // The acting member is the groomer for a logged visit.
+    const { client, pet, service, staff, location } = await loadRefs(
+      ctx,
+      identity.orgId,
+      {
+        clientId: args.clientId,
+        petId: args.petId,
+        staffId: actor._id,
+        serviceId: args.serviceId,
+        locationId: args.locationId,
+      },
+    );
+    if (pet.isDeceased === true) {
+      appError("VALIDATION", { field: "petId", reason: "PET_DECEASED" });
+    }
+    if (pet.isBanned === true) {
+      appError("VALIDATION", { field: "petId", reason: "PET_BANNED" });
+    }
+    if (args.priceCents !== undefined && args.priceCents < 0) {
+      appError("VALIDATION", { field: "priceCents", reason: "NEGATIVE" });
+    }
+    const startTime = Date.now();
+    const durationMin = service.durationMin > 0 ? service.durationMin : 30;
+    const endTime = startTime + durationMin * 60 * 1000;
+    return await ctx.db.insert("appointments", {
+      orgId: identity.orgId,
+      locationId: location._id,
+      clientId: client._id,
+      petId: pet._id,
+      staffId: staff._id,
+      serviceId: service._id,
+      startTime,
+      endTime,
+      status: "completed",
+      // The charged amount is the source of truth for a completed log; if the
+      // groomer left it blank we snapshot the service's list price.
+      priceCentsSnapshot: args.priceCents ?? service.priceCents,
+      paymentStatus: "unpaid",
+      notes: args.notes?.trim() || undefined,
+      clientUuid: args.clientUuid,
+      createdBy: actor._id,
+      createdAt: startTime,
+    });
+  },
+});
+
+/**
  * Move an appointment to a new `startTime`. Privacy: staff can only reschedule
  * their own. Re-runs availability + overlap checks at the new time. Optional
  * `staffId` lets admin/superAdmin reassign the appointment in the same call.

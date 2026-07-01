@@ -1,0 +1,101 @@
+"use client";
+
+import type { Id } from "@/convex/_generated/dataModel";
+import { ClientNameDisplay } from "./ClientNameDisplay";
+import { ClientPicker } from "./ClientPicker";
+import { PetPicker } from "./PetPicker";
+import { ServiceSelectField } from "./ServiceSelectField";
+
+export type LogVisitFormState = {
+  clientId: Id<"clients"> | null;
+  petId: Id<"pets"> | null;
+  serviceId: Id<"services"> | null;
+  price: string;
+  notes: string;
+};
+
+/**
+ * Field layout for the minimal "Log a visit" form — client, pet, service,
+ * price, notes. Split out of `LogVisitDialog` to keep each file focused; the
+ * dialog owns state, prefill, and submission.
+ */
+export function LogVisitFields({
+  state,
+  lockedClient,
+  petError,
+  currency,
+  onChangeClient,
+  onChangePet,
+  onChangeService,
+  onChangePrice,
+  onChangeNotes,
+  openCreateClient,
+  openCreatePet,
+}: {
+  state: LogVisitFormState;
+  lockedClient: boolean;
+  petError?: string;
+  currency: string;
+  onChangeClient: (id: Id<"clients">) => void;
+  onChangePet: (id: Id<"pets">) => void;
+  onChangeService: (id: Id<"services">) => void;
+  onChangePrice: (value: string) => void;
+  onChangeNotes: (value: string) => void;
+  openCreateClient: () => void;
+  openCreatePet: () => void;
+}) {
+  return (
+    <>
+      {lockedClient ? (
+        <ClientNameDisplay clientId={state.clientId} />
+      ) : (
+        <ClientPicker
+          value={state.clientId}
+          onChange={onChangeClient}
+          onCreateNew={openCreateClient}
+        />
+      )}
+      <PetPicker
+        clientId={state.clientId}
+        value={state.petId}
+        onChange={onChangePet}
+        disabled={!state.clientId}
+        onCreateNew={openCreatePet}
+        error={petError}
+      />
+      <ServiceSelectField value={state.serviceId} onChange={onChangeService} />
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+          Price
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            {currency}
+          </span>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            inputMode="decimal"
+            value={state.price}
+            onChange={(event) => onChangePrice(event.target.value)}
+            placeholder="0.00"
+            className="w-32 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+          />
+        </div>
+      </label>
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+          Notes
+        </span>
+        <textarea
+          value={state.notes}
+          onChange={(event) => onChangeNotes(event.target.value)}
+          rows={3}
+          placeholder="What was done, how the pet was, anything to remember…"
+          className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+        />
+      </label>
+    </>
+  );
+}

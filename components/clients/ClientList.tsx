@@ -7,19 +7,12 @@ import { CalendarPlus, ChevronRight, Mail, Phone } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { formatPhone } from "@/lib/phone";
-import { AppointmentDialog } from "@/components/calendar/AppointmentDialog";
-import { useCurrentLocation } from "@/lib/useCurrentLocation";
+import { LogVisitDialog } from "@/components/calendar/LogVisitDialog";
 
 export function ClientList({ search }: { search: string }) {
   const clients = useQuery(api.clients.list, {
     search: search || undefined,
   });
-  const { current: currentLocation } = useCurrentLocation();
-  const locationTimezone =
-    currentLocation?.timezone ??
-    (typeof Intl !== "undefined"
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone
-      : "UTC");
   const [bookingClientId, setBookingClientId] = useState<Id<"clients"> | null>(
     null,
   );
@@ -47,10 +40,8 @@ export function ClientList({ search }: { search: string }) {
         ))}
       </ul>
       {bookingClientId && (
-        <AppointmentDialog
-          appointmentId="new"
+        <LogVisitDialog
           initialClientId={bookingClientId}
-          locationTimezone={locationTimezone}
           onClose={() => setBookingClientId(null)}
         />
       )}
