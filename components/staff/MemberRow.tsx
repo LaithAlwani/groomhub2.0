@@ -31,8 +31,11 @@ export function MemberRow({
   locations,
   isMultiLocation,
   isSelf,
+  isOwner,
   isRemoving,
-  canRemove,
+  canManage,
+  isChangingRole,
+  onChangeRole,
   onRemove,
 }: {
   member: Doc<"users">;
@@ -40,8 +43,13 @@ export function MemberRow({
   locations: Doc<"locations">[];
   isMultiLocation: boolean;
   isSelf: boolean;
+  // The shop's original creator — never removable or demotable.
+  isOwner: boolean;
   isRemoving: boolean;
-  canRemove: boolean;
+  // Caller is an admin/superAdmin who may change roles + remove others.
+  canManage: boolean;
+  isChangingRole: boolean;
+  onChangeRole: (clerkRoleKey: string) => void;
   onRemove: () => void;
 }) {
   const displayName = nameOrEmail(member);
@@ -50,6 +58,17 @@ export function MemberRow({
     ROLE_TONE[link.role] ??
     "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
   const isInactive = !link.isActive;
+  // A compact role dropdown replaces the static badge for members the caller
+  // can manage — excluding the owner (protected) and yourself (no self-demote).
+  // superAdmins that aren't the founder keep the static badge; promoting new
+  // owners isn't offered here.
+  const canEditRole =
+    canManage &&
+    !isOwner &&
+    !isSelf &&
+    !isInactive &&
+    (link.role === "admin" || link.role === "staff");
+  const showRemove = canManage && !isSelf && !isInactive && !isOwner;
 
   return (
     <li
@@ -94,7 +113,19 @@ export function MemberRow({
         {isMultiLocation && (
           <MemberLocationsEditor membership={link} locations={locations} />
         )}
-        {canRemove && !isSelf && !isInactive && (
+        {canEditRole && (
+          <select
+            value={link.role === "admin" ? "org:manager" : "org:member"}
+            disabled={isChangingRole}
+            onChange={(event) => onChangeRole(event.target.value)}
+            aria-label="Change role"
+            className="rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-xs font-medium text-zinc-800 focus:border-[#00273c] focus:outline-none focus:ring-2 focus:ring-[#00273c]/20 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+          >
+            <option value="org:manager">Admin</option>
+            <option value="org:member">Staff</option>
+          </select>
+        )}
+        {showRemove && (
           <button
             type="button"
             disabled={isRemoving}

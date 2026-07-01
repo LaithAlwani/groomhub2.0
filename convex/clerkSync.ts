@@ -20,6 +20,9 @@ export const upsertOrganization = internalMutation({
     clerkOrgId: v.string(),
     name: v.string(),
     slug: v.string(),
+    // Clerk `organization.created` payload's `created_by`. Absent on
+    // `organization.updated`, so we only ever SET it, never clear it.
+    creatorClerkUserId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -28,7 +31,15 @@ export const upsertOrganization = internalMutation({
       .unique();
 
     if (existing) {
-      await ctx.db.patch(existing._id, { name: args.name, slug: args.slug });
+      await ctx.db.patch(existing._id, {
+        name: args.name,
+        slug: args.slug,
+        // Only fill the creator once, and never overwrite it — `updated`
+        // events don't carry `created_by`.
+        ...(args.creatorClerkUserId && !existing.creatorClerkUserId
+          ? { creatorClerkUserId: args.creatorClerkUserId }
+          : {}),
+      });
       return existing._id;
     }
 
@@ -36,11 +47,44 @@ export const upsertOrganization = internalMutation({
       clerkOrgId: args.clerkOrgId,
       name: args.name,
       slug: args.slug,
+      creatorClerkUserId: args.creatorClerkUserId,
       timezone: "UTC",
       currency: "USD",
       plan: "essential",
       createdAt: Date.now(),
     });
+  },
+});
+
+/**
+ * One-time backfill for shops created before we captured `created_by`: set
+ * each org's `creatorClerkUserId` to its earliest active superAdmin (the best
+ * available proxy for the founder). Idempotent — skips orgs that already have
+ * a creator recorded. Run with `npx convex run clerkSync:backfillOrgCreators`.
+ */
+export const backfillOrgCreators = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const orgs = await ctx.db.query("organizations").collect();
+    let updated = 0;
+    for (const org of orgs) {
+      if (org.creatorClerkUserId) continue;
+      const superAdmins = (
+        await ctx.db
+          .query("memberships")
+          .withIndex("by_org_role", (index) =>
+            index.eq("orgId", org.clerkOrgId).eq("role", "superAdmin"),
+          )
+          .collect()
+      ).sort((a, b) => a._creationTime - b._creationTime);
+      const founder = superAdmins.find((row) => row.isActive) ?? superAdmins[0];
+      if (!founder) continue;
+      const user = await ctx.db.get(founder.userId);
+      if (!user) continue;
+      await ctx.db.patch(org._id, { creatorClerkUserId: user.clerkUserId });
+      updated += 1;
+    }
+    return { scanned: orgs.length, updated };
   },
 });
 

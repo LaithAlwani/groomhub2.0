@@ -2,11 +2,12 @@
 
 import { useRef, useState } from "react";
 import { useMutation } from "convex/react";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { formatError } from "@/lib/formatError";
 import { compressImage } from "@/lib/imageCompress";
+import { AddPhotoMenu } from "./AddPhotoMenu";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB per file (pre-compression)
 
@@ -14,10 +15,12 @@ export type AppointmentImage = { storageId: Id<"_storage">; url: string | null }
 export type Stage = "before" | "after";
 
 /**
- * One before/after gallery. A single "Add" tile sits inline with the
- * thumbnails; tapping it opens the OS picker, which on phones/tablets offers
- * both the camera and the photo library (and a file picker on desktop). One
- * affordance instead of separate Take-photo / Upload buttons.
+ * One before/after gallery. The "Add" tile opens a small menu with "Take
+ * photo" and "Choose from library". Each backs a separate hidden input: the
+ * camera one uses `capture` (single shot, rear camera), the library one allows
+ * multi-select. We split them because iOS skips the camera option entirely
+ * when a single `image/*` input also has `multiple` — so one combined input
+ * can't offer both on iPhones.
  */
 export function AppointmentImageStage({
   appointmentId,
@@ -33,7 +36,8 @@ export function AppointmentImageStage({
   const generateUploadUrl = useMutation(api.appointments.generateImageUploadUrl);
   const addImage = useMutation(api.appointments.addAppointmentImage);
   const removeImage = useMutation(api.appointments.removeAppointmentImage);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const libraryInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,8 +94,19 @@ export function AppointmentImageStage({
       <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         {stage === "before" ? "Before" : "After"}
       </span>
+      {/* Camera: single shot from the rear camera. `capture` is ignored on
+          desktop, where it just opens the normal file dialog. */}
       <input
-        ref={inputRef}
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFiles}
+        className="hidden"
+      />
+      {/* Library: multi-select from the photo roll / file system. */}
+      <input
+        ref={libraryInputRef}
         type="file"
         accept="image/*"
         multiple
@@ -127,22 +142,12 @@ export function AppointmentImageStage({
           </li>
         ))}
         <li>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={busy}
-            aria-label={`Add ${stage} photos`}
-            className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-300 text-zinc-500 transition-colors hover:border-orange-400 hover:bg-orange-50/50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-orange-500/60 dark:hover:bg-orange-950/20"
-          >
-            {busy ? (
-              <Loader2 size={18} className="animate-spin" aria-hidden />
-            ) : (
-              <>
-                <ImagePlus size={18} aria-hidden />
-                <span className="text-[11px] font-medium">Add</span>
-              </>
-            )}
-          </button>
+          <AddPhotoMenu
+            stage={stage}
+            busy={busy}
+            onCamera={() => cameraInputRef.current?.click()}
+            onLibrary={() => libraryInputRef.current?.click()}
+          />
         </li>
       </ul>
       {error && (

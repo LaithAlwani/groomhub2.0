@@ -46,6 +46,11 @@ export default defineSchema({
     contactEmail: v.optional(v.string()),
     contactPhone: v.optional(v.string()),
     stripeCustomerId: v.optional(v.string()),
+    // Clerk user id of whoever created the shop (from the `organization.created`
+    // webhook's `created_by`). This is the "original owner" — protected from
+    // removal / demotion on the team page. Optional: pre-existing rows are
+    // backfilled from their earliest superAdmin (see `clerkSync.backfillOrgCreators`).
+    creatorClerkUserId: v.optional(v.string()),
     createdAt: v.number(),
     // Soft-delete timestamp. Set when the last active member of the org has
     // their account deleted (see `convex/clerkSync.ts`). Once set:

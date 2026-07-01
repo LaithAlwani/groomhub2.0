@@ -1,11 +1,12 @@
 "use client";
 import { formatError } from "@/lib/formatError";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useOrganization, useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { mapClerkOrgRole } from "@/convex/lib/roles";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
 import { MemberLocationFilter } from "./MemberLocationFilter";
@@ -28,10 +29,16 @@ export function MemberList() {
     api.memberships.forOrgIncludingInactive,
     showInactive ? {} : "skip",
   );
-  const { organization } = useOrganization();
+  const { organization, membership } = useOrganization();
   const { user: currentClerkUser } = useUser();
   const { locations, current: currentLocation } = useCurrentLocation();
   const isMultiLocation = locations.length > 1;
+  // The team page is already admin-gated, but compute the caller's role so the
+  // controls are only offered to admin / superAdmin.
+  const callerRole = mapClerkOrgRole(membership?.role ?? null);
+  const canManage =
+    Boolean(organization) &&
+    (callerRole === "admin" || callerRole === "superAdmin");
 
   // Local filter state. Defaults to the sidebar's active location, but can
   // be set to `null` ("All locations") to see every member at once — that
@@ -40,24 +47,43 @@ export function MemberList() {
   const [filterLocationId, setFilterLocationId] = useState<
     Id<"locations"> | null
   >(currentLocation?._id ?? null);
+  const [syncedLocationId, setSyncedLocationId] = useState<
+    Id<"locations"> | null
+  >(currentLocation?._id ?? null);
 
   // Re-sync when the sidebar's location changes (e.g. user switches in the
-  // sidebar after landing on the staff page). Only follow when the filter
-  // was on a specific location — leave "All" alone since that's an
-  // explicit override.
-  useEffect(() => {
-    if (filterLocationId === null) return;
-    if (currentLocation && currentLocation._id !== filterLocationId) {
-      setFilterLocationId(currentLocation._id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLocation?._id]);
+  // sidebar after landing on the staff page). Only follow when the filter is
+  // on a specific location — leave "All" alone since that's an explicit
+  // override. Done during render (React's recommended alternative to a
+  // prop-sync effect) rather than in useEffect.
+  if (currentLocation && currentLocation._id !== syncedLocationId) {
+    setSyncedLocationId(currentLocation._id);
+    if (filterLocationId !== null) setFilterLocationId(currentLocation._id);
+  }
 
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<
     { clerkUserId: string; displayName: string } | null
   >(null);
+  const [roleChangingId, setRoleChangingId] = useState<string | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
+
+  async function handleChangeRole(clerkUserId: string, clerkRoleKey: string) {
+    if (!organization) return;
+    setRoleChangingId(clerkUserId);
+    setRoleError(null);
+    try {
+      await organization.updateMember({
+        userId: clerkUserId,
+        role: clerkRoleKey,
+      });
+    } catch (caught) {
+      setRoleError(formatError(caught, "Could not change role"));
+    } finally {
+      setRoleChangingId(null);
+    }
+  }
 
   if (baseMembers === undefined) return <ListSkeleton />;
 
@@ -161,8 +187,13 @@ export function MemberList() {
                 locations={locations}
                 isMultiLocation={isMultiLocation}
                 isSelf={isSelf}
+                isOwner={row.isOwner}
                 isRemoving={isRemoving}
-                canRemove={Boolean(organization)}
+                canManage={canManage}
+                isChangingRole={roleChangingId === member.clerkUserId}
+                onChangeRole={(clerkRoleKey) =>
+                  handleChangeRole(member.clerkUserId, clerkRoleKey)
+                }
                 onRemove={() =>
                   setConfirmTarget({
                     clerkUserId: member.clerkUserId,
@@ -175,9 +206,9 @@ export function MemberList() {
         </ul>
       )}
 
-      {removeError && (
+      {(removeError || roleError) && (
         <p className="mx-6 mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
-          {removeError}
+          {removeError ?? roleError}
         </p>
       )}
 

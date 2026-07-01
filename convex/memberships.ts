@@ -43,7 +43,16 @@ async function readMembersWithUsers(
   ctx: QueryCtx,
   orgId: string,
   activeOnly: boolean,
-): Promise<Array<{ membership: Doc<"memberships">; user: Doc<"users"> }>> {
+): Promise<
+  Array<{ membership: Doc<"memberships">; user: Doc<"users">; isOwner: boolean }>
+> {
+  // The shop's original creator — protected from removal / role change on the
+  // team page. Falls back to "nobody" for pre-backfill orgs.
+  const org = await ctx.db
+    .query("organizations")
+    .withIndex("by_clerkOrgId", (index) => index.eq("clerkOrgId", orgId))
+    .unique();
+  const creatorClerkUserId = org?.creatorClerkUserId;
   const rows = activeOnly
     ? await ctx.db
         .query("memberships")
@@ -68,10 +77,19 @@ async function readMembersWithUsers(
   const results: Array<{
     membership: Doc<"memberships">;
     user: Doc<"users">;
+    isOwner: boolean;
   }> = [];
   for (const membership of rows) {
     const user = await ctx.db.get(membership.userId);
-    if (user) results.push({ membership, user });
+    if (user) {
+      results.push({
+        membership,
+        user,
+        isOwner:
+          creatorClerkUserId !== undefined &&
+          user.clerkUserId === creatorClerkUserId,
+      });
+    }
   }
   return results;
 }

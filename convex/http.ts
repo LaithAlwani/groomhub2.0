@@ -131,6 +131,8 @@ async function handleOrganizationUpsert(
     clerkOrgId: data.id as string,
     name: data.name as string,
     slug: data.slug as string,
+    // Present on `organization.created`, absent on `organization.updated`.
+    creatorClerkUserId: (data.created_by as string | undefined) ?? undefined,
   });
 }
 
