@@ -128,6 +128,10 @@ export function ClientFormDialog({
     if (state.firstName.trim().length === 0 && state.lastName.trim().length === 0) {
       next.firstName = "First or last name is required";
     }
+    const hasPhone = state.phones.some((value) => digitsOnly(value).length > 0);
+    if (!hasPhone) {
+      next.phones = "Phone number is required";
+    }
     if (state.email.trim() && !state.email.includes("@"))
       next.email = "Looks like an invalid email";
     if (Object.keys(next).length > 0) {
@@ -203,6 +207,8 @@ export function ClientFormDialog({
             <PhonesField
               phones={state.phones}
               onChange={(next) => setField("phones", next)}
+              error={fieldErrors.phones}
+              required
             />
             <Field
               label="Email"

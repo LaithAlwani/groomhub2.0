@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
+import { RequiredMark } from "@/components/forms/RequiredMark";
 import { formatPhone, normalizePhone } from "@/lib/phone";
 
 /**
@@ -13,10 +14,12 @@ export function PhonesField({
   phones,
   onChange,
   error,
+  required = false,
 }: {
   phones: string[];
   onChange: (next: string[]) => void;
   error?: string;
+  required?: boolean;
 }) {
   function updateAt(index: number, value: string) {
     const next = phones.slice();
@@ -49,6 +52,7 @@ export function PhonesField({
     <div className="flex flex-col gap-1.5">
       <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
         Phone
+        {required && <RequiredMark />}
       </span>
       <div className="flex flex-col gap-2">
         {phones.map((value, index) => (

@@ -143,7 +143,6 @@ export function PetFormFields({
           value={state.sizeLb}
           onChange={(value) => onChange("sizeLb", value)}
           error={errors.sizeLb}
-          required
         />
         <Field
           label="Birth date"

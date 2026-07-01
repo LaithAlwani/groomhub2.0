@@ -83,10 +83,12 @@ export function PetFormDialog({
     if (state.name.trim().length === 0) next.name = "Name is required";
     if (state.sex === "") next.sex = "Sex is required";
     if (state.breed.trim().length === 0) next.breed = "Breed is required";
+    // Size is optional; only validate the value when one is entered.
     const sizeLbNumber = state.sizeLb ? Number(state.sizeLb) : undefined;
-    if (sizeLbNumber === undefined) {
-      next.sizeLb = "Size is required";
-    } else if (Number.isNaN(sizeLbNumber) || sizeLbNumber < 0) {
+    if (
+      sizeLbNumber !== undefined &&
+      (Number.isNaN(sizeLbNumber) || sizeLbNumber < 0)
+    ) {
       next.sizeLb = "Must be 0 or greater";
     }
     if (Object.keys(next).length > 0) {
