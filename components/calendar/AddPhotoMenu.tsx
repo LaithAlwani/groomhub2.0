@@ -1,13 +1,39 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Camera, Image as ImageIcon, ImagePlus, Loader2 } from "lucide-react";
 import type { Stage } from "./AppointmentImageStage";
 
 /**
- * The "Add" tile for a before/after gallery. Tapping it opens a small menu
- * with "Take photo" (camera) and "Choose from library" — the parent wires
- * each to a hidden file input. Owns its own open/close + outside-click.
+ * True only when the device's PRIMARY pointer is touch (phones/tablets), which
+ * is where an in-picker camera capture makes sense. Read via
+ * `useSyncExternalStore` so there's no effect-driven setState and no
+ * SSR/hydration mismatch (the server snapshot is always `false` = desktop).
+ */
+function subscribeCoarsePointer(callback: () => void): () => void {
+  if (typeof window === "undefined" || !window.matchMedia) return () => {};
+  const query = window.matchMedia("(pointer: coarse)");
+  query.addEventListener("change", callback);
+  return () => query.removeEventListener("change", callback);
+}
+
+function getCanCapture(): boolean {
+  if (typeof window === "undefined") return false;
+  const coarse = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+  const touch = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
+  return coarse && touch;
+}
+
+function useCanCapture(): boolean {
+  return useSyncExternalStore(subscribeCoarsePointer, getCanCapture, () => false);
+}
+
+/**
+ * The "Add" tile for a before/after gallery. On phones/tablets, tapping it
+ * opens a menu with "Take photo" (camera) and "Choose from library". On
+ * desktop — where a camera capture makes no sense — it skips the menu and
+ * goes straight to the library picker. The parent wires each to a hidden file
+ * input. Owns its own open/close + outside-click.
  */
 export function AddPhotoMenu({
   stage,
@@ -22,6 +48,7 @@ export function AddPhotoMenu({
 }) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
+  const canCapture = useCanCapture();
 
   useEffect(() => {
     if (!open) return;
@@ -38,10 +65,10 @@ export function AddPhotoMenu({
     <div ref={menuRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => (canCapture ? setOpen((current) => !current) : onLibrary())}
         disabled={busy}
-        aria-haspopup="menu"
-        aria-expanded={open}
+        aria-haspopup={canCapture ? "menu" : undefined}
+        aria-expanded={canCapture ? open : undefined}
         aria-label={`Add ${stage} photos`}
         className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-300 text-zinc-500 transition-colors hover:border-orange-400 hover:bg-orange-50/50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-orange-500/60 dark:hover:bg-orange-950/20"
       >
@@ -54,7 +81,7 @@ export function AddPhotoMenu({
           </>
         )}
       </button>
-      {open && (
+      {open && canCapture && (
         <div
           role="menu"
           className="absolute left-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950"
