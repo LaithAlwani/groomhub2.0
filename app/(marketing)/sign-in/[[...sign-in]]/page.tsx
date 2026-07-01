@@ -1,205 +1,55 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useAuth, useSignIn } from "@clerk/nextjs";
-import { Lock, Mail } from "lucide-react";
-import { z } from "zod";
 import { AuthCard } from "@/components/auth/AuthCard";
-import { AuthInput } from "@/components/auth/AuthInput";
-import { AuthPrimaryButton } from "@/components/auth/AuthPrimaryButton";
-import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
-import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { SignInCodeForm } from "@/components/auth/SignInCodeForm";
+import { SignInCredentialsForm } from "@/components/auth/SignInCredentialsForm";
+import { useSignInFlow } from "@/components/auth/useSignInFlow";
 import { SignInProgress } from "@/components/ui/SignInProgress";
 import { landingPage } from "@/lib/landingPage";
 
-const credentialsSchema = z.object({
-  email: z.string().trim().email("Enter a valid email"),
-  password: z.string().min(1, "Password is required"),
-});
-
-type Credentials = z.infer<typeof credentialsSchema>;
-type FieldErrors = Partial<Record<keyof Credentials, string>>;
-
 export default function SignInPage() {
-  const { signIn, fetchStatus } = useSignIn();
-  const { isLoaded: authLoaded, isSignedIn } = useAuth();
-  const router = useRouter();
-
-  const [redirecting, setRedirecting] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [serverError, setServerError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (authLoaded && isSignedIn && !redirecting) {
-      setRedirecting(true);
-      router.replace("/dashboard");
-    }
-  }, [authLoaded, isSignedIn, redirecting, router]);
-
-  const busy = fetchStatus === "fetching" || redirecting;
+  const flow = useSignInFlow();
   const copy = landingPage.auth.signIn;
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setServerError(null);
-
-    const parsed = credentialsSchema.safeParse({ email, password });
-    if (!parsed.success) {
-      const nextErrors: FieldErrors = {};
-      for (const issue of parsed.error.issues) {
-        const fieldName = issue.path[0] as keyof FieldErrors;
-        if (!nextErrors[fieldName]) nextErrors[fieldName] = issue.message;
-      }
-      setFieldErrors(nextErrors);
-      return;
-    }
-    setFieldErrors({});
-    if (!signIn) return;
-
-    const passwordResult = await signIn.password({
-      identifier: parsed.data.email,
-      password: parsed.data.password,
-    });
-    if (passwordResult.error) {
-      setServerError(passwordResult.error.message ?? "Sign-in failed");
-      return;
-    }
-
-    // `password()` only completes the first factor. If a second factor or
-    // any other step is still required, `signIn.status` will be something
-    // other than "complete" and calling `finalize()` would throw
-    // "Cannot finalize sign-in without a created session."
-    if (signIn.status !== "complete") {
-      const factors = signIn.supportedSecondFactors?.map((factor) =>
-        "strategy" in factor ? factor.strategy : "unknown",
-      ) ?? [];
-      setServerError(describePendingStep(signIn.status, factors));
-      return;
-    }
-
-    setRedirecting(true);
-    const finalizeResult = await signIn.finalize({
-      navigate: () => undefined,
-    });
-    if (finalizeResult.error) {
-      setRedirecting(false);
-      setServerError(finalizeResult.error.message ?? "Could not complete sign-in");
-      return;
-    }
-    window.location.assign("/dashboard");
-  }
-
-  async function handleGoogle() {
-    setServerError(null);
-    if (!signIn) {
-      setServerError("Sign-in is still loading — give it a second and try again.");
-      return;
-    }
-    const result = await signIn.sso({
-      strategy: "oauth_google",
-      redirectUrl: "/sso-callback",
-      redirectCallbackUrl: "/sso-callback",
-    });
-    if (result.error) {
-      setServerError(result.error.message ?? "Could not start Google sign-in");
-    }
-  }
-
-  // Render the branded loader as soon as Clerk reports an active session,
-  // not just when we kick off the redirect ourselves. Otherwise the form
-  // paints for one frame after the SSO callback bounces back here.
-  // The `!serverError` guard yields to errors — if `signIn.finalize`
-  // failed after the password step already set the auth cookie,
-  // `isSignedIn` will be true but we still need to surface the error.
-  if (redirecting || (isSignedIn && !serverError)) {
+  if (flow.redirecting || (flow.isSignedIn && !flow.serverError)) {
     return <SignInProgress message="Signing you in…" />;
   }
 
   return (
     <AuthCard
-      title={copy.title}
-      subtitle={copy.subtitle}
+      title={flow.mfaPhase ? "Check your email" : copy.title}
+      subtitle={
+        flow.mfaPhase
+          ? "Enter the code we just sent to finish signing in."
+          : copy.subtitle
+      }
       policyText={copy.policyText}
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <AuthInput
-          label="Email Address"
-          required
-          icon={Mail}
-          type="email"
-          value={email}
-          onChange={setEmail}
-          error={fieldErrors.email}
-          autoComplete="email"
-          placeholder="name@company.com"
+      {flow.mfaPhase ? (
+        <SignInCodeForm
+          email={flow.email}
+          code={flow.code}
+          onCodeChange={flow.setCode}
+          onSubmit={flow.handleVerifyCode}
+          onResend={flow.handleResendCode}
+          error={flow.serverError}
+          busy={flow.busy || !flow.ready}
         />
-        <AuthInput
-          label="Password"
-          required
-          icon={Lock}
-          type="password"
-          value={password}
-          onChange={setPassword}
-          error={fieldErrors.password}
-          autoComplete="current-password"
-          trailingSlot={
-            <Link
-              href={copy.forgotPasswordHref}
-              className="text-xs font-semibold text-orange-700 hover:underline dark:text-orange-400"
-            >
-              {copy.forgotPasswordLabel}
-            </Link>
-          }
+      ) : (
+        <SignInCredentialsForm
+          email={flow.email}
+          password={flow.password}
+          onEmailChange={flow.setEmail}
+          onPasswordChange={flow.setPassword}
+          fieldErrors={flow.fieldErrors}
+          serverError={flow.serverError}
+          onSubmit={flow.handleSubmit}
+          onGoogle={flow.handleGoogle}
+          busy={flow.busy}
+          ready={flow.ready}
+          copy={copy}
         />
-        {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
-        <AuthPrimaryButton disabled={busy || !signIn}>
-          {busy ? "Signing in…" : copy.submitLabel}
-        </AuthPrimaryButton>
-      </form>
-
-      <SocialAuthButtons onGoogle={handleGoogle} disabled={busy || !signIn} />
-
-      <p className="mt-8 text-center text-sm text-zinc-600 dark:text-zinc-400">
-        {copy.switchPrompt}{" "}
-        <Link
-          href={copy.switchHref}
-          className="font-semibold text-orange-700 hover:underline dark:text-orange-400"
-        >
-          {copy.switchLabel}
-        </Link>
-      </p>
+      )}
     </AuthCard>
   );
-}
-
-function describePendingStep(
-  status: string,
-  supportedSecondFactors: string[],
-): string {
-  switch (status) {
-    case "needs_second_factor": {
-      const factorList =
-        supportedSecondFactors.length > 0
-          ? supportedSecondFactors.join(", ")
-          : "unknown";
-      if (supportedSecondFactors.includes("email_code")) {
-        return `Clerk is requiring an email code as a second factor (status=needs_second_factor, supported=${factorList}). This is set at the instance level (Configure → Multi-factor → "Email code") OR on the user's email (User → Email → "Reserved for second factor"). Disable both to sign in here.`;
-      }
-      return `Sign-in needs a second factor: ${factorList}. Disable it in Clerk Dashboard → Configure → Multi-factor, and on the user's profile if it was set per-account.`;
-    }
-    case "needs_new_password":
-      return "This account requires a password reset before you can sign in. Use the forgot-password flow.";
-    case "needs_first_factor":
-      return "Password wasn't accepted as a sign-in method for this account.";
-    case "needs_client_trust":
-      return "Verifying this device. Try again, or sign in from a previously trusted device.";
-    case "needs_identifier":
-      return "Couldn't recognize that email address.";
-    default:
-      return `Sign-in needs another step (status=${status}). Check the account's Clerk settings.`;
-  }
 }
