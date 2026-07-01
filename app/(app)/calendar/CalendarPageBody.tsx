@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { useOrganization } from "@clerk/nextjs";
 import { Plus } from "lucide-react";
@@ -23,6 +24,7 @@ import {
 } from "@/lib/locationTime";
 
 export function CalendarPageBody() {
+  const router = useRouter();
   const me = useQuery(api.users.me);
   const { membership } = useOrganization();
   const role = mapClerkOrgRole(membership?.role ?? null);
@@ -194,9 +196,20 @@ export function CalendarPageBody() {
                 staffId: effectiveStaffId ?? undefined,
               })
             }
-            onSelectEvent={(event) =>
-              setDialog({ mode: "edit", id: event.id as Id<"appointments"> })
-            }
+            onSelectEvent={(event) => {
+              // Staff may only edit their own bookings (the edit dialog reads
+              // the assigned groomer's availability). If it's someone else's,
+              // send them to the read-only detail page instead of the dialog.
+              const selected = appointments?.find((row) => row._id === event.id);
+              const canEdit =
+                !isStaffOnly ||
+                (me && selected && selected.staffId === me.membership._id);
+              if (canEdit) {
+                setDialog({ mode: "edit", id: event.id as Id<"appointments"> });
+              } else {
+                router.push(`/appointments/${event.id}`);
+              }
+            }}
             onEventDrop={handleEventDrop}
           />
         ) : (
