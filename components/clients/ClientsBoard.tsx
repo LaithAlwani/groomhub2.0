@@ -25,7 +25,7 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
   const [bookingClientId, setBookingClientId] = useState<Id<"clients"> | null>(
     null,
   );
-  const debouncedSearch = useDebouncedValue(search, 200);
+  const debouncedSearch = useDebouncedValue(search, 500);
 
   const rows = useQuery(api.clients.listWithPets, {
     search: debouncedSearch || undefined,
