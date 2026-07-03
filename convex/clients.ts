@@ -52,8 +52,9 @@ async function scanPhoneMatches(
  * Lists or searches clients in the caller's org.
  * - `staff+` can read.
  * - When `search` is a digit-only string (e.g. "5550100" or "4231"), the route
- *   walks the bounded `by_org` index and filters on `phoneDigits.includes(...)`
- *   so callers can find a client by phone number or just the last few digits.
+ *   streams the org's clients and matches a phone by PREFIX (area code) or
+ *   SUFFIX (last-N digits) — not an anywhere-substring — so callers find a
+ *   client by area code or the last few digits without boundary-straddle noise.
  * - When `search` contains letters, uses the `search_name` fuzzy index on
  *   `fullName`.
  * - `includeArchived=false` (default) hides soft-deleted rows.
@@ -276,17 +277,23 @@ function buildClientPatch(args: {
 }
 
 /**
- * True when the client's primary phone OR any altPhone contains the
- * caller-supplied digit query as a substring (so partial-match search
- * works — e.g. "4231" matches "555-555-4231"). Both fields are digit-
- * normalized before comparison.
+ * True when the client's primary phone OR any altPhone STARTS WITH (area code)
+ * or ENDS WITH (last-N digits) the caller-supplied digit query. Both are
+ * digit-normalized first. Examples: "4231" matches "555-555-4231" (suffix);
+ * "613" matches "613-883-1970" (prefix).
+ *
+ * We deliberately do NOT do an anywhere-substring match: `includes` matches
+ * digits that straddle the area-code/prefix boundary (e.g. "1970" sits inside
+ * every 519-70x / 819-70x number as "51970…"), flooding results with numbers
+ * the user never meant. Prefix-or-suffix reflects how people actually search
+ * and matches the future indexed `clientPhones` design.
  */
 function phoneMatches(row: Doc<"clients">, digits: string): boolean {
   if (digits.length === 0) return false;
-  const primary = (row.phone ?? "").replace(/\D/g, "");
-  if (primary.includes(digits)) return true;
-  for (const alt of row.altPhones ?? []) {
-    if (alt.replace(/\D/g, "").includes(digits)) return true;
+  for (const raw of [row.phone, ...(row.altPhones ?? [])]) {
+    const num = (raw ?? "").replace(/\D/g, "");
+    if (num.length === 0) continue;
+    if (num.startsWith(digits) || num.endsWith(digits)) return true;
   }
   return false;
 }
