@@ -12,6 +12,41 @@ import { requireRole } from "./lib/rbac";
 import { softAuth } from "./lib/tenant";
 
 const MAX_RESULTS = 200;
+// Safety cap on how many client rows a single phone search will scan. Phone
+// matching is a substring test that no index supports, so we stream the org's
+// clients and filter in JS — bounded here so a huge org can't blow the query's
+// read budget. If a shop ever exceeds this we should move phone search to a
+// dedicated indexed `clientPhones` table (see the scaling plan).
+const MAX_PHONE_SCAN = 10_000;
+
+/**
+ * Stream the org's clients (in `by_org` order) and collect up to `MAX_RESULTS`
+ * whose primary or alt phone contains `digits`. Stops early once enough matches
+ * are found or `MAX_PHONE_SCAN` rows have been examined. Unlike a `.take(200)`
+ * prefilter, this considers EVERY client (up to the scan cap), so matches
+ * aren't limited to the oldest 200 rows.
+ */
+async function scanPhoneMatches(
+  ctx: QueryCtx,
+  orgId: string,
+  digits: string,
+  includeArchived: boolean,
+): Promise<Doc<"clients">[]> {
+  const matches: Doc<"clients">[] = [];
+  let scanned = 0;
+  for await (const row of ctx.db
+    .query("clients")
+    .withIndex("by_org", (index) => index.eq("orgId", orgId))) {
+    if (scanned >= MAX_PHONE_SCAN) break;
+    scanned += 1;
+    const visible = includeArchived || row.deletedAt === undefined;
+    if (visible && phoneMatches(row, digits)) {
+      matches.push(row);
+      if (matches.length >= MAX_RESULTS) break;
+    }
+  }
+  return matches.sort((a, b) => a.fullName.localeCompare(b.fullName));
+}
 
 /**
  * Lists or searches clients in the caller's org.
@@ -38,16 +73,12 @@ export const list = query({
       const digitsOnly = search.replace(/\D/g, "");
       const isDigitQuery = digitsOnly.length > 0 && digitsOnly === search;
       if (isDigitQuery) {
-        const rows = await ctx.db
-          .query("clients")
-          .withIndex("by_org", (index) => index.eq("orgId", orgId))
-          .take(MAX_RESULTS);
-        return rows
-          .filter((row) =>
-            args.includeArchived ? true : row.deletedAt === undefined,
-          )
-          .filter((row) => phoneMatches(row, digitsOnly))
-          .sort((a, b) => a.fullName.localeCompare(b.fullName));
+        return await scanPhoneMatches(
+          ctx,
+          orgId,
+          digitsOnly,
+          args.includeArchived ?? false,
+        );
       }
       return await ctx.db
         .query("clients")
@@ -98,16 +129,12 @@ export const listWithPets = query({
       const digitsOnly = search.replace(/\D/g, "");
       const isDigitQuery = digitsOnly.length > 0 && digitsOnly === search;
       if (isDigitQuery) {
-        const rows = await ctx.db
-          .query("clients")
-          .withIndex("by_org", (index) => index.eq("orgId", orgId))
-          .take(MAX_RESULTS);
-        clients = rows
-          .filter((row) =>
-            args.includeArchived ? true : row.deletedAt === undefined,
-          )
-          .filter((row) => phoneMatches(row, digitsOnly))
-          .sort((a, b) => a.fullName.localeCompare(b.fullName));
+        clients = await scanPhoneMatches(
+          ctx,
+          orgId,
+          digitsOnly,
+          args.includeArchived ?? false,
+        );
       } else {
         clients = await ctx.db
           .query("clients")
