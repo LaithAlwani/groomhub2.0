@@ -49,14 +49,61 @@ async function scanPhoneMatches(
 }
 
 /**
+ * Text search across clients: matches the client's own name (fuzzy `search_name`
+ * index) UNION clients whose pet's name matches (the pets `search_name` index).
+ * Deduped by client id; archived clients/pets hidden unless `includeArchived`.
+ */
+async function searchClientsByText(
+  ctx: QueryCtx,
+  orgId: string,
+  search: string,
+  includeArchived: boolean,
+): Promise<Doc<"clients">[]> {
+  const nameMatches = await ctx.db
+    .query("clients")
+    .withSearchIndex("search_name", (index) =>
+      includeArchived
+        ? index.search("fullName", search).eq("orgId", orgId)
+        : index
+            .search("fullName", search)
+            .eq("orgId", orgId)
+            .eq("deletedAt", undefined),
+    )
+    .take(MAX_RESULTS);
+
+  const petMatches = await ctx.db
+    .query("pets")
+    .withSearchIndex("search_name", (index) =>
+      includeArchived
+        ? index.search("name", search).eq("orgId", orgId)
+        : index
+            .search("name", search)
+            .eq("orgId", orgId)
+            .eq("deletedAt", undefined),
+    )
+    .take(MAX_RESULTS);
+
+  const byId = new Map<Id<"clients">, Doc<"clients">>();
+  for (const client of nameMatches) byId.set(client._id, client);
+  for (const pet of petMatches) {
+    if (byId.has(pet.clientId)) continue;
+    const client = await ctx.db.get(pet.clientId);
+    if (!client || client.orgId !== orgId) continue;
+    if (!includeArchived && client.deletedAt !== undefined) continue;
+    byId.set(client._id, client);
+  }
+  return Array.from(byId.values());
+}
+
+/**
  * Lists or searches clients in the caller's org.
  * - `staff+` can read.
  * - When `search` is a digit-only string (e.g. "5550100" or "4231"), the route
  *   streams the org's clients and matches a phone by PREFIX (area code) or
  *   SUFFIX (last-N digits) — not an anywhere-substring — so callers find a
  *   client by area code or the last few digits without boundary-straddle noise.
- * - When `search` contains letters, uses the `search_name` fuzzy index on
- *   `fullName`.
+ * - When `search` contains letters, matches the client's `fullName` OR any of
+ *   their pets' names (both via `search_name` fuzzy indexes).
  * - `includeArchived=false` (default) hides soft-deleted rows.
  */
 export const list = query({
@@ -81,17 +128,13 @@ export const list = query({
           args.includeArchived ?? false,
         );
       }
-      return await ctx.db
-        .query("clients")
-        .withSearchIndex("search_name", (index) =>
-          args.includeArchived
-            ? index.search("fullName", search).eq("orgId", orgId)
-            : index
-                .search("fullName", search)
-                .eq("orgId", orgId)
-                .eq("deletedAt", undefined),
-        )
-        .take(MAX_RESULTS);
+      const matches = await searchClientsByText(
+        ctx,
+        orgId,
+        search,
+        args.includeArchived ?? false,
+      );
+      return matches.sort((a, b) => a.fullName.localeCompare(b.fullName));
     }
     const rows = await ctx.db
       .query("clients")
@@ -137,17 +180,14 @@ export const listWithPets = query({
           args.includeArchived ?? false,
         );
       } else {
-        clients = await ctx.db
-          .query("clients")
-          .withSearchIndex("search_name", (index) =>
-            args.includeArchived
-              ? index.search("fullName", search).eq("orgId", orgId)
-              : index
-                  .search("fullName", search)
-                  .eq("orgId", orgId)
-                  .eq("deletedAt", undefined),
+        clients = (
+          await searchClientsByText(
+            ctx,
+            orgId,
+            search,
+            args.includeArchived ?? false,
           )
-          .take(MAX_RESULTS);
+        ).sort((a, b) => a.fullName.localeCompare(b.fullName));
       }
     } else {
       const rows = await ctx.db

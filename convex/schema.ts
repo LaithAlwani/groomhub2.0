@@ -515,5 +515,10 @@ export default defineSchema({
     deletedAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
-    .index("by_client", ["clientId"]),
+    .index("by_client", ["clientId"])
+    // Powers "search clients by pet name" on the clients board.
+    .searchIndex("search_name", {
+      searchField: "name",
+      filterFields: ["orgId", "deletedAt"],
+    }),
 });
