@@ -17,6 +17,7 @@ import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import "./calendarTheme.css";
 import { nowInTimezone } from "@/lib/locationTime";
 import { ThreeDayView } from "./ThreeDayView";
+import { WeekView } from "./WeekView";
 import { CalendarDayHeader } from "./CalendarDayHeader";
 import { CalendarEventCard } from "./CalendarEventCard";
 import { CalendarToolbar } from "./CalendarToolbar";
@@ -44,7 +45,9 @@ const localizer = dateFnsLocalizer({
 const DnDCalendar = withDragAndDrop(BigCalendar);
 
 const VIEWS = {
-  week: true,
+  // Custom rolling 7-day week so the toolbar's one-day arrows shift it a day at
+  // a time (RBC's built-in week snaps to Sun–Sat and ignores single-day steps).
+  week: WeekView,
   threeDay: ThreeDayView,
   day: true,
   agenda: true,
