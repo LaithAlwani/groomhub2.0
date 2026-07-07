@@ -25,6 +25,7 @@ export function ServiceRow({
   currentLocation,
   multiLocation,
   canEdit,
+  canManage,
   isBusy,
   onEdit,
   onArchive,
@@ -34,7 +35,10 @@ export function ServiceRow({
   override: Doc<"serviceLocationOverrides"> | null;
   currentLocation: Doc<"locations"> | null;
   multiLocation: boolean;
+  // Add / edit — staff+.
   canEdit: boolean;
+  // Archive + per-location price override — admin+.
+  canManage: boolean;
   isBusy: boolean;
   onEdit: () => void;
   onArchive: () => void;
@@ -110,7 +114,7 @@ export function ServiceRow({
         {speciesLabel}
       </p>
       <div className="flex shrink-0 items-center justify-end gap-1">
-        {canEdit && multiLocation && currentLocation && !isLocationOnly && (
+        {canManage && multiLocation && currentLocation && !isLocationOnly && (
           <button
             type="button"
             onClick={(event) => {
@@ -139,7 +143,7 @@ export function ServiceRow({
             <Pencil size={14} />
           </button>
         )}
-        {canEdit && (
+        {canManage && (
           <button
             type="button"
             onClick={(event) => {

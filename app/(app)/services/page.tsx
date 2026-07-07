@@ -8,11 +8,13 @@ export default async function ServicesPage() {
   if (!userId) redirect("/sign-in");
   if (!orgId) redirect("/onboarding/create-shop");
   const role = mapClerkOrgRole(orgRole);
-  const canEdit = role === "admin" || role === "superAdmin";
+  // Any team member can add / edit services; archiving + per-location price
+  // overrides stay admin-only.
+  const canManage = role === "admin" || role === "superAdmin";
 
   return (
     <section className="mx-auto w-full max-w-7xl px-6 py-10">
-      <ServicesPageBody canEdit={canEdit} />
+      <ServicesPageBody canEdit canManage={canManage} />
     </section>
   );
 }

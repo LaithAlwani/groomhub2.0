@@ -42,12 +42,12 @@ const serviceInputValidator = {
 };
 
 /**
- * Create a service. Admin + superAdmin only.
+ * Create a service. Any team member (staff+) can add to the catalog.
  */
 export const create = mutation({
   args: serviceInputValidator,
   handler: async (ctx, args) => {
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
     validateInput(args);
     const org = await ctx.db
       .query("organizations")
@@ -68,12 +68,12 @@ export const create = mutation({
 });
 
 /**
- * Update an existing service. Admin + superAdmin only. Refuses cross-org IDs.
+ * Update an existing service. Any team member (staff+). Refuses cross-org IDs.
  */
 export const update = mutation({
   args: { id: v.id("services"), ...serviceInputValidator },
   handler: async (ctx, args) => {
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
     const existing = await loadOwnService(ctx, args.id, orgId);
     validateInput(args);
     await ctx.db.patch(existing._id, {

@@ -24,7 +24,13 @@ import { useCurrentLocation } from "@/lib/useCurrentLocation";
  * stay on each row, and a small caption above the table reminds the admin
  * which location's prices/durations are showing.
  */
-export function ServicesPageBody({ canEdit }: { canEdit: boolean }) {
+export function ServicesPageBody({
+  canEdit,
+  canManage,
+}: {
+  canEdit: boolean;
+  canManage: boolean;
+}) {
   const services = useQuery(api.services.list, {});
   const { current: currentLocation, locations } = useCurrentLocation();
   const overrides = useQuery(
@@ -134,6 +140,7 @@ export function ServicesPageBody({ canEdit }: { canEdit: boolean }) {
                 currentLocation={currentLocation}
                 multiLocation={multiLocation}
                 canEdit={canEdit}
+                canManage={canManage}
                 isBusy={busyId === service._id}
                 onEdit={() =>
                   setDialog({ mode: "edit", id: service._id })

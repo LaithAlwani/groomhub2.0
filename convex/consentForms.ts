@@ -54,12 +54,13 @@ const templateInputValidator = {
 };
 
 /**
- * Create a consent-form template (typed text OR uploaded PDF). Admin+ only.
+ * Create a consent-form template (typed text OR uploaded PDF). Any team member
+ * (staff+) can add to the catalog; archiving stays superAdmin.
  */
 export const createTemplate = mutation({
   args: templateInputValidator,
   handler: async (ctx, args) => {
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
     validateTemplateInput(args);
     return await ctx.db.insert("consentTemplates", {
       orgId,
@@ -72,14 +73,14 @@ export const createTemplate = mutation({
 });
 
 /**
- * Patch a template's name + source (text or PDF). Admin+ only. Already-signed
- * records keep their snapshot — this only affects NEW signings. Swapping the
- * source deletes the previously-uploaded file.
+ * Patch a template's name + source (text or PDF). Any team member (staff+).
+ * Already-signed records keep their snapshot — this only affects NEW signings.
+ * Swapping the source deletes the previously-uploaded file.
  */
 export const updateTemplate = mutation({
   args: { id: v.id("consentTemplates"), ...templateInputValidator },
   handler: async (ctx, args) => {
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
     const existing = await loadOwnTemplate(ctx, args.id, orgId);
     validateTemplateInput(args);
     if (

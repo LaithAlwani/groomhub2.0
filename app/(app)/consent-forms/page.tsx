@@ -7,15 +7,13 @@ export default async function ConsentFormsPage() {
   const { userId, orgId, orgRole } = await auth();
   if (!userId) redirect("/sign-in");
   if (!orgId) redirect("/onboarding/create-shop");
-  const role = mapClerkOrgRole(orgRole);
-  // Admin + superAdmin can create + edit templates; only superAdmin can
-  // delete (archive) them. Staff see the catalog as read-only.
-  const canEdit = role === "superAdmin" || role === "admin";
-  const canDelete = role === "superAdmin";
+  // Any team member (staff+) can create + edit templates; only superAdmin can
+  // delete (archive) them.
+  const canDelete = mapClerkOrgRole(orgRole) === "superAdmin";
 
   return (
     <section className="mx-auto w-full max-w-7xl px-6 py-10">
-      <ConsentFormsPageBody canEdit={canEdit} canDelete={canDelete} />
+      <ConsentFormsPageBody canEdit canDelete={canDelete} />
     </section>
   );
 }
