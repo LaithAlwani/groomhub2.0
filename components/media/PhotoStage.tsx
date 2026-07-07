@@ -1,41 +1,39 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useMutation } from "convex/react";
 import { X } from "lucide-react";
-import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { formatError } from "@/lib/formatError";
 import { compressImage } from "@/lib/imageCompress";
-import { AddPhotoMenu } from "./AddPhotoMenu";
+import { AddPhotoMenu } from "@/components/calendar/AddPhotoMenu";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB per file (pre-compression)
 
-export type AppointmentImage = { storageId: Id<"_storage">; url: string | null };
-export type Stage = "before" | "after";
+export type PhotoImage = { storageId: Id<"_storage">; url: string | null };
+export type PhotoStageName = "before" | "after";
 
 /**
- * One before/after gallery. The "Add" tile opens a small menu with "Take
- * photo" and "Choose from library". Each backs a separate hidden input: the
- * camera one uses `capture` (single shot, rear camera), the library one allows
- * multi-select. We split them because iOS skips the camera option entirely
- * when a single `image/*` input also has `multiple` — so one combined input
- * can't offer both on iPhones.
+ * A reusable before/after photo gallery, decoupled from any particular table.
+ * The parent injects the upload-url generator plus add/remove handlers (bound
+ * to whichever record type owns the photos — appointments, service records,
+ * etc.). Compression, the 10 MB cap, and the camera/library picker live here.
  */
-export function AppointmentImageStage({
-  appointmentId,
+export function PhotoStage({
   stage,
   images,
   onView,
+  generateUploadUrl,
+  onAdd,
+  onRemove,
 }: {
-  appointmentId: Id<"appointments">;
-  stage: Stage;
-  images: AppointmentImage[];
+  stage: PhotoStageName;
+  images: PhotoImage[];
   onView: (url: string) => void;
+  generateUploadUrl: () => Promise<string>;
+  // Return type is loose because Convex mutations resolve to `null`, not `void`.
+  onAdd: (storageId: Id<"_storage">) => Promise<unknown>;
+  onRemove: (storageId: Id<"_storage">) => Promise<unknown>;
 }) {
-  const generateUploadUrl = useMutation(api.appointments.generateImageUploadUrl);
-  const addImage = useMutation(api.appointments.addAppointmentImage);
-  const removeImage = useMutation(api.appointments.removeAppointmentImage);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -71,7 +69,7 @@ export function AppointmentImageStage({
         const { storageId } = (await response.json()) as {
           storageId: Id<"_storage">;
         };
-        await addImage({ id: appointmentId, stage, storageId });
+        await onAdd(storageId);
       }
     } catch (caught) {
       setError(formatError(caught, "Could not upload"));
@@ -83,7 +81,7 @@ export function AppointmentImageStage({
   async function handleRemove(storageId: Id<"_storage">) {
     setError(null);
     try {
-      await removeImage({ id: appointmentId, stage, storageId });
+      await onRemove(storageId);
     } catch (caught) {
       setError(formatError(caught, "Could not remove"));
     }

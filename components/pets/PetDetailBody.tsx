@@ -11,6 +11,7 @@ import { PetProfileCard } from "./PetProfileCard";
 import { PetMedicalSection } from "./PetMedicalSection";
 import { PetVaccinationsSection } from "./PetVaccinationsSection";
 import { PetAppointmentsSection } from "./PetAppointmentsSection";
+import { PetServiceHistorySection } from "./PetServiceHistorySection";
 import { PetConsentSection } from "./PetConsentSection";
 import { PetFormDialog } from "./PetFormDialog";
 
@@ -79,6 +80,7 @@ export function PetDetailBody({
         </p>
       )}
       <PetAppointmentsSection petId={petId} />
+      <PetServiceHistorySection petId={petId} clientId={pet.clientId} />
       <PetVaccinationsSection pet={pet} />
       <PetMedicalSection pet={pet} />
       <PetConsentSection petId={petId} />

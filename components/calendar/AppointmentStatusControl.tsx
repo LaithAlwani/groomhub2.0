@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { formatAppointmentError } from "@/lib/appointmentErrors";
+import { CompleteVisitDialog } from "./CompleteVisitDialog";
 
 const STATUS_LABEL: Record<string, string> = {
   pendingApproval: "Pending approval",
@@ -64,12 +65,21 @@ export function AppointmentStatusControl({
   const updateStatus = useMutation(api.appointments.updateStatus);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
 
   const inMenu = EDITABLE_OPTIONS.some((option) => option.value === status);
   const tone = STATUS_TONE[status] ?? STATUS_TONE.scheduled;
 
   async function handleChange(next: string) {
     if (next === status) return;
+    // Completing a visit isn't a plain status flip — it opens a dialog that
+    // captures the service record (service/price/notes/weight/products) and
+    // sets `completed` in one step.
+    if (next === "completed") {
+      setError(null);
+      setCompleting(true);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -126,6 +136,12 @@ export function AppointmentStatusControl({
         <p className="text-xs font-medium text-red-600 dark:text-red-400">
           {error}
         </p>
+      )}
+      {completing && (
+        <CompleteVisitDialog
+          appointmentId={appointmentId}
+          onClose={() => setCompleting(false)}
+        />
       )}
     </div>
   );

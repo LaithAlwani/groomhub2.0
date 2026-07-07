@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
+  internalMutation,
   mutation,
   query,
   type MutationCtx,
@@ -157,31 +158,6 @@ export const listForPet = query({
   },
 });
 
-/**
- * Returns the current user's appointments still awaiting their approval. Used
- * by the dashboard "Needs approval" tile. Each row is enriched so the tile
- * doesn't need extra joins. Returns `[]` for users not yet in any org.
- */
-export const pendingForMe = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await softAuth(ctx);
-    if (!identity) return [];
-    const { membership } = await readMembershipForQuery(ctx, identity);
-    if (!membership) return [];
-    const rows = await ctx.db
-      .query("appointments")
-      .withIndex("by_staff_start", (index) =>
-        index.eq("staffId", membership._id),
-      )
-      .take(MAX_RESULTS);
-    const pending = rows
-      .filter((row) => row.status === "pendingApproval")
-      .sort((a, b) => a.startTime - b.startTime);
-    return await Promise.all(pending.map((row) => enrichAppointment(ctx, row)));
-  },
-});
-
 /** Fetch a single appointment by id. Refuses cross-org. Returns enriched. */
 export const get = query({
   args: { id: v.id("appointments") },
@@ -329,11 +305,7 @@ export const create = mutation({
     if (conflict) {
       appError("SLOT_TAKEN", { conflictId: conflict._id });
     }
-    // Self-bookings auto-confirm; admin booking on someone else's behalf
-    // lands as `pendingApproval` and waits for the assigned groomer (or any
-    // admin/superAdmin) to confirm.
-    const initialStatus =
-      actor._id === staff._id ? "scheduled" : "pendingApproval";
+    // Every booking is confirmed on creation — there is no approval step.
     const insertedId = await ctx.db.insert("appointments", {
       orgId: identity.orgId,
       locationId: location._id,
@@ -343,7 +315,7 @@ export const create = mutation({
       serviceId: service._id,
       startTime: args.startTime,
       endTime,
-      status: initialStatus,
+      status: "scheduled",
       priceCentsSnapshot: service.priceCents,
       paymentStatus: "unpaid",
       notes: args.notes?.trim() || undefined,
@@ -351,105 +323,11 @@ export const create = mutation({
       createdBy: actor._id,
       createdAt: Date.now(),
     });
-    if (initialStatus === "scheduled") {
-      await ctx.scheduler.runAfter(0, internal.email.sendBookingConfirmation, {
-        appointmentId: insertedId,
-      });
-      await scheduleReminderIfFarEnough(ctx, insertedId, args.startTime);
-    } else {
-      // pendingApproval — alert the assigned groomer by email.
-      await ctx.scheduler.runAfter(
-        0,
-        internal.email.sendPendingApprovalToGroomer,
-        { appointmentId: insertedId },
-      );
-    }
-    return insertedId;
-  },
-});
-
-/**
- * Log a *completed* visit that already happened — the pilot's minimal
- * front-desk flow (client + pet + service + notes). Unlike `create`, this is a
- * historical record, so it:
- *   - assumes the acting member is the groomer (no `staffId` arg),
- *   - stamps `startTime = now`, `endTime = now + service duration`,
- *   - lands as `completed` immediately,
- *   - deliberately SKIPS the availability + overlap checks (a past visit can't
- *     be blocked by "no open slot" or "slot taken"), and
- *   - sends no emails.
- * The deceased/banned guards and `clientUuid` idempotency stay, so it still
- * can't record a nonsense visit or duplicate on a double-submit.
- */
-export const logVisit = mutation({
-  args: {
-    clientUuid: v.string(),
-    locationId: v.id("locations"),
-    clientId: v.id("clients"),
-    petId: v.id("pets"),
-    serviceId: v.id("services"),
-    // The amount actually charged for this visit, in cents. Optional — falls
-    // back to the service's list price. Stored as `priceCentsSnapshot` so the
-    // appointment reads the right total on open with no follow-up mutation.
-    priceCents: v.optional(v.number()),
-    notes: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx);
-    const { membership: actor } = await ensureMembership(ctx, identity);
-    await requireRole(ctx, ["superAdmin", "admin", "staff"]);
-
-    const existing = await ctx.db
-      .query("appointments")
-      .withIndex("by_clientUuid", (index) =>
-        index.eq("clientUuid", args.clientUuid),
-      )
-      .unique();
-    if (existing) return existing._id;
-
-    // The acting member is the groomer for a logged visit.
-    const { client, pet, service, staff, location } = await loadRefs(
-      ctx,
-      identity.orgId,
-      {
-        clientId: args.clientId,
-        petId: args.petId,
-        staffId: actor._id,
-        serviceId: args.serviceId,
-        locationId: args.locationId,
-      },
-    );
-    if (pet.isDeceased === true) {
-      appError("VALIDATION", { field: "petId", reason: "PET_DECEASED" });
-    }
-    if (pet.isBanned === true) {
-      appError("VALIDATION", { field: "petId", reason: "PET_BANNED" });
-    }
-    if (args.priceCents !== undefined && args.priceCents < 0) {
-      appError("VALIDATION", { field: "priceCents", reason: "NEGATIVE" });
-    }
-    const startTime = Date.now();
-    const durationMin = service.durationMin > 0 ? service.durationMin : 30;
-    const endTime = startTime + durationMin * 60 * 1000;
-    return await ctx.db.insert("appointments", {
-      orgId: identity.orgId,
-      locationId: location._id,
-      clientId: client._id,
-      petId: pet._id,
-      staffId: staff._id,
-      serviceId: service._id,
-      startTime,
-      endTime,
-      status: "completed",
-      // The charged amount is the source of truth for a completed log; if the
-      // groomer left it blank we snapshot the service's list price.
-      priceCentsSnapshot: args.priceCents ?? service.priceCents,
-      paymentStatus: "unpaid",
-      notes: args.notes?.trim() || undefined,
-      clientUuid: args.clientUuid,
-      createdBy: actor._id,
-      createdAt: startTime,
+    await ctx.scheduler.runAfter(0, internal.email.sendBookingConfirmation, {
+      appointmentId: insertedId,
     });
+    await scheduleReminderIfFarEnough(ctx, insertedId, args.startTime);
+    return insertedId;
   },
 });
 
@@ -636,34 +514,9 @@ export const updateStatus = mutation({
     }
     const previousStatus = existing.status;
     if (previousStatus === args.status) return;
-    // Declining is the assigned groomer's prerogative — admins can cancel or
-    // reassign, but only the staff member the booking is on can flip it to
-    // "declined" (which signals "I don't want to take this" back to admins).
-    if (args.status === "declined") {
-      if (previousStatus !== "pendingApproval") {
-        appError("VALIDATION", { reason: "CAN_ONLY_DECLINE_PENDING" });
-      }
-      const { membership } = await ensureMembership(ctx, identity);
-      if (existing.staffId !== membership._id) {
-        appError("FORBIDDEN", { reason: "ONLY_ASSIGNED_GROOMER_CAN_DECLINE" });
-      }
-    }
     await ctx.db.patch(existing._id, { status: args.status });
-    // pendingApproval → scheduled is the confirmation moment.
-    if (previousStatus === "pendingApproval" && args.status === "scheduled") {
-      await ctx.scheduler.runAfter(0, internal.email.sendBookingConfirmation, {
-        appointmentId: existing._id,
-      });
-      await scheduleReminderIfFarEnough(ctx, existing._id, existing.startTime);
-    }
-    // pendingApproval → declined: alert admins so they can reassign/cancel.
-    if (previousStatus === "pendingApproval" && args.status === "declined") {
-      await ctx.scheduler.runAfter(0, internal.email.sendDeclinedToAdmins, {
-        appointmentId: existing._id,
-      });
-    }
     // Cancellation email: only when the client already knew about the booking
-    // (i.e. previous status wasn't pendingApproval or declined — those never
+    // (i.e. previous status wasn't a stale pre-approval one — those never
     // surfaced to the client).
     if (
       args.status === "cancelled" &&
@@ -792,87 +645,27 @@ async function loadEditableAppointment(
 }
 
 /**
- * Reassign a still-pending or declined booking to a different groomer.
- * Admin / superAdmin only. Re-runs availability + overlap checks for the new
- * staff at the current `startTime`, then flips the row to `pendingApproval`
- * so the new groomer sees it in their approval tile.
- *
- * Allowed source states are `declined` (groomer rejected) and
- * `pendingApproval` (admin wants to move it before the original groomer
- * responds). Already-scheduled bookings have to be cancelled first.
+ * One-time migration for the removed approval flow: any lingering
+ * `pendingApproval` rows become `scheduled` (bookings are auto-confirmed now)
+ * and `declined` rows become `cancelled` (they were rejected). Idempotent.
+ * Run with `npx convex run appointments:migrateApprovalStatuses`.
  */
-export const reassign = mutation({
-  args: { id: v.id("appointments"), staffId: v.id("memberships") },
-  handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx);
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
-    const existing = await loadOwnAppointment(ctx, args.id, identity.orgId);
-    if (
-      existing.status !== "declined" &&
-      existing.status !== "pendingApproval"
-    ) {
-      appError("VALIDATION", { field: "status", reason: "NOT_REASSIGNABLE" });
-    }
-    if (existing.staffId === args.staffId) {
-      appError("VALIDATION", { field: "staffId", reason: "SAME_GROOMER" });
-    }
-    const targetStaff = await ctx.db.get(args.staffId);
-    if (!targetStaff || targetStaff.orgId !== orgId) {
-      appError("NOT_FOUND", { reason: "STAFF_NOT_FOUND" });
-    }
-    if (!targetStaff.isActive) {
-      appError("VALIDATION", { field: "staffId", reason: "INACTIVE_STAFF" });
-    }
-    const location = await loadLocation(ctx, existing.locationId, orgId);
-    await assertWithinAvailability(
-      ctx,
-      orgId,
-      location._id,
-      args.staffId,
-      existing.startTime,
-      existing.endTime,
-      location.timezone,
-    );
-    const conflict = await findConflictForStaff(
-      ctx,
-      args.staffId,
-      existing.startTime,
-      existing.endTime,
-      existing._id,
-    );
-    if (conflict) appError("SLOT_TAKEN", { conflictId: conflict._id });
-    await ctx.db.patch(existing._id, {
-      staffId: args.staffId,
-      status: "pendingApproval",
-    });
-    // Alert the newly-assigned groomer that they have a booking awaiting them.
-    await ctx.scheduler.runAfter(
-      0,
-      internal.email.sendPendingApprovalToGroomer,
-      { appointmentId: existing._id },
-    );
-  },
-});
-
-/**
- * Lists appointments awaiting admin attention because a groomer declined.
- * Admin / superAdmin only — staff don't see other groomers' rejections.
- */
-export const declinedForOrg = query({
+export const migrateApprovalStatuses = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await softAuth(ctx);
-    if (!identity) return [];
-    const role = mapClerkOrgRole(identity.orgRole);
-    if (role !== "admin" && role !== "superAdmin") return [];
-    const rows = await ctx.db
-      .query("appointments")
-      .withIndex("by_org_start", (index) => index.eq("orgId", identity.orgId))
-      .take(MAX_RESULTS);
-    const declined = rows
-      .filter((row) => row.status === "declined")
-      .sort((a, b) => a.startTime - b.startTime);
-    return await Promise.all(declined.map((row) => enrichAppointment(ctx, row)));
+    const rows = await ctx.db.query("appointments").collect();
+    let scheduled = 0;
+    let cancelled = 0;
+    for (const row of rows) {
+      if (row.status === "pendingApproval") {
+        await ctx.db.patch(row._id, { status: "scheduled" });
+        scheduled += 1;
+      } else if (row.status === "declined") {
+        await ctx.db.patch(row._id, { status: "cancelled" });
+        cancelled += 1;
+      }
+    }
+    return { scheduled, cancelled };
   },
 });
 

@@ -40,6 +40,7 @@ import type * as orgCleanup from "../orgCleanup.js";
 import type * as organizations from "../organizations.js";
 import type * as pets from "../pets.js";
 import type * as seed from "../seed.js";
+import type * as serviceRecords from "../serviceRecords.js";
 import type * as services from "../services.js";
 import type * as users from "../users.js";
 import type * as vaccines from "../vaccines.js";
@@ -83,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   organizations: typeof organizations;
   pets: typeof pets;
   seed: typeof seed;
+  serviceRecords: typeof serviceRecords;
   services: typeof services;
   users: typeof users;
   vaccines: typeof vaccines;

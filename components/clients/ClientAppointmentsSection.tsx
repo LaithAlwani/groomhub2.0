@@ -3,10 +3,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, MapPin, NotebookPen } from "lucide-react";
+import { CalendarDays, MapPin } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { LogVisitDialog } from "@/components/calendar/LogVisitDialog";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -47,11 +46,16 @@ export function ClientAppointmentsSection({
 }: {
   clientId: Id<"clients">;
 }) {
-  const appointments = useQuery(api.appointments.listForClient, { clientId });
+  const allAppointments = useQuery(api.appointments.listForClient, { clientId });
+  // Completed visits live in the Service History section now — this section is
+  // scheduled/upcoming (and cancelled/no-show) appointments only.
+  const appointments = useMemo(
+    () => allAppointments?.filter((row) => row.status !== "completed"),
+    [allAppointments],
+  );
   const { locations } = useCurrentLocation();
   const showLocation = locations.length > 1;
   const router = useRouter();
-  const [bookingOpen, setBookingOpen] = useState(false);
   // null = "All pets" tab. Reset implicitly when the underlying query
   // changes (e.g. appointment booked) — useMemo recomputes the pet list
   // and an invalid pet name just falls back to "All" via the filter.
@@ -88,25 +92,22 @@ export function ClientAppointmentsSection({
       ? `${visibleCount} of ${totalCount}`
       : `${totalCount}`;
 
+  // Hide the whole section when there are no scheduled/upcoming appointments
+  // (completed visits live in Service history). Also hidden while loading so
+  // an empty card never flashes in.
+  if (appointments === undefined || appointments.length === 0) return null;
+
   return (
     <section className="mt-8">
       <header className="mb-3 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          History
+          Appointments
           {appointments !== undefined && (
             <span className="text-sm font-medium text-zinc-400 dark:text-zinc-500">
               {countLabel}
             </span>
           )}
         </h2>
-        <button
-          type="button"
-          onClick={() => setBookingOpen(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600"
-        >
-          <NotebookPen size={14} />
-          Add note
-        </button>
       </header>
 
       {/* Pet filter tabs — only render with 2+ pets, otherwise the tab row
@@ -189,13 +190,6 @@ export function ClientAppointmentsSection({
           </ul>
         )}
       </div>
-
-      {bookingOpen && (
-        <LogVisitDialog
-          initialClientId={clientId}
-          onClose={() => setBookingOpen(false)}
-        />
-      )}
     </section>
   );
 }

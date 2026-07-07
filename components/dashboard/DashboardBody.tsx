@@ -7,10 +7,8 @@ import { api } from "@/convex/_generated/api";
 import { mapClerkOrgRole } from "@/convex/lib/roles";
 import { planAllows, type Plan } from "@/convex/lib/plans";
 import { CriticalAlertsCard } from "./CriticalAlertsCard";
-import { DeclinedQueueList } from "./DeclinedQueueList";
 import { OnboardingChecklistCard } from "./OnboardingChecklistCard";
 import { LockedWidgetTeaser } from "./LockedWidgetTeaser";
-import { PendingApprovalsList } from "./PendingApprovalsList";
 import { RevenueCard } from "./RevenueCard";
 import { SalonHealthCard } from "./SalonHealthCard";
 import { TodayList } from "./TodayList";
@@ -44,7 +42,6 @@ export function DashboardBody() {
   const plan = (org.plan ?? "essential") as Plan;
   const role = mapClerkOrgRole(membership?.role ?? null);
   const isOwner = role === "superAdmin";
-  const isAdminPlus = role === "superAdmin" || role === "admin";
   const allowsSalonHealth = planAllows(plan, "dashboardSalonHealth");
   const allowsAdvanced = planAllows(plan, "dashboardAdvancedAnalytics");
 
@@ -66,16 +63,6 @@ export function DashboardBody() {
         // empty fragment would leave the next card jumping into this cell.
         <div className="hidden md:block" aria-hidden />
       )}
-      <div className="md:col-span-2 xl:col-span-1">
-        <PendingApprovalsList />
-      </div>
-
-      {isAdminPlus && (
-        <div className="md:col-span-2 xl:col-span-3">
-          <DeclinedQueueList />
-        </div>
-      )}
-
       {allowsSalonHealth ? (
         <SalonHealthCard />
       ) : (

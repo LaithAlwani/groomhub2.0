@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Camera, Image as ImageIcon, ImagePlus, Loader2 } from "lucide-react";
-import type { Stage } from "./AppointmentImageStage";
 
 /**
  * True only when the device's PRIMARY pointer is touch (phones/tablets), which
@@ -41,7 +40,7 @@ export function AddPhotoMenu({
   onCamera,
   onLibrary,
 }: {
-  stage: Stage;
+  stage: string;
   busy: boolean;
   onCamera: () => void;
   onLibrary: () => void;

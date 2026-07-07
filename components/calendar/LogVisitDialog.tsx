@@ -7,36 +7,37 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
-import { generateClientUuid } from "@/lib/uuid";
-import { formatAppointmentError } from "@/lib/appointmentErrors";
+import { formatError } from "@/lib/formatError";
 import { LogVisitFields, type LogVisitFormState } from "./LogVisitFields";
 import { useBookingInlineCreate } from "./useBookingInlineCreate";
 
 /**
- * Minimal "Log a visit" dialog for the pilot front desk: client + pet +
- * service + price + notes. The groomer is assumed to be the signed-in member
- * and the visit is recorded as completed *now* server-side
- * (`appointments.logVisit`) — no staff/date/time/status to fill in. The price
- * lands directly on `priceCentsSnapshot`, so opening the appointment later
- * shows the right total with no follow-up edit. The full scheduler still lives
- * in `AppointmentDialog` for the calendar.
+ * "Log a service" dialog: client + pet + (optional) service + price + weight +
+ * products + notes. Creates a permanent `serviceRecords` entry — NOT an
+ * appointment (walk-in / manual history). The acting member is the groomer.
+ * A record with no service is a plain note. Photos are added afterward on the
+ * record in the Service History list.
  */
 export function LogVisitDialog({
   initialClientId,
+  initialPetId,
   onClose,
 }: {
   initialClientId?: Id<"clients">;
+  initialPetId?: Id<"pets">;
   onClose: () => void;
 }) {
   const { current: currentLocation } = useCurrentLocation();
   const services = useQuery(api.services.list, {});
-  const logVisit = useMutation(api.appointments.logVisit);
+  const createRecord = useMutation(api.serviceRecords.create);
   const [state, setState] = useState<LogVisitFormState>({
     clientId: initialClientId ?? null,
-    petId: null,
+    petId: initialPetId ?? null,
     serviceId: null,
     price: "",
     notes: "",
+    weight: "",
+    products: "",
   });
   const [petError, setPetError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -56,8 +57,7 @@ export function LogVisitDialog({
   const currency =
     selectedService?.currency ?? currentLocation?.currency ?? "USD";
 
-  // Picking a service prefills the price with its list price (in dollars) so
-  // the common case is one tap; the groomer can still edit it.
+  // Picking a service prefills the price with its list price (dollars).
   function handleService(serviceId: Id<"services">) {
     const service = services?.find((entry) => entry._id === serviceId);
     setState((current) => ({
@@ -71,12 +71,8 @@ export function LogVisitDialog({
     event.preventDefault();
     setServerError(null);
     setPetError(null);
-    if (!state.clientId || !state.petId) {
+    if (!state.petId) {
       setPetError(state.clientId ? "Pick a pet" : "Pick a client");
-      return;
-    }
-    if (!state.serviceId) {
-      setServerError("Pick a service.");
       return;
     }
     let priceCents: number | undefined;
@@ -89,26 +85,26 @@ export function LogVisitDialog({
       }
       priceCents = Math.round(parsed * 100);
     }
-    if (!currentLocation) {
-      setServerError(
-        "Pick a location before logging a visit — your shop has no active location yet.",
-      );
-      return;
-    }
+    const weightRaw = (state.weight ?? "").trim();
+    const weightNum = Number(weightRaw);
     setSubmitting(true);
     try {
-      await logVisit({
-        clientUuid: generateClientUuid(),
-        locationId: currentLocation._id,
-        clientId: state.clientId,
+      await createRecord({
         petId: state.petId,
-        serviceId: state.serviceId,
+        locationId: currentLocation?._id,
+        serviceId: state.serviceId ?? undefined,
         priceCents,
         notes: state.notes || undefined,
+        weightLb:
+          weightRaw !== "" && Number.isFinite(weightNum) ? weightNum : undefined,
+        productsUsed: (state.products ?? "")
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter(Boolean),
       });
       onClose();
     } catch (caught) {
-      setServerError(formatAppointmentError(caught));
+      setServerError(formatError(caught, "Could not log the service."));
     } finally {
       setSubmitting(false);
     }
@@ -119,7 +115,7 @@ export function LogVisitDialog({
       open
       onClose={onClose}
       busy={submitting}
-      title="Log a visit"
+      title="Log a service"
       maxWidth="md"
     >
       <div className="px-5 py-5">
@@ -130,11 +126,7 @@ export function LogVisitDialog({
             petError={petError ?? undefined}
             currency={currency}
             onChangeClient={(id) =>
-              setState((current) => ({
-                ...current,
-                clientId: id,
-                petId: null,
-              }))
+              setState((current) => ({ ...current, clientId: id, petId: null }))
             }
             onChangePet={(id) =>
               setState((current) => ({ ...current, petId: id }))
@@ -145,6 +137,12 @@ export function LogVisitDialog({
             }
             onChangeNotes={(value) =>
               setState((current) => ({ ...current, notes: value }))
+            }
+            onChangeWeight={(value) =>
+              setState((current) => ({ ...current, weight: value }))
+            }
+            onChangeProducts={(value) =>
+              setState((current) => ({ ...current, products: value }))
             }
             openCreateClient={inlineCreate.openCreateClient}
             openCreatePet={inlineCreate.openCreatePet}
@@ -164,7 +162,7 @@ export function LogVisitDialog({
               disabled={submitting}
               className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
             >
-              {submitting ? "Saving…" : "Log visit"}
+              {submitting ? "Saving…" : "Log service"}
             </button>
           </div>
           {inlineCreate.dialogs}

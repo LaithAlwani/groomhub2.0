@@ -39,7 +39,11 @@ const STATUS_TONE: Record<string, string> = {
  * the client-level history but scoped to one pet, so no pet filter tabs.
  */
 export function PetAppointmentsSection({ petId }: { petId: Id<"pets"> }) {
-  const appointments = useQuery(api.appointments.listForPet, { petId });
+  const allAppointments = useQuery(api.appointments.listForPet, { petId });
+  // Completed visits live in the Service History section now.
+  const appointments = allAppointments?.filter(
+    (row) => row.status !== "completed",
+  );
   const router = useRouter();
   const { locations } = useCurrentLocation();
   const showLocation = locations.length > 1;

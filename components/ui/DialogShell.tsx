@@ -66,7 +66,9 @@ export function DialogShell({
         onOpenChange={(next) => {
           if (!next && !busy) onClose();
         }}
-        dismissible={!busy}
+        // Only the X button closes the sheet — no swipe-down, outside-tap, or
+        // ESC dismissal (prevents losing an in-progress form by accident).
+        dismissible={false}
       >
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 z-100 bg-zinc-900/40 backdrop-blur-sm" />
@@ -107,15 +109,14 @@ export function DialogShell({
   // only ever open from client interaction, so `document` is present.
   if (typeof document === "undefined") return null;
 
+  // Backdrop click intentionally does NOT close — only the X button (or the
+  // dialog's own buttons) dismisses, so a stray click can't discard a form.
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={title}
       className="fixed inset-0 z-100 flex items-center justify-center bg-zinc-900/40 p-6 backdrop-blur-sm"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose();
-      }}
     >
       <div
         className={`flex max-h-[90vh] w-full ${widthClass} flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950`}

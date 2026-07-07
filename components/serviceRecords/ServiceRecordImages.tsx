@@ -8,29 +8,26 @@ import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { PhotoStage, type PhotoImage } from "@/components/media/PhotoStage";
 
 /**
- * Before/after photo galleries (appointment dialog + detail page). Wires the
- * shared `PhotoStage` to the appointment image mutations. Clicking a thumbnail
- * opens it full-size in a lightbox.
+ * Editable before/after photos for a service record. Wires the shared
+ * `PhotoStage` to the service-record image mutations (upload URL is reused
+ * from the appointments module — it's reference-free).
  */
-export function AppointmentImagesSection({
-  appointmentId,
+export function ServiceRecordImages({
+  recordId,
   before,
   after,
 }: {
-  appointmentId: Id<"appointments">;
+  recordId: Id<"serviceRecords">;
   before: PhotoImage[];
   after: PhotoImage[];
 }) {
   const generateUploadUrl = useMutation(api.appointments.generateImageUploadUrl);
-  const addImage = useMutation(api.appointments.addAppointmentImage);
-  const removeImage = useMutation(api.appointments.removeAppointmentImage);
+  const addImage = useMutation(api.serviceRecords.addImage);
+  const removeImage = useMutation(api.serviceRecords.removeImage);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-        Before &amp; after photos
-      </span>
+    <div className="flex flex-col gap-3">
       {(["before", "after"] as const).map((stage) => (
         <PhotoStage
           key={stage}
@@ -38,16 +35,16 @@ export function AppointmentImagesSection({
           images={stage === "before" ? before : after}
           onView={setViewerUrl}
           generateUploadUrl={generateUploadUrl}
-          onAdd={(storageId) => addImage({ id: appointmentId, stage, storageId })}
+          onAdd={(storageId) => addImage({ id: recordId, stage, storageId })}
           onRemove={(storageId) =>
-            removeImage({ id: appointmentId, stage, storageId })
+            removeImage({ id: recordId, stage, storageId })
           }
         />
       ))}
       {viewerUrl && (
         <ImageLightbox
           url={viewerUrl}
-          alt="Appointment photo"
+          alt="Service photo"
           onClose={() => setViewerUrl(null)}
         />
       )}

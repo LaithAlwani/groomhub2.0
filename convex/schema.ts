@@ -426,6 +426,42 @@ export default defineSchema({
     .index("by_pet", ["petId"])
     .index("by_clientUuid", ["clientUuid"]),
 
+  // Permanent history of services performed on a pet — the record of what
+  // actually happened, distinct from the scheduled `appointments` row.
+  //   - A scheduled appointment, when completed, spawns a linked record
+  //     (`appointmentId` set) and the appointment stays as `completed`.
+  //   - A walk-in creates a record directly (`appointmentId` undefined).
+  //   - A record with no `serviceId` is a plain note (price 0) — this is the
+  //     "notes with optional service + price" surface on the client/pet pages.
+  // `serviceNameSnapshot` + `priceCentsSnapshot` + `currency` snapshot the
+  // resolved (location-override-applied) service at write time so later
+  // catalog edits don't retroactively rewrite history.
+  serviceRecords: defineTable({
+    orgId: v.string(),
+    locationId: v.optional(v.id("locations")),
+    clientId: v.id("clients"),
+    petId: v.id("pets"),
+    appointmentId: v.optional(v.id("appointments")),
+    staffId: v.id("memberships"),
+    date: v.number(), // ms epoch — when the service happened
+    serviceId: v.optional(v.id("services")),
+    serviceNameSnapshot: v.optional(v.string()),
+    priceCentsSnapshot: v.number(),
+    currency: v.string(),
+    notes: v.optional(v.string()),
+    weightLb: v.optional(v.number()),
+    productsUsed: v.optional(v.array(v.string())),
+    beforeImageStorageIds: v.optional(v.array(v.id("_storage"))),
+    afterImageStorageIds: v.optional(v.array(v.id("_storage"))),
+    createdBy: v.id("memberships"),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_client", ["clientId"])
+    .index("by_pet", ["petId"])
+    .index("by_appointment", ["appointmentId"])
+    .index("by_org_date", ["orgId", "date"]),
+
   // Per-day override for the next ~60 days: PTO, extra shifts, holiday closures.
   // `date` is ISO YYYY-MM-DD in the org's timezone. `kind="off"` means the day
   // is unavailable; `kind="custom"` means `slots` replaces the weekly pattern

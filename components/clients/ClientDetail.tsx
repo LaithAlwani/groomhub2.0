@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { formatPhone } from "@/lib/phone";
 import { ClientFormDialog } from "./ClientFormDialog";
 import { ClientAppointmentsSection } from "./ClientAppointmentsSection";
-import { ClientLegacyAppointmentsSection } from "./ClientLegacyAppointmentsSection";
+import { ClientServiceHistorySection } from "./ClientServiceHistorySection";
 import { ClientConsentSection } from "./ClientConsentSection";
 import { PetList } from "@/components/pets/PetList";
 
@@ -159,11 +159,11 @@ export function ClientDetail({
       )}
 
       <PetList clientId={clientId} canEdit={canEdit} canArchive={canArchive} />
-      <ClientAppointmentsSection clientId={clientId} />
-      <ClientLegacyAppointmentsSection
+      <ClientServiceHistorySection
         clientId={clientId}
-        canEdit={canArchive}
+        canEditLegacy={canArchive}
       />
+      <ClientAppointmentsSection clientId={clientId} />
       <ClientConsentSection clientId={clientId} />
 
       {editing && (
