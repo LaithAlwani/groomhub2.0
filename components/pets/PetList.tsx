@@ -82,7 +82,7 @@ export function PetList({
       ) : pets.length === 0 ? (
         <EmptyState />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {pets.map((pet) => (
             <PetRow
               key={pet._id}
@@ -159,11 +159,11 @@ function EmptyState() {
 
 function ListSkeleton() {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {[0, 1].map((index) => (
         <div
           key={index}
-          className="h-20 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-900"
+          className="h-28 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-900"
         />
       ))}
     </div>
