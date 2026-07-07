@@ -1,27 +1,31 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { RequiredMark } from "@/components/forms/RequiredMark";
 import { addDaysIso, todayIsoDate } from "@/lib/time";
-import { BookingDatePicker } from "./BookingDatePicker";
+import { DateStrip } from "@/components/availability/slots/DateStrip";
+import { buildBookingPills } from "@/components/availability/slots/availabilitySlots";
+import {
+  Placeholder,
+  SlotChips,
+  firstAvailableSelection,
+  toMinutes,
+  minutesToTimeValue,
+} from "./bookingPickerParts";
 
-const BOOKING_WINDOW_DAYS = 60;
+const MAX_BOOKING_DAYS = 120;
+const VISIBLE_STEP = 21; // days loaded initially / added per "load more"
 const STEP_MIN = 15;
 
 /**
- * Availability-aware date + time pickers for booking. Offers only the days the
- * chosen groomer works (rendered as a month calendar with closed days disabled)
- * and only start times inside their open slots that (a) fit the service duration
- * and (b) aren't already taken by another appointment.
- *
- * When editing (`allowCurrentSelection`), the appointment's existing date/time
- * stay selectable even if they now fall outside availability, and
- * `excludeAppointmentId` drops the appointment from the booked set so its own
- * slot isn't treated as a conflict (lets the user nudge it by 15–30 min).
+ * Booking date + time picker (slot design): a day-pill strip (only days the
+ * groomer works are selectable) + tappable slot chips that fit the service and
+ * aren't taken. Edit mode (`allowCurrentSelection` + `excludeAppointmentId`)
+ * keeps the appointment's own slot selectable/non-conflicting.
  */
 export function AvailabilitySlotPicker({
   staffId,
@@ -45,7 +49,8 @@ export function AvailabilitySlotPicker({
   allowCurrentSelection?: boolean;
 }) {
   const today = todayIsoDate();
-  const toDate = addDaysIso(today, BOOKING_WINDOW_DAYS);
+  const [visibleDays, setVisibleDays] = useState(VISIBLE_STEP);
+  const toDate = addDaysIso(today, visibleDays);
 
   const slotsByDate = useQuery(
     api.availability.forStaffSlotsInRange,
@@ -53,8 +58,6 @@ export function AvailabilitySlotPicker({
       ? { staffId, locationId, fromDate: today, toDate }
       : "skip",
   );
-  // Times already taken by this groomer's other appointments, subtracted from
-  // the offered start times so we never let them double-book.
   const bookedByDate = useQuery(
     api.appointments.bookedSlotsForStaffInRange,
     staffId && locationId
@@ -68,52 +71,87 @@ export function AvailabilitySlotPicker({
       : "skip",
   );
 
-  // Service needs room to finish inside the slot. Default to one step when no
-  // service is picked yet so the date list isn't empty before that choice.
   const duration =
     serviceDurationMin && serviceDurationMin > 0 ? serviceDurationMin : STEP_MIN;
 
-  const availableDates = useMemo(() => {
-    const dates = slotsByDate
-      ? Object.entries(slotsByDate)
-          .filter(
-            ([day, slots]) =>
-              day >= today &&
-              slots.some((slot) => slot.endMin - slot.startMin >= duration),
-          )
-          .map(([day]) => day)
-      : [];
-    // Keep the appointment's existing date selectable when editing.
-    if (allowCurrentSelection && date && !dates.includes(date)) dates.push(date);
-    return dates.sort();
-  }, [slotsByDate, today, duration, allowCurrentSelection, date]);
+  // The groomer's own slots, per date, that fit the service and aren't already
+  // taken. These ARE the bookable options — clients pick a whole slot, not an
+  // arbitrary start time inside it.
+  const availableSlotsByDate = useMemo(() => {
+    const result: Record<string, Array<{ startMin: number; endMin: number }>> =
+      {};
+    if (!slotsByDate) return result;
+    for (const [day, slots] of Object.entries(slotsByDate)) {
+      if (day < today) continue;
+      const booked = bookedByDate?.[day] ?? [];
+      const open = slots.filter(
+        (slot) =>
+          slot.endMin - slot.startMin >= duration &&
+          !booked.some(
+            (appointment) =>
+              slot.startMin < appointment.endMin &&
+              slot.endMin > appointment.startMin,
+          ),
+      );
+      if (open.length > 0) result[day] = open;
+    }
+    return result;
+  }, [slotsByDate, bookedByDate, today, duration]);
 
-  const startTimes = useMemo(() => {
-    const slots = slotsByDate?.[date] ?? [];
-    const booked = bookedByDate?.[date] ?? [];
-    const minutes = new Set<number>();
-    for (const slot of slots) {
-      for (let start = slot.startMin; start + duration <= slot.endMin; start += STEP_MIN) {
-        const end = start + duration;
-        const overlapsBooked = booked.some(
-          (appointment) =>
-            start < appointment.endMin && end > appointment.startMin,
-        );
-        if (!overlapsBooked) minutes.add(start);
-      }
+  const availableDates = useMemo(() => {
+    const dates = Object.keys(availableSlotsByDate);
+    if (allowCurrentSelection && date && !dates.includes(date)) dates.push(date);
+    return dates;
+  }, [availableSlotsByDate, allowCurrentSelection, date]);
+
+  const currentMin = toMinutes(time);
+  const daySlots = useMemo(() => {
+    const slots = [...(availableSlotsByDate[date] ?? [])];
+    // Keep the appointment's existing time selectable when editing, even if it
+    // no longer lines up with a defined slot.
+    if (
+      allowCurrentSelection &&
+      currentMin >= 0 &&
+      !slots.some((slot) => slot.startMin === currentMin)
+    ) {
+      slots.push({ startMin: currentMin, endMin: currentMin + duration });
     }
-    // Keep the appointment's existing time selectable when editing.
-    if (allowCurrentSelection && time) {
-      const current = toMinutes(time);
-      if (current >= 0) minutes.add(current);
-    }
-    return [...minutes].sort((a, b) => a - b);
-  }, [slotsByDate, bookedByDate, date, duration, allowCurrentSelection, time]);
+    return slots.sort((a, b) => a.startMin - b.startMin);
+  }, [availableSlotsByDate, date, allowCurrentSelection, currentMin, duration]);
+
+  const pills = useMemo(
+    () =>
+      buildBookingPills(
+        new Date(`${today}T00:00:00`),
+        visibleDays,
+        date,
+        new Set(availableDates),
+      ),
+    [today, visibleDays, date, availableDates],
+  );
+
+  function loadMore() {
+    setVisibleDays((days) => Math.min(days + VISIBLE_STEP, MAX_BOOKING_DAYS));
+  }
+
+  // Fresh booking: land on a real slot (snap the pre-filled time to its slot,
+  // else jump to the first available). Editing keeps the existing selection.
+  useEffect(() => {
+    if (slotsByDate === undefined || allowCurrentSelection) return;
+    const target = firstAvailableSelection(
+      availableSlotsByDate,
+      availableDates,
+      date,
+      time,
+    );
+    if (!target) return;
+    if (target.date) onChangeDate(target.date);
+    onChangeTime(target.time);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotsByDate, availableDates, availableSlotsByDate, date, time]);
 
   if (!staffId) {
-    return (
-      <Placeholder text="Choose a groomer to see open dates and times." />
-    );
+    return <Placeholder text="Choose a groomer to see open dates and times." />;
   }
   if (slotsByDate === undefined) {
     return <Placeholder text="Loading availability…" />;
@@ -121,7 +159,7 @@ export function AvailabilitySlotPicker({
   if (availableDates.length === 0) {
     return (
       <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-        This groomer has no working hours in the next {BOOKING_WINDOW_DAYS} days.{" "}
+        This groomer has no upcoming working hours.{" "}
         <Link href="/availability" className="font-medium underline">
           Set their hours
         </Link>{" "}
@@ -131,78 +169,32 @@ export function AvailabilitySlotPicker({
   }
 
   const dateChosen = Boolean(date) && availableDates.includes(date);
-  const timeValue = startTimes.includes(toMinutes(time)) ? time : "";
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Date
           <RequiredMark />
         </span>
-        <BookingDatePicker
-          value={date}
-          availableDates={availableDates}
-          onChange={onChangeDate}
+        <DateStrip
+          pills={pills}
+          onSelect={onChangeDate}
+          onReachEnd={loadMore}
         />
       </div>
-      <label className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          Start time
+          Time slot
           <RequiredMark />
         </span>
-        <select
-          value={timeValue}
-          disabled={!dateChosen || startTimes.length === 0}
-          onChange={(event) => onChangeTime(event.target.value)}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-        >
-          <option value="" disabled>
-            {!dateChosen
-              ? "Pick a date first"
-              : startTimes.length === 0
-                ? "No open times that day"
-                : "Select a time"}
-          </option>
-          {startTimes.map((min) => (
-            <option key={min} value={minutesToTimeValue(min)}>
-              {formatTimeLabel(min)}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
-  );
-}
-
-function Placeholder({ text }: { text: string }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-        Date &amp; time
-        <RequiredMark />
-      </span>
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-500">
-        {text}
+        <SlotChips
+          dateChosen={dateChosen}
+          slots={daySlots}
+          currentMin={currentMin}
+          onPick={(startMin) => onChangeTime(minutesToTimeValue(startMin))}
+        />
       </div>
     </div>
   );
-}
-
-function toMinutes(time: string): number {
-  const [hh, mm] = time.split(":").map(Number);
-  if (Number.isNaN(hh) || Number.isNaN(mm)) return -1;
-  return hh * 60 + mm;
-}
-
-function minutesToTimeValue(min: number): string {
-  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-}
-
-function formatTimeLabel(min: number): string {
-  const hour = Math.floor(min / 60);
-  const minute = min % 60;
-  const ampm = hour < 12 ? "AM" : "PM";
-  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
-  return `${hour12}:${String(minute).padStart(2, "0")} ${ampm}`;
 }
