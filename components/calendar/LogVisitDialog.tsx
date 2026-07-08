@@ -62,14 +62,12 @@ export function LogVisitDialog({
   const currency =
     selectedService?.currency ?? currentLocation?.currency ?? "USD";
 
-  // Picking a service prefills the price with its list price (dollars).
+  // Pick a service but leave the price field alone — groomers routinely
+  // charge a different amount, and clearing a prefilled value every time is
+  // annoying. An empty price still records the service's list price (the
+  // backend snapshots it when priceCents is omitted).
   function handleService(serviceId: Id<"services">) {
-    const service = services?.find((entry) => entry._id === serviceId);
-    setState((current) => ({
-      ...current,
-      serviceId,
-      price: service ? (service.priceCents / 100).toFixed(2) : current.price,
-    }));
+    setState((current) => ({ ...current, serviceId }));
   }
 
   async function handleSubmit(event: React.FormEvent) {
