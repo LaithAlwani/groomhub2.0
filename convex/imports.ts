@@ -250,7 +250,8 @@ export const updateLegacyAppointment = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
+    // Any staff+ may edit imported history; deleting stays admin-only below.
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
     const row = await ctx.db.get(args.id);
     if (!row || row.orgId !== orgId) {
       throw new Error("Legacy appointment not found in this org.");

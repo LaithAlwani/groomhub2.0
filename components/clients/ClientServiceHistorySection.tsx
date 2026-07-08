@@ -30,9 +30,11 @@ function legacySortDate(legacy: Doc<"legacyAppointments">): number {
 export function ClientServiceHistorySection({
   clientId,
   canEditLegacy,
+  canDeleteLegacy,
 }: {
   clientId: Id<"clients">;
   canEditLegacy: boolean;
+  canDeleteLegacy: boolean;
 }) {
   const records = useQuery(api.serviceRecords.listForClient, { clientId });
   const legacy = useQuery(api.imports.legacyAppointmentsForClient, { clientId });
@@ -102,6 +104,7 @@ export function ClientServiceHistorySection({
                   key={`l-${item.legacy._id}`}
                   row={item.legacy}
                   canEdit={canEditLegacy}
+                  canDelete={canDeleteLegacy}
                 />
               ),
             )}

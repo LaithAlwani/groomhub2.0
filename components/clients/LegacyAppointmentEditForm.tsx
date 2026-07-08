@@ -12,11 +12,11 @@ import {
 } from "./LegacyFieldInputs";
 
 /**
- * Inline edit form for one imported legacy appointment. Owned by
- * `LegacyAppointmentRow`, which holds the draft + mutation state. Pet and
- * Service are dropdowns fed by the client's pets and the shop's services;
- * the remaining fields are free text. The `Draft` shape and `toDraft` seed
- * live here so the whole editable surface is in one file.
+ * Edit form body for one imported legacy appointment, rendered inside a
+ * `DialogShell`. Owned by `LegacyAppointmentRow`, which holds the draft +
+ * mutation state. Pet and Service are dropdowns fed by the client's pets and
+ * the shop's services; the remaining fields are free text. The `Draft` shape
+ * and `toDraft` seed live here so the whole editable surface is in one file.
  */
 export type EditableKey =
   | "dateLabel"
@@ -58,7 +58,8 @@ export function LegacyAppointmentEditForm({
   errorMessage: string | null;
   onSave: () => void;
   onCancel: () => void;
-  onDelete: () => void;
+  /** Omitted for staff who may edit but not delete imported rows. */
+  onDelete?: () => void;
 }) {
   const pets = useQuery(api.pets.listForClient, { clientId });
   const services = useQuery(api.services.list, {});
@@ -66,7 +67,7 @@ export function LegacyAppointmentEditForm({
   const serviceNames = services?.map((service) => service.name) ?? [];
 
   return (
-    <li className="border-b border-zinc-100 px-4 py-3 last:border-b-0 dark:border-zinc-900">
+    <div className="px-5 py-5">
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <TextField
           label="Date"
@@ -118,15 +119,19 @@ export function LegacyAppointmentEditForm({
       )}
 
       <div className="mt-3 flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={onDelete}
-          disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30"
-        >
-          <Trash2 size={12} />
-          Delete
-        </button>
+        {onDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30"
+          >
+            <Trash2 size={12} />
+            Delete
+          </button>
+        ) : (
+          <span />
+        )}
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -147,6 +152,6 @@ export function LegacyAppointmentEditForm({
           </button>
         </div>
       </div>
-    </li>
+    </div>
   );
 }

@@ -6,6 +6,7 @@ import { useMutation } from "convex/react";
 import { History, Pencil } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { DialogShell } from "@/components/ui/DialogShell";
 import {
   LegacyAppointmentEditForm,
   toDraft,
@@ -15,16 +16,19 @@ import {
 
 /**
  * One row of the client's "Imported history" list. Read view mirrors the
- * import preview (orange clock + heading + notes). Admins get a pencil that
- * swaps the row for an inline edit form backed by `updateLegacyAppointment`
- * / `deleteLegacyAppointment`.
+ * import preview (orange clock + heading + notes). Any staff+ gets a pencil
+ * that swaps the row for an inline edit form backed by
+ * `updateLegacyAppointment`; only admins (`canDelete`) get the Delete button
+ * backed by `deleteLegacyAppointment`.
  */
 export function LegacyAppointmentRow({
   row,
   canEdit,
+  canDelete,
 }: {
   row: Doc<"legacyAppointments">;
   canEdit: boolean;
+  canDelete: boolean;
 }) {
   const update = useMutation(api.imports.updateLegacyAppointment);
   const remove = useMutation(api.imports.deleteLegacyAppointment);
@@ -63,23 +67,6 @@ export function LegacyAppointmentRow({
     }
   }
 
-  if (editing) {
-    return (
-      <LegacyAppointmentEditForm
-        clientId={row.clientId}
-        draft={draft}
-        onChange={(key: EditableKey, value: string) =>
-          setDraft({ ...draft, [key]: value })
-        }
-        busy={busy}
-        errorMessage={errorMessage}
-        onSave={handleSave}
-        onCancel={() => setEditing(false)}
-        onDelete={handleDelete}
-      />
-    );
-  }
-
   const heading =
     [
       row.dateLabel,
@@ -93,26 +80,54 @@ export function LegacyAppointmentRow({
       .join(" · ") || "Past appointment";
 
   return (
-    <li className="group flex items-start gap-2 border-b border-zinc-100 px-4 py-3 text-xs last:border-b-0 dark:border-zinc-900">
-      <History size={12} className="mt-0.5 shrink-0 text-orange-500" aria-hidden />
-      <div className="min-w-0 flex-1">
-        <p className="text-orange-600 dark:text-orange-300">{heading}</p>
-        {row.notes && (
-          <p className="mt-0.5 whitespace-pre-line text-zinc-500 dark:text-zinc-400">
-            {row.notes}
-          </p>
+    <>
+      <li className="group flex items-start gap-2 border-b border-zinc-100 px-4 py-3 text-xs last:border-b-0 dark:border-zinc-900">
+        <History
+          size={12}
+          className="mt-0.5 shrink-0 text-orange-500"
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-orange-600 dark:text-orange-300">{heading}</p>
+          {row.notes && (
+            <p className="mt-0.5 whitespace-pre-line text-zinc-500 dark:text-zinc-400">
+              {row.notes}
+            </p>
+          )}
+        </div>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={startEditing}
+            className="shrink-0 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+            aria-label="Edit appointment"
+          >
+            <Pencil size={12} />
+          </button>
         )}
-      </div>
-      {canEdit && (
-        <button
-          type="button"
-          onClick={startEditing}
-          className="shrink-0 rounded-md p-1 text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-100 hover:text-zinc-700 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
-          aria-label="Edit appointment"
+      </li>
+      {editing && (
+        <DialogShell
+          open
+          onClose={() => setEditing(false)}
+          busy={busy}
+          title="Edit appointment"
+          maxWidth="lg"
         >
-          <Pencil size={12} />
-        </button>
+          <LegacyAppointmentEditForm
+            clientId={row.clientId}
+            draft={draft}
+            onChange={(key: EditableKey, value: string) =>
+              setDraft({ ...draft, [key]: value })
+            }
+            busy={busy}
+            errorMessage={errorMessage}
+            onSave={handleSave}
+            onCancel={() => setEditing(false)}
+            onDelete={canDelete ? handleDelete : undefined}
+          />
+        </DialogShell>
       )}
-    </li>
+    </>
   );
 }

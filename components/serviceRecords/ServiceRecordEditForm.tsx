@@ -26,15 +26,45 @@ export function recordToDraft(record: ServiceRecordItem): RecordDraft {
   };
 }
 
+/**
+ * Turn a draft into `serviceRecords.update` args. Throws with a user-facing
+ * message on an invalid price so the row can surface it.
+ */
+export function draftToUpdate(draft: RecordDraft) {
+  const priceTrimmed = draft.price.trim();
+  let priceCents = 0;
+  if (priceTrimmed !== "") {
+    const parsed = Number(priceTrimmed);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new Error("Enter a valid price.");
+    }
+    priceCents = Math.round(parsed * 100);
+  }
+  const weightNum = Number(draft.weight.trim());
+  return {
+    serviceId: draft.serviceId ?? undefined,
+    priceCents,
+    notes: draft.notes || undefined,
+    weightLb:
+      draft.weight.trim() !== "" && Number.isFinite(weightNum)
+        ? weightNum
+        : undefined,
+    productsUsed: draft.products
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+  };
+}
+
 const inputClass =
   "rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:border-[#00273c] focus:outline-none focus:ring-2 focus:ring-[#00273c]/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
 const labelClass =
   "text-[10px] font-semibold uppercase tracking-wide text-zinc-400";
 
 /**
- * Inline editor for one service record. Presentational — the parent row owns
- * the draft + mutation state. Photos are edited in place via
- * `ServiceRecordImages`.
+ * Editor body for one service record, rendered inside a `DialogShell`.
+ * Presentational — the parent row owns the draft + mutation state. Photos are
+ * edited in place via `ServiceRecordImages`.
  */
 export function ServiceRecordEditForm({
   record,
@@ -56,7 +86,7 @@ export function ServiceRecordEditForm({
   onDelete: () => void;
 }) {
   return (
-    <li className="border-b border-zinc-100 px-4 py-3 last:border-b-0 dark:border-zinc-900">
+    <div className="px-5 py-5">
       <div className="grid gap-2 sm:grid-cols-2">
         <ServiceSelectField
           value={draft.serviceId}
@@ -157,6 +187,6 @@ export function ServiceRecordEditForm({
           </button>
         </div>
       </div>
-    </li>
+    </div>
   );
 }

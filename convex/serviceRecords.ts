@@ -174,6 +174,20 @@ async function enrichRecord(
 // Queries
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve a list of just-uploaded storage ids into preview URLs. Used by the
+ * "Log a service" form to show thumbnails for photos staged before the record
+ * exists. Authed members only; storage ids are opaque and unguessable.
+ */
+export const storageImageUrls = query({
+  args: { storageIds: v.array(v.id("_storage")) },
+  handler: async (ctx, args) => {
+    const identity = await softAuth(ctx);
+    if (!identity) return [];
+    return await resolveImages(ctx, args.storageIds);
+  },
+});
+
 export const listForPet = query({
   args: { petId: v.id("pets") },
   handler: async (ctx, args) => {
@@ -248,6 +262,8 @@ export const create = mutation({
     locationId: v.optional(v.id("locations")),
     staffId: v.optional(v.id("memberships")),
     date: v.optional(v.number()),
+    beforeImageStorageIds: v.optional(v.array(v.id("_storage"))),
+    afterImageStorageIds: v.optional(v.array(v.id("_storage"))),
     ...recordInputValidator,
   },
   handler: async (ctx, args) => {
@@ -304,6 +320,14 @@ export const create = mutation({
       notes: args.notes?.trim() || undefined,
       weightLb: positiveWeight(args.weightLb),
       productsUsed: cleanProducts(args.productsUsed),
+      beforeImageStorageIds: args.beforeImageStorageIds?.slice(
+        0,
+        MAX_IMAGES_PER_STAGE,
+      ),
+      afterImageStorageIds: args.afterImageStorageIds?.slice(
+        0,
+        MAX_IMAGES_PER_STAGE,
+      ),
       createdBy: actor._id,
       createdAt: now,
     });

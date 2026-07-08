@@ -161,7 +161,8 @@ export function ClientDetail({
       <PetList clientId={clientId} canEdit={canEdit} canArchive={canArchive} />
       <ClientServiceHistorySection
         clientId={clientId}
-        canEditLegacy={canArchive}
+        canEditLegacy={canEdit}
+        canDeleteLegacy={canArchive}
       />
       <ClientAppointmentsSection clientId={clientId} />
       <ClientConsentSection clientId={clientId} />

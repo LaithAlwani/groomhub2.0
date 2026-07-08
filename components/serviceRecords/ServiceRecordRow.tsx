@@ -6,6 +6,7 @@ import { useMutation } from "convex/react";
 import { Pencil, Scissors } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { DialogShell } from "@/components/ui/DialogShell";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import {
   formatDateTime,
@@ -13,6 +14,7 @@ import {
 } from "@/components/calendar/appointmentDetailParts";
 import {
   ServiceRecordEditForm,
+  draftToUpdate,
   recordToDraft,
   type RecordDraft,
 } from "./ServiceRecordEditForm";
@@ -41,34 +43,17 @@ export function ServiceRecordRow({
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
   async function handleSave() {
-    const priceTrimmed = draft.price.trim();
-    let priceCents = 0;
-    if (priceTrimmed !== "") {
-      const parsed = Number(priceTrimmed);
-      if (!Number.isFinite(parsed) || parsed < 0) {
-        setErrorMessage("Enter a valid price.");
-        return;
-      }
-      priceCents = Math.round(parsed * 100);
+    let patch;
+    try {
+      patch = draftToUpdate(draft);
+    } catch (caught) {
+      setErrorMessage((caught as Error).message);
+      return;
     }
-    const weightNum = Number(draft.weight.trim());
     setBusy(true);
     setErrorMessage(null);
     try {
-      await update({
-        id: record._id,
-        serviceId: draft.serviceId ?? undefined,
-        priceCents,
-        notes: draft.notes || undefined,
-        weightLb:
-          draft.weight.trim() !== "" && Number.isFinite(weightNum)
-            ? weightNum
-            : undefined,
-        productsUsed: draft.products
-          .split(",")
-          .map((entry) => entry.trim())
-          .filter(Boolean),
-      });
+      await update({ id: record._id, ...patch });
       setEditing(false);
     } catch (caught) {
       setErrorMessage(formatError(caught, "Could not save changes."));
@@ -105,18 +90,6 @@ export function ServiceRecordRow({
 
   return (
     <>
-      {editing ? (
-        <ServiceRecordEditForm
-          record={record}
-          draft={draft}
-          onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
-          busy={busy}
-          errorMessage={errorMessage}
-          onSave={handleSave}
-          onCancel={() => setEditing(false)}
-          onDelete={() => setConfirmDelete(true)}
-        />
-      ) : (
         <li className="group flex items-start gap-2 border-b border-zinc-100 px-4 py-3 text-xs last:border-b-0 dark:border-zinc-900">
           <Scissors
             size={12}
@@ -170,7 +143,7 @@ export function ServiceRecordRow({
                 setErrorMessage(null);
                 setEditing(true);
               }}
-              className="shrink-0 rounded-md p-1 text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-100 hover:text-zinc-700 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+              className="shrink-0 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
               aria-label="Edit record"
             >
               <Pencil size={12} />
@@ -184,6 +157,27 @@ export function ServiceRecordRow({
             />
           )}
         </li>
+      {editing && (
+        <DialogShell
+          open
+          onClose={() => setEditing(false)}
+          busy={busy}
+          title="Edit service"
+          maxWidth="lg"
+        >
+          <ServiceRecordEditForm
+            record={record}
+            draft={draft}
+            onChange={(patch) =>
+              setDraft((current) => ({ ...current, ...patch }))
+            }
+            busy={busy}
+            errorMessage={errorMessage}
+            onSave={handleSave}
+            onCancel={() => setEditing(false)}
+            onDelete={() => setConfirmDelete(true)}
+          />
+        </DialogShell>
       )}
       <ConfirmDialog
         open={confirmDelete}

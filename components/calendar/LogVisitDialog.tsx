@@ -8,6 +8,8 @@ import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
 import { formatError } from "@/lib/formatError";
+import { combineLocalIso, isoTimeFromDate, todayIsoDate } from "@/lib/time";
+import { ServiceRecordPhotoStage } from "@/components/serviceRecords/ServiceRecordPhotoStage";
 import { LogVisitFields, type LogVisitFormState } from "./LogVisitFields";
 import { useBookingInlineCreate } from "./useBookingInlineCreate";
 
@@ -36,9 +38,12 @@ export function LogVisitDialog({
     serviceId: null,
     price: "",
     notes: "",
+    date: todayIsoDate(),
     weight: "",
     products: "",
   });
+  const [beforeIds, setBeforeIds] = useState<Id<"_storage">[]>([]);
+  const [afterIds, setAfterIds] = useState<Id<"_storage">[]>([]);
   const [petError, setPetError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -87,6 +92,11 @@ export function LogVisitDialog({
     }
     const weightRaw = (state.weight ?? "").trim();
     const weightNum = Number(weightRaw);
+    // Combine the chosen day with the current time so same-day logs keep a
+    // sensible order; backend defaults to now if we send nothing.
+    const date = state.date
+      ? combineLocalIso(state.date, isoTimeFromDate(new Date()))
+      : undefined;
     setSubmitting(true);
     try {
       await createRecord({
@@ -95,12 +105,15 @@ export function LogVisitDialog({
         serviceId: state.serviceId ?? undefined,
         priceCents,
         notes: state.notes || undefined,
+        date,
         weightLb:
           weightRaw !== "" && Number.isFinite(weightNum) ? weightNum : undefined,
         productsUsed: (state.products ?? "")
           .split(",")
           .map((entry) => entry.trim())
           .filter(Boolean),
+        beforeImageStorageIds: beforeIds.length ? beforeIds : undefined,
+        afterImageStorageIds: afterIds.length ? afterIds : undefined,
       });
       onClose();
     } catch (caught) {
@@ -138,6 +151,9 @@ export function LogVisitDialog({
             onChangeNotes={(value) =>
               setState((current) => ({ ...current, notes: value }))
             }
+            onChangeDate={(value) =>
+              setState((current) => ({ ...current, date: value }))
+            }
             onChangeWeight={(value) =>
               setState((current) => ({ ...current, weight: value }))
             }
@@ -146,6 +162,12 @@ export function LogVisitDialog({
             }
             openCreateClient={inlineCreate.openCreateClient}
             openCreatePet={inlineCreate.openCreatePet}
+          />
+          <ServiceRecordPhotoStage
+            beforeIds={beforeIds}
+            afterIds={afterIds}
+            onChangeBefore={setBeforeIds}
+            onChangeAfter={setAfterIds}
           />
           {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
           <div className="mt-2 flex justify-end gap-2">

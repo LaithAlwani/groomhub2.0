@@ -13,6 +13,8 @@ export type LogVisitFormState = {
   price: string;
   notes: string;
   // Service-record only (walk-in). Appointments don't carry these.
+  // Date the service happened (YYYY-MM-DD, local). Defaults to today.
+  date?: string;
   weight?: string;
   products?: string;
 };
@@ -33,6 +35,7 @@ export function LogVisitFields({
   onChangeService,
   onChangePrice,
   onChangeNotes,
+  onChangeDate,
   onChangeWeight,
   onChangeProducts,
   openCreateClient,
@@ -47,6 +50,7 @@ export function LogVisitFields({
   onChangeService: (id: Id<"services">) => void;
   onChangePrice: (value: string) => void;
   onChangeNotes: (value: string) => void;
+  onChangeDate?: (value: string) => void;
   onChangeWeight?: (value: string) => void;
   onChangeProducts?: (value: string) => void;
   openCreateClient: () => void;
@@ -54,6 +58,19 @@ export function LogVisitFields({
 }) {
   return (
     <>
+      {onChangeDate && (
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+            Date
+          </span>
+          <input
+            type="date"
+            value={state.date ?? ""}
+            onChange={(event) => onChangeDate(event.target.value)}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+          />
+        </label>
+      )}
       {lockedClient ? (
         <ClientNameDisplay clientId={state.clientId} />
       ) : (
