@@ -70,6 +70,9 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
 
   const sortedRows: ReadonlyArray<ClientRow> = useMemo(() => {
     if (!rows) return [];
+    // While searching, keep the server's relevance order (best match first);
+    // the toolbar sort only governs the browse list.
+    if (searchActive) return [...rows];
     const copy = [...rows];
     if (sort === "name") {
       copy.sort((a, b) => a.client.fullName.localeCompare(b.client.fullName));
@@ -81,7 +84,7 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
       });
     }
     return copy;
-  }, [rows, sort]);
+  }, [rows, sort, searchActive]);
 
   const total = sortedRows.length;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));

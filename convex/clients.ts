@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
+import Fuse from "fuse.js";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -30,6 +31,16 @@ const MAX_RESULTS = 200;
 // read budget. If a shop ever exceeds this we should move phone search to a
 // dedicated indexed `clientPhones` table (see the scaling plan).
 const MAX_PHONE_SCAN = 10_000;
+
+// Fuzzy (typo-tolerant) name search. Convex's full-text index requires an exact
+// match for short terms, so "mile" won't find "Mike". When the indexed search
+// comes back thin we stream the org's clients + pets (bounded, like the phone
+// scan) and rank them with Fuse.js. Only runs for thin results, so common
+// queries stay index-fast.
+const MAX_FUZZY_SCAN = 4_000; // per table (clients, pets)
+const FUZZY_TRIGGER = 10; // run fuzzy only when the index returns fewer than this
+const MIN_FUZZY_QUERY_LEN = 3; // 1–2 char queries are handled by prefix search
+const FUZZY_THRESHOLD = 0.5; // Fuse: lower = stricter, higher = looser
 
 /**
  * Stream the org's clients (in `by_org` order) and collect up to `MAX_RESULTS`
@@ -104,7 +115,107 @@ async function searchClientsByText(
     if (!includeArchived && client.deletedAt !== undefined) continue;
     byId.set(client._id, client);
   }
+
+  // Typo fallback: the index misses transposed/substituted short terms
+  // ("mile" ↛ "Mike"). Only when the indexed union is thin do we pay the scan.
+  if (search.trim().length >= MIN_FUZZY_QUERY_LEN && byId.size < FUZZY_TRIGGER) {
+    const fuzzy = await scanFuzzyMatches(
+      ctx,
+      orgId,
+      search,
+      includeArchived,
+      new Set(byId.keys()),
+    );
+    for (const client of fuzzy) byId.set(client._id, client);
+  }
+  // Relevance order: index hits first (Convex-ranked), then fuzzy (Fuse-ranked).
   return Array.from(byId.values());
+}
+
+/** First whitespace-delimited token of a name (for boosting first-name hits). */
+function firstToken(name: string): string {
+  const trimmed = name.trim();
+  const space = trimmed.indexOf(" ");
+  return space === -1 ? trimmed : trimmed.slice(0, space);
+}
+
+type FuzzyCandidate = { clientId: Id<"clients">; name: string; first: string };
+
+/**
+ * Fuzzy name fallback. Streams the org's clients + pets (bounded by
+ * `MAX_FUZZY_SCAN`), then ranks them with Fuse.js against the query. Matching
+ * on the first-name token plus the full name lets a first-name typo ("mile")
+ * rank its target ("Mike") highest. Returns owner clients in Fuse score order,
+ * deduped, excluding ids already found by the index (`existing`).
+ */
+async function scanFuzzyMatches(
+  ctx: QueryCtx,
+  orgId: string,
+  query: string,
+  includeArchived: boolean,
+  existing: Set<Id<"clients">>,
+): Promise<Doc<"clients">[]> {
+  const candidates: FuzzyCandidate[] = [];
+  const clientById = new Map<Id<"clients">, Doc<"clients">>();
+
+  let scannedClients = 0;
+  for await (const row of ctx.db
+    .query("clients")
+    .withIndex("by_org", (index) => index.eq("orgId", orgId))) {
+    if (scannedClients >= MAX_FUZZY_SCAN) break;
+    scannedClients += 1;
+    if (!includeArchived && row.deletedAt !== undefined) continue;
+    if (existing.has(row._id)) continue;
+    clientById.set(row._id, row);
+    candidates.push({
+      clientId: row._id,
+      name: row.fullName,
+      first: firstToken(row.fullName),
+    });
+  }
+
+  let scannedPets = 0;
+  for await (const pet of ctx.db
+    .query("pets")
+    .withIndex("by_org", (index) => index.eq("orgId", orgId))) {
+    if (scannedPets >= MAX_FUZZY_SCAN) break;
+    scannedPets += 1;
+    if (!includeArchived && pet.deletedAt !== undefined) continue;
+    if (existing.has(pet.clientId)) continue;
+    candidates.push({
+      clientId: pet.clientId,
+      name: pet.name,
+      first: firstToken(pet.name),
+    });
+  }
+
+  if (candidates.length === 0) return [];
+
+  const fuse = new Fuse(candidates, {
+    keys: ["first", "name"],
+    threshold: FUZZY_THRESHOLD,
+    ignoreLocation: true,
+    ignoreDiacritics: true,
+    minMatchCharLength: 2,
+  });
+
+  const matches: Doc<"clients">[] = [];
+  const seen = new Set<Id<"clients">>();
+  for (const { item } of fuse.search(query)) {
+    if (seen.has(item.clientId)) continue;
+    seen.add(item.clientId);
+    // Client candidate → already have the doc; pet candidate → resolve owner.
+    let client = clientById.get(item.clientId);
+    if (!client) {
+      const owner = await ctx.db.get(item.clientId);
+      if (!owner || owner.orgId !== orgId) continue;
+      if (!includeArchived && owner.deletedAt !== undefined) continue;
+      client = owner;
+    }
+    matches.push(client);
+    if (matches.length >= MAX_RESULTS) break;
+  }
+  return matches;
 }
 
 /** Enrich a client with its visible pets + most-recent appointment summary. */
@@ -167,13 +278,13 @@ export const list = query({
           args.includeArchived ?? false,
         );
       }
-      const matches = await searchClientsByText(
+      // Text results stay in relevance order (index rank, then fuzzy score).
+      return await searchClientsByText(
         ctx,
         orgId,
         search,
         args.includeArchived ?? false,
       );
-      return matches.sort((a, b) => a.fullName.localeCompare(b.fullName));
     }
     const rows = await ctx.db
       .query("clients")
@@ -219,14 +330,13 @@ export const listWithPets = query({
           args.includeArchived ?? false,
         );
       } else {
-        clients = (
-          await searchClientsByText(
-            ctx,
-            orgId,
-            search,
-            args.includeArchived ?? false,
-          )
-        ).sort((a, b) => a.fullName.localeCompare(b.fullName));
+        // Text results stay in relevance order (index rank, then fuzzy score).
+        clients = await searchClientsByText(
+          ctx,
+          orgId,
+          search,
+          args.includeArchived ?? false,
+        );
       }
     } else {
       const rows = await ctx.db
