@@ -337,6 +337,7 @@ export const updateContact = mutation({
   args: {
     contactEmail: v.optional(v.string()),
     contactPhone: v.optional(v.string()),
+    defaultPhoneCountry: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { orgId } = await requireRole(ctx, ["superAdmin", "admin"]);
@@ -350,9 +351,13 @@ export const updateContact = mutation({
       appError("VALIDATION", { field: "contactEmail", reason: "INVALID" });
     }
     const digitsOnly = (args.contactPhone ?? "").replace(/\D/g, "");
+    const country = args.defaultPhoneCountry?.trim().toUpperCase();
     await ctx.db.patch(org._id, {
       contactEmail: trimmedEmail || undefined,
       contactPhone: digitsOnly || undefined,
+      ...(args.defaultPhoneCountry !== undefined
+        ? { defaultPhoneCountry: country || undefined }
+        : {}),
     });
   },
 });

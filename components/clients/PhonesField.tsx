@@ -1,51 +1,75 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
+import type { CountryCode } from "libphonenumber-js";
 import { RequiredMark } from "@/components/forms/RequiredMark";
-import { formatPhone, normalizePhone } from "@/lib/phone";
+import {
+  digitsOnly,
+  formatAsYouType,
+  PHONE_LABELS,
+  PHONE_LABEL_TEXT,
+  type PhoneLabel,
+} from "@/lib/phone";
+import { EMPTY_PHONE, type PhoneFormEntry } from "./clientPhones";
+import { COUNTRY_OPTIONS } from "./phoneCountries";
+
+const fieldClass =
+  "rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 transition-colors focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-100";
 
 /**
- * Phone-list editor for the client form. The first entry is the primary
- * phone (used everywhere — click-to-call, SMS, formatPhone()); any extras
- * become `altPhones[]` on save. Numbers get auto-formatted on blur via
- * `formatPhone` for a consistent xxx-xxx-xxxx surface.
+ * Phone-list editor for the client form. Each row has a country picker, the
+ * number (formatted live for that country via libphonenumber's AsYouType), and
+ * an optional label. The first row is the primary phone; extras become
+ * `altPhones[]`. Numbers are parsed to E.164 on save (see `clientPhones.ts`).
  */
 export function PhonesField({
   phones,
   onChange,
+  defaultCountry,
   error,
   required = false,
 }: {
-  phones: string[];
-  onChange: (next: string[]) => void;
+  phones: PhoneFormEntry[];
+  onChange: (next: PhoneFormEntry[]) => void;
+  defaultCountry: CountryCode;
   error?: string;
   required?: boolean;
 }) {
-  function updateAt(index: number, value: string) {
+  function updateAt(index: number, patch: Partial<PhoneFormEntry>) {
     const next = phones.slice();
-    next[index] = value;
+    next[index] = { ...next[index], ...patch };
     onChange(next);
   }
 
+  function changeNumber(index: number, raw: string) {
+    const entry = phones[index];
+    let next = formatAsYouType(raw, entry.country);
+    // If a backspace deleted a formatting char that AsYouType just re-added,
+    // drop a digit so deletion isn't stuck on the separator.
+    if (raw.length < entry.number.length && next === entry.number) {
+      next = formatAsYouType(digitsOnly(raw).slice(0, -1), entry.country);
+    }
+    updateAt(index, { number: next });
+  }
+
+  function changeCountry(index: number, country: CountryCode) {
+    // Re-run formatting under the new country's rules.
+    updateAt(index, {
+      country,
+      number: formatAsYouType(digitsOnly(phones[index].number), country),
+    });
+  }
+
   function addPhone() {
-    onChange([...phones, ""]);
+    onChange([...phones, { ...EMPTY_PHONE, country: defaultCountry }]);
   }
 
   function removeAt(index: number) {
     if (phones.length === 1) {
-      onChange([""]);
+      onChange([{ ...EMPTY_PHONE, country: defaultCountry }]);
       return;
     }
     onChange(phones.filter((_, current) => current !== index));
-  }
-
-  function formatOnBlur(index: number) {
-    const value = phones[index] ?? "";
-    if (!value.trim()) return;
-    // Normalize first (7-digit numbers get +613, 11-digit "1XXX..." strips
-    // the country code) so the displayed format matches what the backend
-    // will actually store.
-    updateAt(index, formatPhone(normalizePhone(value)));
   }
 
   return (
@@ -55,18 +79,46 @@ export function PhonesField({
         {required && <RequiredMark />}
       </span>
       <div className="flex flex-col gap-2">
-        {phones.map((value, index) => (
-          <div key={index} className="flex items-center gap-2">
+        {phones.map((entry, index) => (
+          <div key={index} className="flex flex-wrap items-center gap-2">
+            <select
+              value={entry.country}
+              onChange={(event) =>
+                changeCountry(index, event.target.value as CountryCode)
+              }
+              aria-label="Country"
+              className={`${fieldClass} w-[7.5rem] shrink-0`}
+            >
+              {COUNTRY_OPTIONS.map((option) => (
+                <option key={option.code} value={option.code}>
+                  {option.code} +{option.calling}
+                </option>
+              ))}
+            </select>
             <input
               type="tel"
-              value={value}
-              onChange={(event) => updateAt(index, event.target.value)}
-              onBlur={() => formatOnBlur(index)}
+              value={entry.number}
+              onChange={(event) => changeNumber(index, event.target.value)}
               inputMode="tel"
-              placeholder={index === 0 ? "Primary · 555-123-4567" : "Alternate phone"}
-              className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 transition-colors focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-100 dark:focus:ring-zinc-100"
+              placeholder={index === 0 ? "Primary phone" : "Alternate phone"}
+              className={`${fieldClass} min-w-0 flex-1 px-3`}
             />
-            {(phones.length > 1 || value.trim().length > 0) && (
+            <select
+              value={entry.label}
+              onChange={(event) =>
+                updateAt(index, { label: event.target.value as PhoneLabel | "" })
+              }
+              aria-label="Phone type"
+              className={`${fieldClass} shrink-0`}
+            >
+              <option value="">Type</option>
+              {PHONE_LABELS.map((label) => (
+                <option key={label} value={label}>
+                  {PHONE_LABEL_TEXT[label]}
+                </option>
+              ))}
+            </select>
+            {(phones.length > 1 || entry.number.trim().length > 0) && (
               <button
                 type="button"
                 onClick={() => removeAt(index)}

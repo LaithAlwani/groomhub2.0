@@ -1,13 +1,24 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
+  internalMutation,
   mutation,
   query,
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
 import { appError } from "./lib/errors";
-import { normalizePhone } from "./lib/phone";
+import {
+  altPhoneEntryValidator,
+  phoneEntryLabel,
+  phoneEntryNumber,
+  phoneLabelValidator,
+  phoneSearchDigits,
+  toE164,
+  type PhoneLabel,
+  type StoredPhoneEntry,
+} from "./lib/phone";
 import { requireRole } from "./lib/rbac";
 import { softAuth } from "./lib/tenant";
 
@@ -251,7 +262,8 @@ const clientInputValidator = {
   firstName: v.optional(v.string()),
   lastName: v.optional(v.string()),
   phone: v.optional(v.string()),
-  altPhones: v.optional(v.array(v.string())),
+  phoneLabel: v.optional(phoneLabelValidator),
+  altPhones: v.optional(v.array(altPhoneEntryValidator)),
   email: v.optional(v.string()),
   addressLine1: v.optional(v.string()),
   addressLine2: v.optional(v.string()),
@@ -267,7 +279,8 @@ function buildClientPatch(args: {
   firstName?: string;
   lastName?: string;
   phone?: string;
-  altPhones?: string[];
+  phoneLabel?: PhoneLabel;
+  altPhones?: StoredPhoneEntry[];
   email?: string;
   addressLine1?: string;
   addressLine2?: string;
@@ -277,8 +290,10 @@ function buildClientPatch(args: {
   country?: string;
   notes?: string;
 }) {
-  const normalizedPhone = normalizePhone(args.phone);
+  const normalizedPhone = toE164(args.phone);
   const phone = normalizedPhone || undefined;
+  // A label only makes sense when there's a primary number to type.
+  const phoneLabel = phone ? args.phoneLabel : undefined;
   const firstName = args.firstName?.trim() || undefined;
   const lastName = args.lastName?.trim() || undefined;
   // `fullName` is the canonical display + search string; derive it from
@@ -292,18 +307,25 @@ function buildClientPatch(args: {
     composed.length > 0
       ? composed
       : (args.fullName?.trim() || "");
-  // Alt phones: normalized (7-digit → +613, 11-digit/leading-1 → strip),
-  // de-duped, primary number excluded so we don't double-count it.
-  // Empty array collapses to undefined for cleaner reads.
-  const altPhonesDigits = (args.altPhones ?? [])
-    .map((value) => normalizePhone(value))
-    .filter((value) => value.length > 0 && value !== phone);
-  const altPhones = Array.from(new Set(altPhonesDigits));
+  // Alt phones: number normalized (7-digit → +613, 11-digit/leading-1 →
+  // strip), de-duped by number (first label wins), primary excluded so we
+  // don't double-count it. Stored as `{ number, label? }`. Empty array
+  // collapses to undefined for cleaner reads.
+  const byNumber = new Map<string, PhoneLabel | undefined>();
+  for (const entry of args.altPhones ?? []) {
+    const number = toE164(phoneEntryNumber(entry));
+    if (number.length === 0 || number === phone) continue;
+    if (!byNumber.has(number)) byNumber.set(number, phoneEntryLabel(entry));
+  }
+  const altPhones = Array.from(byNumber, ([number, label]) =>
+    label ? { number, label } : { number },
+  );
   return {
     fullName,
     firstName,
     lastName,
     phone,
+    phoneLabel,
     altPhones: altPhones.length > 0 ? altPhones : undefined,
     email: args.email?.trim() || undefined,
     addressLine1: args.addressLine1?.trim() || undefined,
@@ -330,10 +352,14 @@ function buildClientPatch(args: {
  */
 function phoneMatches(row: Doc<"clients">, digits: string): boolean {
   if (digits.length === 0) return false;
-  for (const raw of [row.phone, ...(row.altPhones ?? [])]) {
-    const num = (raw ?? "").replace(/\D/g, "");
-    if (num.length === 0) continue;
-    if (num.startsWith(digits) || num.endsWith(digits)) return true;
+  const stored = [row.phone, ...(row.altPhones ?? []).map(phoneEntryNumber)];
+  for (const raw of stored) {
+    // Match against both the full E.164 digits and the national number, so a
+    // "613…" prefix search still hits a "+1613…" stored number.
+    for (const num of phoneSearchDigits(raw)) {
+      if (num.length === 0) continue;
+      if (num.startsWith(digits) || num.endsWith(digits)) return true;
+    }
   }
   return false;
 }
@@ -480,3 +506,48 @@ function validateInput(args: {
     }
   }
 }
+
+/**
+ * One-time migration: convert existing phone numbers to E.164. Legacy rows
+ * stored bare NANP digits ("6135551000"); this reparses them as Canadian and
+ * rewrites them as "+16135551000" (and the same for every `altPhones` entry,
+ * preserving labels). Idempotent — already-E.164 values reparse to themselves,
+ * so re-running is safe. Self-schedules the next page until done.
+ *
+ *   npx convex run clients:backfillPhonesToE164
+ */
+export const backfillPhonesToE164 = internalMutation({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("clients")
+      .paginate({ cursor: args.cursor ?? null, numItems: 200 });
+    let updated = 0;
+    for (const client of page.page) {
+      const patch: Partial<Doc<"clients">> = {};
+      if (client.phone) {
+        const e164 = toE164(client.phone);
+        if (e164 && e164 !== client.phone) patch.phone = e164;
+      }
+      if (client.altPhones && client.altPhones.length > 0) {
+        const next = client.altPhones.map((entry) => {
+          const e164 = toE164(phoneEntryNumber(entry));
+          return typeof entry === "string" ? e164 : { ...entry, number: e164 };
+        });
+        if (JSON.stringify(next) !== JSON.stringify(client.altPhones)) {
+          patch.altPhones = next;
+        }
+      }
+      if (Object.keys(patch).length > 0) {
+        await ctx.db.patch(client._id, patch);
+        updated += 1;
+      }
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.clients.backfillPhonesToE164, {
+        cursor: page.continueCursor,
+      });
+    }
+    return { updated, isDone: page.isDone };
+  },
+});

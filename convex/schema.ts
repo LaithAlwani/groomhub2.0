@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { altPhoneEntryValidator, phoneLabelValidator } from "./lib/phone";
 
 export const roleValidator = v.union(
   v.literal("superAdmin"),
@@ -45,6 +46,9 @@ export default defineSchema({
     // front; the shop owner fills them in via /settings/shop.
     contactEmail: v.optional(v.string()),
     contactPhone: v.optional(v.string()),
+    // ISO 3166-1 alpha-2 (e.g. "CA", "US", "GB") used as the default country
+    // when entering client phone numbers. Falls back to "CA" when unset.
+    defaultPhoneCountry: v.optional(v.string()),
     stripeCustomerId: v.optional(v.string()),
     // Clerk user id of whoever created the shop (from the `organization.created`
     // webhook's `created_by`). This is the "original owner" — protected from
@@ -309,12 +313,13 @@ export default defineSchema({
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     // Stored as digits-only (e.g. "5551234567"). Display surfaces format as
-    // xxx-xxx-xxxx via `lib/phone.ts`.
+    // xxx-xxx-xxxx via `lib/phone.ts`. `phoneLabel` types the primary number.
     phone: v.optional(v.string()),
-    // Secondary phone numbers, digits-only. Search scans both `phone` and
-    // every entry in this array, so an inbound call from an alt phone still
-    // matches the client.
-    altPhones: v.optional(v.array(v.string())),
+    phoneLabel: v.optional(phoneLabelValidator),
+    // Secondary phone numbers. Legacy rows hold bare digit strings; new rows
+    // hold `{ number, label? }`. Search scans both `phone` and every entry
+    // here, so an inbound call from an alt phone still matches the client.
+    altPhones: v.optional(v.array(altPhoneEntryValidator)),
     email: v.optional(v.string()),
     addressLine1: v.optional(v.string()),
     addressLine2: v.optional(v.string()),

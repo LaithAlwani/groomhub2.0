@@ -4,11 +4,11 @@ import { formatError } from "@/lib/formatError";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
-import { Mail, MapPin, Pencil, Phone, Trash2 } from "lucide-react";
+import { MapPin, Pencil, Trash2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { formatPhone } from "@/lib/phone";
+import { ClientContactPills } from "./ClientContactPills";
 import { ClientFormDialog } from "./ClientFormDialog";
 import { ClientAppointmentsSection } from "./ClientAppointmentsSection";
 import { ClientServiceHistorySection } from "./ClientServiceHistorySection";
@@ -105,29 +105,7 @@ export function ClientDetail({
             </div>
           )}
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {client.phone && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-              <Phone size={12} className="text-zinc-400" aria-hidden />
-              {formatPhone(client.phone)}
-            </span>
-          )}
-          {(client.altPhones ?? []).map((alt) => (
-            <span
-              key={alt}
-              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-500 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400"
-            >
-              <Phone size={12} className="text-zinc-400" aria-hidden />
-              {formatPhone(alt)}
-            </span>
-          ))}
-          {client.email && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-              <Mail size={12} className="text-zinc-400" aria-hidden />
-              {client.email}
-            </span>
-          )}
-        </div>
+        <ClientContactPills client={client} />
         {showAddress && (
           <div className="mt-4 flex items-start gap-3 rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/60">
             <span

@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { normalizePhone } from "./lib/phone";
+import { toE164 } from "./lib/phone";
 import { requireRole } from "./lib/rbac";
 import { softAuth } from "./lib/tenant";
 import { speciesValidator, sexValidator } from "./schema";
@@ -18,7 +18,8 @@ import { speciesValidator, sexValidator } from "./schema";
  *   - `legacyAppointmentsForClient` — read for the client detail page.
  */
 
-const phoneDigits = (raw: string | undefined): string => normalizePhone(raw);
+// Imported CRM exports are Canadian; interpret bare numbers as CA → E.164.
+const phoneDigits = (raw: string | undefined): string => toE164(raw);
 
 const importClientValidator = v.object({
   fullName: v.string(),

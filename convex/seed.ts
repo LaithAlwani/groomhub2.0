@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { normalizePhone } from "./lib/phone";
+import { toE164 } from "./lib/phone";
 import { isDevDeployment } from "./lib/seedGating";
 import {
   APPOINTMENT_FIXTURES,
@@ -177,8 +177,8 @@ async function insertClientsAndPets(
       fullName,
       firstName: client.firstName,
       lastName: client.lastName,
-      phone: normalizePhone(client.phone),
-      altPhones: client.altPhones?.map(normalizePhone),
+      phone: toE164(client.phone),
+      altPhones: client.altPhones?.map((value) => toE164(value)),
       email: client.email,
       addressLine1: client.addressLine1,
       city: client.city,

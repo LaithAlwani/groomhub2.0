@@ -1,46 +1,21 @@
 "use client";
 import { formatError } from "@/lib/formatError";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Field } from "@/components/forms/Field";
 import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
-import { digitsOnly, formatPhone } from "@/lib/phone";
-import { AddressFields } from "./AddressFields";
-import { PhonesField } from "./PhonesField";
-
-type ClientFormState = {
-  firstName: string;
-  lastName: string;
-  phones: string[];
-  email: string;
-  addressLine1: string;
-  addressLine2: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
-  notes: string;
-};
-
-type FieldErrors = Partial<Record<keyof ClientFormState | "fullName", string>>;
-
-const INITIAL_STATE: ClientFormState = {
-  firstName: "",
-  lastName: "",
-  phones: [""],
-  email: "",
-  addressLine1: "",
-  addressLine2: "",
-  city: "",
-  state: "",
-  postalCode: "",
-  country: "",
-  notes: "",
-};
+import type { CountryCode } from "libphonenumber-js";
+import { digitsOnly, DEFAULT_PHONE_COUNTRY } from "@/lib/phone";
+import { phonesFromClient, phonesToPayload } from "./clientPhones";
+import { ClientFormFields } from "./ClientFormFields";
+import {
+  INITIAL_STATE,
+  type ClientFormState,
+  type FieldErrors,
+} from "./clientFormTypes";
 
 /**
  * Split a legacy single-field name on the first space so older clients
@@ -81,23 +56,28 @@ export function ClientFormDialog({
 
   const create = useMutation(api.clients.create);
   const update = useMutation(api.clients.update);
+  const org = useQuery(api.organizations.getCurrent, {});
+  const defaultCountry =
+    (org?.defaultPhoneCountry as CountryCode | undefined) ??
+    DEFAULT_PHONE_COUNTRY;
 
   const [state, setState] = useState<ClientFormState>(INITIAL_STATE);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [seededId, setSeededId] = useState<Id<"clients"> | null>(null);
+  const [countrySeeded, setCountrySeeded] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!existing) return;
+  // Seed the form the first time the client resolves — adjusting state during
+  // render (React's recommended alternative to a hydration effect).
+  if (existing && seededId !== existing._id) {
+    setSeededId(existing._id);
     const fallback = splitLegacyName(existing.fullName);
-    const allPhones = [existing.phone, ...(existing.altPhones ?? [])]
-      .map((value) => formatPhone(value ?? ""))
-      .filter((value) => value.length > 0);
     const next: ClientFormState = {
       firstName: existing.firstName ?? fallback.firstName,
       lastName: existing.lastName ?? fallback.lastName,
-      phones: allPhones.length > 0 ? allPhones : [""],
+      phones: phonesFromClient(existing, defaultCountry),
       email: existing.email ?? "",
       addressLine1: existing.addressLine1 ?? "",
       addressLine2: existing.addressLine2 ?? "",
@@ -109,7 +89,19 @@ export function ClientFormDialog({
     };
     setState(next);
     setInitialSnapshot(JSON.stringify(next));
-  }, [existing]);
+  }
+
+  // New client: once the org's default country resolves, apply it to the
+  // still-empty phone rows so the picker starts on the shop's country.
+  if (!isEdit && !countrySeeded && org !== undefined) {
+    setCountrySeeded(true);
+    setState((current) => ({
+      ...current,
+      phones: current.phones.map((entry) =>
+        entry.number ? entry : { ...entry, country: defaultCountry },
+      ),
+    }));
+  }
 
   const isDirty = isEdit
     ? initialSnapshot === null || initialSnapshot !== JSON.stringify(state)
@@ -129,7 +121,9 @@ export function ClientFormDialog({
     if (state.firstName.trim().length === 0 && state.lastName.trim().length === 0) {
       next.firstName = "First or last name is required";
     }
-    const hasPhone = state.phones.some((value) => digitsOnly(value).length > 0);
+    const hasPhone = state.phones.some(
+      (entry) => digitsOnly(entry.number).length > 0,
+    );
     if (!hasPhone) {
       next.phones = "Phone number is required";
     }
@@ -142,18 +136,10 @@ export function ClientFormDialog({
     setFieldErrors({});
     setSubmitting(true);
     try {
-      // Split the phones list: first non-empty entry = primary; rest = alts.
-      // De-dupe digits-only so the same number can't sit in both positions.
-      const phoneDigitsList = state.phones
-        .map((value) => digitsOnly(value))
-        .filter((value) => value.length > 0);
-      const uniquePhones = Array.from(new Set(phoneDigitsList));
-      const [primary, ...alts] = uniquePhones;
       const payload = {
         firstName: state.firstName.trim() || undefined,
         lastName: state.lastName.trim() || undefined,
-        phone: primary || undefined,
-        altPhones: alts.length > 0 ? alts : undefined,
+        ...phonesToPayload(state.phones),
         email: state.email.trim() || undefined,
         addressLine1: state.addressLine1.trim() || undefined,
         addressLine2: state.addressLine2.trim() || undefined,
@@ -186,53 +172,12 @@ export function ClientFormDialog({
       maxWidth="lg"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-3 px-5 py-5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field
-              label="First name"
-              value={state.firstName}
-              onChange={(value) => setField("firstName", value)}
-              error={fieldErrors.firstName}
-              placeholder="Jane"
-              required
-            />
-            <Field
-              label="Last name"
-              value={state.lastName}
-              onChange={(value) => setField("lastName", value)}
-              error={fieldErrors.lastName}
-              placeholder="Doe"
-              required
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <PhonesField
-              phones={state.phones}
-              onChange={(next) => setField("phones", next)}
-              error={fieldErrors.phones}
-              required
-            />
-            <Field
-              label="Email"
-              type="email"
-              value={state.email}
-              onChange={(value) => setField("email", value)}
-              error={fieldErrors.email}
-              inputMode="email"
-              placeholder="jane@example.com"
-            />
-          </div>
-          <AddressFields state={state} onChange={setField} />
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-              Notes
-            </span>
-            <textarea
-              value={state.notes}
-              onChange={(event) => setField("notes", event.target.value)}
-              rows={3}
-              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
-            />
-          </label>
+          <ClientFormFields
+            state={state}
+            setField={setField}
+            fieldErrors={fieldErrors}
+            defaultCountry={defaultCountry}
+          />
           {serverError && <ErrorBanner>{serverError}</ErrorBanner>}
           <div className="mt-2 flex justify-end gap-2">
             <button

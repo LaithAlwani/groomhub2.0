@@ -1,19 +1,87 @@
+import { v } from "convex/values";
+import {
+  parsePhoneNumberFromString,
+  type CountryCode,
+} from "libphonenumber-js";
+
+/** Fallback country for parsing numbers typed/imported without a "+". */
+export const DEFAULT_PHONE_COUNTRY: CountryCode = "CA";
+
+function digits(value: string | undefined | null): string {
+  return (value ?? "").replace(/\D/g, "");
+}
+
 /**
- * Backend mirror of `lib/phone.ts`'s `normalizePhone` — Convex backend
- * code can't import the browser `lib/` directory, so we duplicate the
- * canonical normalization here. Keep the two in sync if rules change.
+ * Canonical number normalization for storage — output is E.164
+ * (`+16135551000`). `country` disambiguates numbers without a leading "+".
+ * Already-E.164 inputs (from the form) round-trip; bare digits (imports/seed)
+ * are interpreted in `country`. Falls back to a best-effort digit string when
+ * the value can't be parsed so unusual entries still persist.
  *
- * Rules:
- *   - 7 digits   → prepend "613" (assumed local area code)
- *   - 11 digits starting with "1" → strip the leading "1"
- *   - anything else → digit-stripped pass-through
- *
- * Output is always digits-only and ready to write into `clients.phone`
- * or `clients.altPhones[]`.
+ * Kept in sync with the frontend mirror in `lib/phone.ts`.
  */
-export function normalizePhone(phone: string | undefined | null): string {
-  const digits = (phone ?? "").replace(/\D/g, "");
-  if (digits.length === 7) return `613${digits}`;
-  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
-  return digits;
+export function toE164(
+  input: string | undefined | null,
+  country: CountryCode = DEFAULT_PHONE_COUNTRY,
+): string {
+  const raw = (input ?? "").trim();
+  if (!raw) return "";
+  const parsed = parsePhoneNumberFromString(raw, country);
+  if (parsed) return parsed.number;
+  const bare = digits(raw);
+  if (!bare) return "";
+  return raw.startsWith("+") ? `+${bare}` : bare;
+}
+
+/**
+ * Digit forms a stored number should match against in search: the full E.164
+ * digits plus the national significant number (country code stripped). Keeps
+ * "613…" prefix search working even though we now store "+1613…".
+ */
+export function phoneSearchDigits(stored: string | undefined | null): string[] {
+  const raw = (stored ?? "").trim();
+  const full = digits(raw);
+  const parsed = parsePhoneNumberFromString(raw);
+  const national = parsed?.nationalNumber ?? full;
+  return full === national ? [full] : [full, national];
+}
+
+// ---------------------------------------------------------------------------
+// Phone labels (mobile / home / work / other)
+// ---------------------------------------------------------------------------
+
+export const PHONE_LABELS = ["mobile", "home", "work", "other"] as const;
+export type PhoneLabel = (typeof PHONE_LABELS)[number];
+
+export const phoneLabelValidator = v.union(
+  v.literal("mobile"),
+  v.literal("home"),
+  v.literal("work"),
+  v.literal("other"),
+);
+
+/** ISO 3166-1 alpha-2 country code (e.g. "CA", "US", "GB"). */
+export const countryCodeValidator = v.string();
+
+/**
+ * An `altPhones[]` entry. Legacy rows stored a bare digit string; new rows
+ * store `{ number, label? }` (number in E.164). The union keeps old data valid
+ * with no migration — read sites normalize via `phoneEntryNumber` /
+ * `phoneEntryLabel`.
+ */
+export const altPhoneEntryValidator = v.union(
+  v.string(),
+  v.object({ number: v.string(), label: v.optional(phoneLabelValidator) }),
+);
+
+export type StoredPhoneEntry =
+  | string
+  | { number: string; label?: PhoneLabel };
+
+export function phoneEntryNumber(entry: StoredPhoneEntry): string {
+  return typeof entry === "string" ? entry : entry.number;
+}
+
+export function phoneEntryLabel(entry: StoredPhoneEntry): PhoneLabel | undefined {
+  return typeof entry === "string" ? undefined : entry.label;
 }
