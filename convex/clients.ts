@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -104,6 +105,33 @@ async function searchClientsByText(
     byId.set(client._id, client);
   }
   return Array.from(byId.values());
+}
+
+/** Enrich a client with its visible pets + most-recent appointment summary. */
+async function enrichClientRow(ctx: QueryCtx, client: Doc<"clients">) {
+  const pets = await ctx.db
+    .query("pets")
+    .withIndex("by_client", (index) => index.eq("clientId", client._id))
+    .take(20);
+  const visiblePets = pets.filter((pet) => pet.deletedAt === undefined);
+
+  // Most recent appointment for the client. `by_client` isn't ordered by time,
+  // so we cap a recent window and pick the latest in JS — keeps the scan bounded.
+  const recentAppointments = await ctx.db
+    .query("appointments")
+    .withIndex("by_client", (index) => index.eq("clientId", client._id))
+    .take(50);
+  const lastAppointment =
+    recentAppointments.sort((a, b) => b.startTime - a.startTime).find(() => true) ??
+    null;
+
+  return {
+    client,
+    pets: visiblePets,
+    lastAppointment: lastAppointment
+      ? { startTime: lastAppointment.startTime, status: lastAppointment.status }
+      : null,
+  };
 }
 
 /**
@@ -212,36 +240,39 @@ export const listWithPets = query({
     }
 
     return await Promise.all(
-      clients.map(async (client) => {
-        const pets = await ctx.db
-          .query("pets")
-          .withIndex("by_client", (index) => index.eq("clientId", client._id))
-          .take(20);
-        const visiblePets = pets.filter((pet) => pet.deletedAt === undefined);
-
-        // Most recent appointment for the client. `by_client` isn't ordered by
-        // time, so we cap a recent window and pick the latest in JS — keeps the
-        // scan bounded.
-        const recentAppointments = await ctx.db
-          .query("appointments")
-          .withIndex("by_client", (index) => index.eq("clientId", client._id))
-          .take(50);
-        const lastAppointment = recentAppointments
-          .sort((a, b) => b.startTime - a.startTime)
-          .find(() => true) ?? null;
-
-        return {
-          client,
-          pets: visiblePets,
-          lastAppointment: lastAppointment
-            ? {
-                startTime: lastAppointment.startTime,
-                status: lastAppointment.status,
-              }
-            : null,
-        };
-      }),
+      clients.map((client) => enrichClientRow(ctx, client)),
     );
+  },
+});
+
+/**
+ * Cursor-paginated browse over ALL clients in the org (no search), in creation
+ * order (oldest first — same as the old bounded list). Powers the clients
+ * board's "load the next batch as you page through" behavior so the list isn't
+ * capped at the first 200. Search stays on `listWithPets` (bounded match set).
+ * Archived hidden unless `includeArchived`.
+ */
+export const pageWithPets = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    includeArchived: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await softAuth(ctx);
+    if (!identity) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+    const result = await ctx.db
+      .query("clients")
+      .withIndex("by_org", (index) => index.eq("orgId", identity.orgId))
+      .paginate(args.paginationOpts);
+    const visible = args.includeArchived
+      ? result.page
+      : result.page.filter((client) => client.deletedAt === undefined);
+    const rows = await Promise.all(
+      visible.map((client) => enrichClientRow(ctx, client)),
+    );
+    return { ...result, page: rows };
   },
 });
 

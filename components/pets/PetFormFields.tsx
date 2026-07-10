@@ -94,7 +94,6 @@ export function PetFormFields({
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
             Sex
-            <RequiredMark />
           </span>
           <select
             value={state.sex}

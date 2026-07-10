@@ -1,35 +1,72 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { usePaginatedQuery, useQuery } from "convex/react";
 import { Download, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { usePersistentState } from "@/lib/usePersistentState";
 import { LogVisitDialog } from "@/components/calendar/LogVisitDialog";
 import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
 import { ClientCards } from "./ClientCards";
+import { BoardSkeleton, EmptyState } from "./ClientsBoardStates";
 import { ClientsPagination } from "./ClientsPagination";
 import { ClientsPromoCards } from "./ClientsPromoCards";
 import { ClientsToolbar, type SortKey } from "./ClientsToolbar";
 import { ClientsTable, type ClientRow } from "./ClientsTable";
 import { exportClientsToCsv } from "./exportClientsToCsv";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
+// How many clients to pull per server batch when browsing (no search).
+const BROWSE_BATCH = 200;
+const PAGE_SIZE_STORAGE_KEY = "clients:pageSize";
+
+/** Accept a stored page size only if it's still one of the offered options. */
+function parsePageSize(raw: string): number | null {
+  const value = Number(raw);
+  return (PAGE_SIZE_OPTIONS as readonly number[]).includes(value) ? value : null;
+}
 
 export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("lastVisit");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePersistentState<number>(
+    PAGE_SIZE_STORAGE_KEY,
+    PAGE_SIZE_OPTIONS[0],
+    parsePageSize,
+    String,
+  );
   const [creating, setCreating] = useState(false);
   const [bookingClientId, setBookingClientId] = useState<Id<"clients"> | null>(
     null,
   );
   const debouncedSearch = useDebouncedValue(search, 500);
+  const searchActive = debouncedSearch.trim().length > 0;
 
-  const rows = useQuery(api.clients.listWithPets, {
-    search: debouncedSearch || undefined,
-  });
+  // Search: bounded match set (a single query). Browse: cursor-paginated so we
+  // pull the next batch as the user pages past what's loaded.
+  const searchRows = useQuery(
+    api.clients.listWithPets,
+    searchActive ? { search: debouncedSearch } : "skip",
+  );
+  const {
+    results: browseRows,
+    status: browseStatus,
+    loadMore,
+  } = usePaginatedQuery(
+    api.clients.pageWithPets,
+    searchActive ? "skip" : {},
+    { initialNumItems: BROWSE_BATCH },
+  );
+
+  const rows = searchActive ? searchRows : browseRows;
+  const loading = searchActive
+    ? searchRows === undefined
+    : browseStatus === "LoadingFirstPage";
 
   const sortedRows: ReadonlyArray<ClientRow> = useMemo(() => {
     if (!rows) return [];
@@ -47,12 +84,36 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
   }, [rows, sort]);
 
   const total = sortedRows.length;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, pageCount);
   const pageRows = sortedRows.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
   );
+
+  // Browsing: once the user is within a page of the loaded end, pull the next
+  // server batch so they can keep paging through every client (not just 200).
+  useEffect(() => {
+    if (
+      !searchActive &&
+      browseStatus === "CanLoadMore" &&
+      pageCount - safePage <= 1
+    ) {
+      loadMore(BROWSE_BATCH);
+    }
+  }, [searchActive, browseStatus, pageCount, safePage, loadMore]);
+
+  function handlePage(next: number) {
+    setPage(next);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function handlePageSize(next: number) {
+    setPageSize(next);
+    setPage(1);
+  }
 
   function handleSearch(next: string) {
     setSearch(next);
@@ -95,7 +156,7 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
         onSort={handleSort}
       />
 
-      {rows === undefined ? (
+      {loading ? (
         <BoardSkeleton />
       ) : total === 0 ? (
         <EmptyState search={debouncedSearch} />
@@ -105,9 +166,11 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
           <ClientCards rows={pageRows} onBook={setBookingClientId} />
           <ClientsPagination
             page={safePage}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             total={total}
-            onPage={setPage}
+            onPage={handlePage}
+            onPageSize={handlePageSize}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
             trailingSlot={
               <button
                 type="button"
@@ -139,7 +202,11 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
       )}
 
       {creating && (
-        <ClientFormDialog clientId="new" onClose={() => setCreating(false)} />
+        <ClientFormDialog
+          clientId="new"
+          onClose={() => setCreating(false)}
+          onSuccess={(id) => router.push(`/clients/${id}`)}
+        />
       )}
       {bookingClientId && (
         <LogVisitDialog
@@ -148,30 +215,5 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
         />
       )}
     </div>
-  );
-}
-
-function BoardSkeleton() {
-  return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="flex flex-col gap-4">
-        {[0, 1, 2, 3].map((index) => (
-          <div
-            key={index}
-            className="h-16 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-900"
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({ search }: { search: string }) {
-  return (
-    <p className="rounded-xl border border-zinc-200 bg-white px-4 py-12 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-      {search
-        ? `No clients match “${search}”.`
-        : "No clients yet. Add your first one to get started."}
-    </p>
   );
 }

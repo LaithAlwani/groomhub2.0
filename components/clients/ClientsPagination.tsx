@@ -12,12 +12,16 @@ export function ClientsPagination({
   pageSize,
   total,
   onPage,
+  onPageSize,
+  pageSizeOptions,
   trailingSlot,
 }: {
   page: number;
   pageSize: number;
   total: number;
   onPage: (next: number) => void;
+  onPageSize?: (next: number) => void;
+  pageSizeOptions?: readonly number[];
   trailingSlot?: React.ReactNode;
 }) {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -35,9 +39,28 @@ export function ClientsPagination({
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        Showing {from} to {to} of {total} clients
-      </p>
+      <div className="flex items-center gap-3">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          Showing {from} to {to} of {total} clients
+        </p>
+        {onPageSize && pageSizeOptions && (
+          <label className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+            <span className="sr-only sm:not-sr-only">Per page</span>
+            <select
+              value={pageSize}
+              onChange={(event) => onPageSize(Number(event.target.value))}
+              aria-label="Clients per page"
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700 transition-colors focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+            >
+              {pageSizeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         <div className="flex items-center gap-2">
           <PageButton

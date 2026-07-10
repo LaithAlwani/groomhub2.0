@@ -1,7 +1,7 @@
 "use client";
 import { formatError } from "@/lib/formatError";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -45,10 +45,13 @@ export function PetFormDialog({
   const [errors, setErrors] = useState<PetFormErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [seededId, setSeededId] = useState<Id<"pets"> | null>(null);
   const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!existing) return;
+  // Seed the form the first time the pet resolves — adjusting state during
+  // render (React's recommended alternative to a hydration effect).
+  if (existing && seededId !== existing._id) {
+    setSeededId(existing._id);
     const next: PetFormState = {
       name: existing.name,
       species: existing.species,
@@ -71,7 +74,7 @@ export function PetFormDialog({
     // CDN URL — its identity doesn't reflect a user change. We track image
     // intent via `imageStorageId` only.
     setInitialSnapshot(petFormSnapshot(next));
-  }, [existing]);
+  }
 
   const isDirty = isEdit
     ? initialSnapshot === null || initialSnapshot !== petFormSnapshot(state)
@@ -82,7 +85,6 @@ export function PetFormDialog({
     setServerError(null);
     const next: PetFormErrors = {};
     if (state.name.trim().length === 0) next.name = "Name is required";
-    if (state.sex === "") next.sex = "Sex is required";
     if (state.breed.trim().length === 0) next.breed = "Breed is required";
     // Size is optional; only validate the value when one is entered.
     const sizeLbNumber = state.sizeLb ? Number(state.sizeLb) : undefined;

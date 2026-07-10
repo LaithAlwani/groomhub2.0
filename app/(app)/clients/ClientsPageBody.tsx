@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 import { ClientList } from "@/components/clients/ClientList";
 import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 
 export function ClientsPageBody({ canEdit }: { canEdit: boolean }) {
+  const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 200);
@@ -41,7 +43,11 @@ export function ClientsPageBody({ canEdit }: { canEdit: boolean }) {
       </div>
       <ClientList search={debouncedSearch} />
       {creating && (
-        <ClientFormDialog clientId="new" onClose={() => setCreating(false)} />
+        <ClientFormDialog
+          clientId="new"
+          onClose={() => setCreating(false)}
+          onSuccess={(id) => router.push(`/clients/${id}`)}
+        />
       )}
     </div>
   );
