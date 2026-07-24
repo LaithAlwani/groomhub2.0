@@ -47,18 +47,14 @@ export function phoneSearchDigits(stored: string | undefined | null): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Phone labels (mobile / home / work / other)
+// Phone labels — a free-text kind for a number (e.g. "Mobile", "Home",
+// "Emergency", "Secondary"). Stored as-is; the form offers suggestions but the
+// user may type anything.
 // ---------------------------------------------------------------------------
 
-export const PHONE_LABELS = ["mobile", "home", "work", "other"] as const;
-export type PhoneLabel = (typeof PHONE_LABELS)[number];
+export type PhoneLabel = string;
 
-export const phoneLabelValidator = v.union(
-  v.literal("mobile"),
-  v.literal("home"),
-  v.literal("work"),
-  v.literal("other"),
-);
+export const phoneLabelValidator = v.string();
 
 /** ISO 3166-1 alpha-2 country code (e.g. "CA", "US", "GB"). */
 export const countryCodeValidator = v.string();

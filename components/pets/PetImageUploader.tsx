@@ -3,7 +3,7 @@ import { formatError } from "@/lib/formatError";
 
 import { useRef, useState } from "react";
 import { useMutation } from "convex/react";
-import { Camera, Trash2 } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { compressImage } from "@/lib/imageCompress";
@@ -106,11 +106,13 @@ export function PetImageUploader({
     <div className="flex items-center gap-3">
       <PetImage imageUrl={imageUrl} alt={petName || "Pet photo"} size="lg" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
+        {/* No `capture` attribute: on phones/tablets the native picker then
+            offers BOTH "Take Photo" and "Photo Library"; forcing capture would
+            jump straight to the camera. */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={handleFile}
           className="hidden"
         />
@@ -121,7 +123,7 @@ export function PetImageUploader({
             disabled={busy}
             className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
           >
-            <Camera size={14} />
+            <ImagePlus size={14} />
             {busy ? "Saving photo…" : hasImage ? "Replace photo" : "Add photo"}
           </button>
           {hasImage && !busy && (

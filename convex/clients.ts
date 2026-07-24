@@ -434,7 +434,7 @@ function buildClientPatch(args: {
   const normalizedPhone = toE164(args.phone);
   const phone = normalizedPhone || undefined;
   // A label only makes sense when there's a primary number to type.
-  const phoneLabel = phone ? args.phoneLabel : undefined;
+  const phoneLabel = phone ? args.phoneLabel?.trim() || undefined : undefined;
   const firstName = args.firstName?.trim() || undefined;
   const lastName = args.lastName?.trim() || undefined;
   // `fullName` is the canonical display + search string; derive it from
@@ -456,7 +456,9 @@ function buildClientPatch(args: {
   for (const entry of args.altPhones ?? []) {
     const number = toE164(phoneEntryNumber(entry));
     if (number.length === 0 || number === phone) continue;
-    if (!byNumber.has(number)) byNumber.set(number, phoneEntryLabel(entry));
+    if (!byNumber.has(number)) {
+      byNumber.set(number, phoneEntryLabel(entry)?.trim() || undefined);
+    }
   }
   const altPhones = Array.from(byNumber, ([number, label]) =>
     label ? { number, label } : { number },

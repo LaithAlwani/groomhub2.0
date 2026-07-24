@@ -3,14 +3,18 @@ import { formatError } from "@/lib/formatError";
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Plus, Scissors } from "lucide-react";
+import { Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { AddFAB } from "@/components/app/AddFAB";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
 import { ServiceLocationOverrideDialog } from "@/components/services/ServiceLocationOverrideDialog";
-import { ServiceRow } from "@/components/services/ServiceRow";
+import { SortableServiceList } from "@/components/services/SortableServiceList";
+import {
+  ServicesEmptyState,
+  ServicesListSkeleton,
+} from "@/components/services/ServicesListStates";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
 
 /**
@@ -127,31 +131,24 @@ export function ServicesPageBody({
           <span className="text-right">Actions</span>
         </div>
         {services === undefined ? (
-          <ListSkeleton />
+          <ServicesListSkeleton />
         ) : services.length === 0 ? (
-          <EmptyState />
+          <ServicesEmptyState />
         ) : (
-          <ul>
-            {services.map((service) => (
-              <ServiceRow
-                key={service._id}
-                service={service}
-                override={overrideByServiceId.get(service._id) ?? null}
-                currentLocation={currentLocation}
-                multiLocation={multiLocation}
-                canEdit={canEdit}
-                canManage={canManage}
-                isBusy={busyId === service._id}
-                onEdit={() =>
-                  setDialog({ mode: "edit", id: service._id })
-                }
-                onArchive={() =>
-                  setConfirmTarget({ id: service._id, name: service.name })
-                }
-                onCustomizeForLocation={() => setOverridingId(service._id)}
-              />
-            ))}
-          </ul>
+          <SortableServiceList
+            services={services}
+            overrideByServiceId={overrideByServiceId}
+            currentLocation={currentLocation}
+            multiLocation={multiLocation}
+            canEdit={canEdit}
+            canManage={canManage}
+            busyId={busyId}
+            onEdit={(id) => setDialog({ mode: "edit", id })}
+            onArchive={(service) =>
+              setConfirmTarget({ id: service._id, name: service.name })
+            }
+            onCustomize={(id) => setOverridingId(id)}
+          />
         )}
       </div>
 
@@ -201,40 +198,5 @@ export function ServicesPageBody({
         onCancel={() => setConfirmTarget(null)}
       />
     </>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
-      <span
-        aria-hidden
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500"
-      >
-        <Scissors size={18} />
-      </span>
-      <div>
-        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          No services yet.
-        </p>
-        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-          Add a Full Groom, Nail Trim, Bath &amp; Brush — whatever your shop
-          offers.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ListSkeleton() {
-  return (
-    <div className="flex flex-col gap-2 p-2">
-      {[0, 1, 2].map((index) => (
-        <div
-          key={index}
-          className="h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-900"
-        />
-      ))}
-    </div>
   );
 }

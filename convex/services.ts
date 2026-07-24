@@ -28,7 +28,37 @@ export const list = query({
     const filtered = args.includeArchived
       ? rows
       : rows.filter((row) => row.deletedAt === undefined);
-    return filtered.sort((a, b) => a.name.localeCompare(b.name));
+    // Manual order first (drag-to-reorder); unordered rows fall back to
+    // alphabetical after the ordered ones.
+    return filtered.sort((a, b) => {
+      const aOrder = a.sortOrder ?? Number.POSITIVE_INFINITY;
+      const bOrder = b.sortOrder ?? Number.POSITIVE_INFINITY;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name);
+    });
+  },
+});
+
+/**
+ * Persist a new display order for the catalog (drag-to-reorder). Any team
+ * member (staff+). Writes `sortOrder` = position for each id; ignores ids that
+ * aren't this org's services.
+ */
+export const reorder = mutation({
+  args: { orderedIds: v.array(v.id("services")) },
+  handler: async (ctx, args) => {
+    const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
+    let position = 0;
+    for (const id of args.orderedIds) {
+      const service = await ctx.db.get(id);
+      if (!service || service.orgId !== orgId || service.deletedAt !== undefined) {
+        continue;
+      }
+      if (service.sortOrder !== position) {
+        await ctx.db.patch(id, { sortOrder: position });
+      }
+      position += 1;
+    }
   },
 });
 
@@ -53,6 +83,15 @@ export const create = mutation({
       .query("organizations")
       .withIndex("by_clerkOrgId", (index) => index.eq("clerkOrgId", orgId))
       .unique();
+    // Append to the end of the manual order.
+    const existing = await ctx.db
+      .query("services")
+      .withIndex("by_org", (index) => index.eq("orgId", orgId))
+      .collect();
+    const maxOrder = existing.reduce(
+      (max, row) => Math.max(max, row.sortOrder ?? -1),
+      -1,
+    );
     return await ctx.db.insert("services", {
       orgId,
       name: args.name.trim(),
@@ -63,6 +102,7 @@ export const create = mutation({
       species: args.species,
       color: args.color,
       isActive: true,
+      sortOrder: maxOrder + 1,
     });
   },
 });

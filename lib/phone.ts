@@ -83,25 +83,26 @@ export function toNationalDisplay(stored: string | undefined | null): string {
 }
 
 // ---------------------------------------------------------------------------
-// Phone labels (mobile / home / work / other)
-// ---------------------------------------------------------------------------
+// Phone labels — a free-text kind for a number. The form offers these
+// suggestions but the user can type anything (e.g. "Emergency", "Grandma").
 // Backend mirror lives in `convex/lib/phone.ts`; keep the two in sync.
+// ---------------------------------------------------------------------------
 
-export type PhoneLabel = "mobile" | "home" | "work" | "other";
+export type PhoneLabel = string;
 
-export const PHONE_LABELS: readonly PhoneLabel[] = [
-  "mobile",
-  "home",
-  "work",
-  "other",
+export const PHONE_LABEL_SUGGESTIONS: readonly string[] = [
+  "Mobile",
+  "Home",
+  "Work",
+  "Other",
 ];
 
-export const PHONE_LABEL_TEXT: Record<PhoneLabel, string> = {
-  mobile: "Mobile",
-  home: "Home",
-  work: "Work",
-  other: "Other",
-};
+/** Display form of a stored label — capitalize the first letter. */
+export function formatPhoneLabel(label: string): string {
+  const trimmed = label.trim();
+  if (!trimmed) return "";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
 
 /** An `altPhones[]` entry as stored: a legacy bare string or a labeled object. */
 export type StoredPhoneEntry = string | { number: string; label?: PhoneLabel };

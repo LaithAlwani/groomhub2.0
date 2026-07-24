@@ -30,6 +30,10 @@ export function ServiceRow({
   onEdit,
   onArchive,
   onCustomizeForLocation,
+  dragRef,
+  dragStyle,
+  dragHandle,
+  isDragging,
 }: {
   service: Doc<"services">;
   override: Doc<"serviceLocationOverrides"> | null;
@@ -43,6 +47,11 @@ export function ServiceRow({
   onEdit: () => void;
   onArchive: () => void;
   onCustomizeForLocation: () => void;
+  // Drag-to-reorder wiring (from the sortable wrapper). Absent when not sortable.
+  dragRef?: (node: HTMLElement | null) => void;
+  dragStyle?: React.CSSProperties;
+  dragHandle?: React.ReactNode;
+  isDragging?: boolean;
 }) {
   const effectivePriceCents = override?.priceCents ?? service.priceCents;
   const effectiveDuration = override?.durationMin ?? service.durationMin;
@@ -55,6 +64,8 @@ export function ServiceRow({
 
   return (
     <li
+      ref={dragRef}
+      style={dragStyle}
       onClick={() => {
         if (canEdit && !isBusy) onEdit();
       }}
@@ -62,7 +73,7 @@ export function ServiceRow({
         canEdit
           ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
           : ""
-      }`}
+      } ${isDragging ? "bg-white shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-950 dark:ring-zinc-800" : ""}`}
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -157,6 +168,7 @@ export function ServiceRow({
             <Trash2 size={14} />
           </button>
         )}
+        {dragHandle}
       </div>
     </li>
   );

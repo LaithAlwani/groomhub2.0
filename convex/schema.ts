@@ -280,6 +280,9 @@ export default defineSchema({
     species: v.array(speciesValidator),
     color: v.optional(v.string()),
     isActive: v.boolean(),
+    // Manual display order for the services catalog (drag-to-reorder). Lower
+    // sorts first; unset rows fall back to alphabetical after ordered ones.
+    sortOrder: v.optional(v.number()),
     deletedAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])

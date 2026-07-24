@@ -6,12 +6,12 @@ import { RequiredMark } from "@/components/forms/RequiredMark";
 import {
   digitsOnly,
   formatAsYouType,
-  PHONE_LABELS,
-  PHONE_LABEL_TEXT,
-  type PhoneLabel,
+  PHONE_LABEL_SUGGESTIONS,
 } from "@/lib/phone";
 import { EMPTY_PHONE, type PhoneFormEntry } from "./clientPhones";
 import { COUNTRY_OPTIONS } from "./phoneCountries";
+
+const LABEL_SUGGESTIONS_ID = "phone-label-suggestions";
 
 const fieldClass =
   "rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 transition-colors focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-100";
@@ -103,21 +103,17 @@ export function PhonesField({
               placeholder={index === 0 ? "Primary phone" : "Alternate phone"}
               className={`${fieldClass} min-w-0 flex-1 px-3`}
             />
-            <select
+            <input
+              type="text"
+              list={LABEL_SUGGESTIONS_ID}
               value={entry.label}
               onChange={(event) =>
-                updateAt(index, { label: event.target.value as PhoneLabel | "" })
+                updateAt(index, { label: event.target.value })
               }
-              aria-label="Phone type"
-              className={`${fieldClass} shrink-0`}
-            >
-              <option value="">Type</option>
-              {PHONE_LABELS.map((label) => (
-                <option key={label} value={label}>
-                  {PHONE_LABEL_TEXT[label]}
-                </option>
-              ))}
-            </select>
+              aria-label="Phone label"
+              placeholder="Label"
+              className={`${fieldClass} w-24 shrink-0 px-2.5`}
+            />
             {(phones.length > 1 || entry.number.trim().length > 0) && (
               <button
                 type="button"
@@ -131,6 +127,11 @@ export function PhonesField({
           </div>
         ))}
       </div>
+      <datalist id={LABEL_SUGGESTIONS_ID}>
+        {PHONE_LABEL_SUGGESTIONS.map((label) => (
+          <option key={label} value={label} />
+        ))}
+      </datalist>
       <button
         type="button"
         onClick={addPhone}

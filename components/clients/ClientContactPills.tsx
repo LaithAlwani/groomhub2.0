@@ -4,8 +4,8 @@ import { Mail, Phone } from "lucide-react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import {
   formatPhone,
+  formatPhoneLabel,
   normalizePhoneEntries,
-  PHONE_LABEL_TEXT,
 } from "@/lib/phone";
 
 const pillClass =
@@ -22,7 +22,7 @@ export function ClientContactPills({ client }: { client: Doc<"clients"> }) {
         <span className={`${pillClass} text-zinc-700 dark:text-zinc-300`}>
           <Phone size={12} className="text-zinc-400" aria-hidden />
           {formatPhone(client.phone)}
-          {client.phoneLabel && <Label text={PHONE_LABEL_TEXT[client.phoneLabel]} />}
+          {client.phoneLabel && <Label text={formatPhoneLabel(client.phoneLabel)} />}
         </span>
       )}
       {normalizePhoneEntries(client.altPhones).map((alt, index) => (
@@ -32,7 +32,7 @@ export function ClientContactPills({ client }: { client: Doc<"clients"> }) {
         >
           <Phone size={12} className="text-zinc-400" aria-hidden />
           {formatPhone(alt.number)}
-          {alt.label && <Label text={PHONE_LABEL_TEXT[alt.label]} />}
+          {alt.label && <Label text={formatPhoneLabel(alt.label)} />}
         </span>
       ))}
       {client.email && (
