@@ -1,63 +1,74 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Image as ImageIcon, ImagePlus, Loader2 } from "lucide-react";
+import { Camera, Image as ImageIcon, ImagePlus } from "lucide-react";
 import { useCanCapture } from "@/lib/useCanCapture";
 
 /**
- * The "Add" tile for a before/after gallery. On phones/tablets, tapping it
- * opens a menu with "Take photo" (camera) and "Choose from library". On
- * desktop — where a camera capture makes no sense — it skips the menu and
- * goes straight to the library picker. The parent wires each to a hidden file
- * input. Owns its own open/close + outside-click.
+ * "Add / Replace photo" control for the pet uploader. On phones/tablets it opens
+ * a menu with Take photo (camera) / Choose from library; on desktop it skips the
+ * menu and opens the library picker. The parent handles the chosen file.
  */
-export function AddPhotoMenu({
-  stage,
+export function PetPhotoSource({
+  label,
   busy,
-  onCamera,
-  onLibrary,
+  onFile,
 }: {
-  stage: string;
+  label: string;
   busy: boolean;
-  onCamera: () => void;
-  onLibrary: () => void;
+  onFile: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const libraryInputRef = useRef<HTMLInputElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const canCapture = useCanCapture();
 
   useEffect(() => {
-    if (!open) return;
+    if (!menuOpen) return;
     function onPointerDown(event: PointerEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpen(false);
+        setMenuOpen(false);
       }
     }
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  }, [menuOpen]);
 
   return (
     <div ref={menuRef} className="relative">
+      {/* Camera capture (touch only) + a plain library picker. */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={onFile}
+        className="hidden"
+      />
+      <input
+        ref={libraryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={onFile}
+        className="hidden"
+      />
       <button
         type="button"
-        onClick={() => (canCapture ? setOpen((current) => !current) : onLibrary())}
+        onClick={() =>
+          canCapture
+            ? setMenuOpen((open) => !open)
+            : libraryInputRef.current?.click()
+        }
         disabled={busy}
         aria-haspopup={canCapture ? "menu" : undefined}
-        aria-expanded={canCapture ? open : undefined}
-        aria-label={`Add ${stage} photos`}
-        className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-300 text-zinc-500 transition-colors hover:border-orange-400 hover:bg-orange-50/50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-orange-500/60 dark:hover:bg-orange-950/20"
+        aria-expanded={canCapture ? menuOpen : undefined}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
       >
-        {busy ? (
-          <Loader2 size={18} className="animate-spin" aria-hidden />
-        ) : (
-          <>
-            <ImagePlus size={18} aria-hidden />
-            <span className="text-[11px] font-medium">Add</span>
-          </>
-        )}
+        <ImagePlus size={14} />
+        {label}
       </button>
-      {open && canCapture && (
+      {menuOpen && canCapture && (
         <div
           role="menu"
           className="absolute left-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950"
@@ -66,8 +77,8 @@ export function AddPhotoMenu({
             icon={<Camera size={14} aria-hidden />}
             label="Take photo"
             onClick={() => {
-              setOpen(false);
-              onCamera();
+              setMenuOpen(false);
+              cameraInputRef.current?.click();
             }}
           />
           <MenuItem
@@ -75,8 +86,8 @@ export function AddPhotoMenu({
             label="Choose from library"
             withBorder
             onClick={() => {
-              setOpen(false);
-              onLibrary();
+              setMenuOpen(false);
+              libraryInputRef.current?.click();
             }}
           />
         </div>

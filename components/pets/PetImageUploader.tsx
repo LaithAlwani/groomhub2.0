@@ -1,13 +1,14 @@
 "use client";
 import { formatError } from "@/lib/formatError";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation } from "convex/react";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { compressImage } from "@/lib/imageCompress";
 import { PetImage } from "./PetImage";
+import { PetPhotoSource } from "./PetPhotoSource";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
@@ -41,7 +42,6 @@ export function PetImageUploader({
 }) {
   const generateUploadUrl = useMutation(api.pets.generateImageUploadUrl);
   const setImage = useMutation(api.pets.setImage);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,26 +106,12 @@ export function PetImageUploader({
     <div className="flex items-center gap-3">
       <PetImage imageUrl={imageUrl} alt={petName || "Pet photo"} size="lg" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        {/* No `capture` attribute: on phones/tablets the native picker then
-            offers BOTH "Take Photo" and "Photo Library"; forcing capture would
-            jump straight to the camera. */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFile}
-          className="hidden"
-        />
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
-          >
-            <ImagePlus size={14} />
-            {busy ? "Saving photo…" : hasImage ? "Replace photo" : "Add photo"}
-          </button>
+          <PetPhotoSource
+            label={busy ? "Saving photo…" : hasImage ? "Replace photo" : "Add photo"}
+            busy={busy}
+            onFile={handleFile}
+          />
           {hasImage && !busy && (
             <button
               type="button"
