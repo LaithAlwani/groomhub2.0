@@ -226,15 +226,13 @@ async function enrichClientRow(ctx: QueryCtx, client: Doc<"clients">) {
     .take(20);
   const visiblePets = pets.filter((pet) => pet.deletedAt === undefined);
 
-  // Most recent appointment for the client. `by_client` isn't ordered by time,
-  // so we cap a recent window and pick the latest in JS — keeps the scan bounded.
-  const recentAppointments = await ctx.db
+  // Most recent appointment for the client — read exactly one row via the
+  // time-ordered index (was: fetch 50 and sort in JS).
+  const lastAppointment = await ctx.db
     .query("appointments")
-    .withIndex("by_client", (index) => index.eq("clientId", client._id))
-    .take(50);
-  const lastAppointment =
-    recentAppointments.sort((a, b) => b.startTime - a.startTime).find(() => true) ??
-    null;
+    .withIndex("by_client_start", (index) => index.eq("clientId", client._id))
+    .order("desc")
+    .first();
 
   return {
     client,

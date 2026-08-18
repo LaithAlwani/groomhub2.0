@@ -431,6 +431,9 @@ export default defineSchema({
     .index("by_org_location_start", ["orgId", "locationId", "startTime"])
     .index("by_staff_start", ["staffId", "startTime"])
     .index("by_client", ["clientId"])
+    // Ordered by client + time so "most recent appointment" reads one row
+    // instead of scanning a client's whole history.
+    .index("by_client_start", ["clientId", "startTime"])
     .index("by_pet", ["petId"])
     .index("by_clientUuid", ["clientUuid"]),
 
