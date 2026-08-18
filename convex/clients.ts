@@ -38,7 +38,10 @@ const MAX_PHONE_SCAN = 10_000;
 // scan) and rank them with Fuse.js. Only runs for thin results, so common
 // queries stay index-fast.
 const MAX_FUZZY_SCAN = 3_000; // per table (clients, pets) — bounds the read cost
-const FUZZY_TRIGGER = 10; // run fuzzy only when the index returns fewer than this
+// True last resort: only run fuzzy when the index found NOTHING, so real
+// matches are never padded with loosely-similar names.
+const FUZZY_TRIGGER = 1; // run fuzzy only when the index returns 0 matches
+const FUZZY_MAX_RESULTS = 15; // keep only the closest fuzzy matches (best-first)
 const MIN_FUZZY_QUERY_LEN = 4; // ≤3-char queries have plenty of prefix matches
 const FUZZY_THRESHOLD = 0.5; // Fuse: lower = stricter, higher = looser
 
@@ -213,7 +216,7 @@ async function scanFuzzyMatches(
       client = owner;
     }
     matches.push(client);
-    if (matches.length >= MAX_RESULTS) break;
+    if (matches.length >= FUZZY_MAX_RESULTS) break;
   }
   return matches;
 }
