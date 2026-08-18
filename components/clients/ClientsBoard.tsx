@@ -44,7 +44,7 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
   const [bookingClientId, setBookingClientId] = useState<Id<"clients"> | null>(
     null,
   );
-  const debouncedSearch = useDebouncedValue(search, 500);
+  const debouncedSearch = useDebouncedValue(search, 700);
   const searchActive = debouncedSearch.trim().length > 0;
 
   // Search: bounded match set (a single query). Browse: cursor-paginated so we

@@ -1,5 +1,3 @@
-import type { Doc } from "@/convex/_generated/dataModel";
-
 /**
  * Two-letter initial avatar used in both the desktop clients table and the
  * mobile cards. Pulls the first letter of the first word + first letter of
@@ -9,7 +7,7 @@ export function ClientRowAvatar({
   client,
   size = "md",
 }: {
-  client: Doc<"clients">;
+  client: { fullName: string };
   size?: "sm" | "md" | "lg";
 }) {
   const initials = initialsFor(client.fullName);

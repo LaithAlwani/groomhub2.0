@@ -37,9 +37,9 @@ const MAX_PHONE_SCAN = 10_000;
 // comes back thin we stream the org's clients + pets (bounded, like the phone
 // scan) and rank them with Fuse.js. Only runs for thin results, so common
 // queries stay index-fast.
-const MAX_FUZZY_SCAN = 4_000; // per table (clients, pets)
+const MAX_FUZZY_SCAN = 3_000; // per table (clients, pets) — bounds the read cost
 const FUZZY_TRIGGER = 10; // run fuzzy only when the index returns fewer than this
-const MIN_FUZZY_QUERY_LEN = 3; // 1–2 char queries are handled by prefix search
+const MIN_FUZZY_QUERY_LEN = 4; // ≤3-char queries have plenty of prefix matches
 const FUZZY_THRESHOLD = 0.5; // Fuse: lower = stricter, higher = looser
 
 /**
@@ -218,16 +218,22 @@ async function scanFuzzyMatches(
   return matches;
 }
 
-/** Enrich a client with its visible pets + most-recent appointment summary. */
+/**
+ * Enrich a client for the clients board — projected to ONLY the fields the
+ * table/cards/CSV render (name, phone, email, member-since, a few pet
+ * names/breeds, last visit). Returning trimmed objects instead of full client +
+ * pet documents keeps the query's client-bound payload small.
+ */
 async function enrichClientRow(ctx: QueryCtx, client: Doc<"clients">) {
   const pets = await ctx.db
     .query("pets")
     .withIndex("by_client", (index) => index.eq("clientId", client._id))
-    .take(20);
-  const visiblePets = pets.filter((pet) => pet.deletedAt === undefined);
+    .take(8);
+  const visiblePets = pets
+    .filter((pet) => pet.deletedAt === undefined)
+    .map((pet) => ({ _id: pet._id, name: pet.name, breed: pet.breed }));
 
-  // Most recent appointment for the client — read exactly one row via the
-  // time-ordered index (was: fetch 50 and sort in JS).
+  // Most recent appointment — read exactly one row via the time-ordered index.
   const lastAppointment = await ctx.db
     .query("appointments")
     .withIndex("by_client_start", (index) => index.eq("clientId", client._id))
@@ -235,7 +241,13 @@ async function enrichClientRow(ctx: QueryCtx, client: Doc<"clients">) {
     .first();
 
   return {
-    client,
+    client: {
+      _id: client._id,
+      _creationTime: client._creationTime,
+      fullName: client.fullName,
+      phone: client.phone,
+      email: client.email,
+    },
     pets: visiblePets,
     lastAppointment: lastAppointment
       ? { startTime: lastAppointment.startTime, status: lastAppointment.status }

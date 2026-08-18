@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { PawPrint } from "lucide-react";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Id } from "@/convex/_generated/dataModel";
 
 export function ClientPetPills({
   pets,
 }: {
-  pets: ReadonlyArray<Doc<"pets">>;
+  pets: ReadonlyArray<{ _id: Id<"pets">; name: string; breed?: string }>;
 }) {
   if (pets.length === 0) {
     return (

@@ -3,15 +3,31 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarPlus, ChevronRight, Mail, Phone } from "lucide-react";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { formatPhone } from "@/lib/phone";
 import { ClientPetPills } from "./ClientPetPills";
 import { ClientRowAvatar } from "./ClientRowAvatar";
 import { ClientStatusPill } from "./ClientStatusPill";
 
+// Trimmed shapes — the board query (`clients.listWithPets` / `pageWithPets`)
+// returns only these fields, not full client/pet documents.
+export type ClientRowClient = {
+  _id: Id<"clients">;
+  _creationTime: number;
+  fullName: string;
+  phone?: string;
+  email?: string;
+};
+
+export type ClientRowPet = {
+  _id: Id<"pets">;
+  name: string;
+  breed?: string;
+};
+
 export type ClientRow = {
-  client: Doc<"clients">;
-  pets: ReadonlyArray<Doc<"pets">>;
+  client: ClientRowClient;
+  pets: ReadonlyArray<ClientRowPet>;
   lastAppointment: {
     startTime: number;
     status: Doc<"appointments">["status"];
