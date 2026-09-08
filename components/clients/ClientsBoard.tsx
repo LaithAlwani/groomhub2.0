@@ -16,6 +16,11 @@ import { ClientsPagination } from "./ClientsPagination";
 import { ClientsPromoCards } from "./ClientsPromoCards";
 import { ClientsToolbar, type SortKey } from "./ClientsToolbar";
 import { ClientsTable, type ClientRow } from "./ClientsTable";
+import {
+  MIN_PHONE_DIGITS,
+  MIN_TEXT_CHARS,
+  shouldRunClientSearch,
+} from "./clientSearchGate";
 import { exportClientsToCsv } from "./exportClientsToCsv";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
@@ -44,8 +49,15 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
   const [bookingClientId, setBookingClientId] = useState<Id<"clients"> | null>(
     null,
   );
-  const debouncedSearch = useDebouncedValue(search, 700);
-  const searchActive = debouncedSearch.trim().length > 0;
+  const debouncedSearch = useDebouncedValue(search, 900);
+  // Only run the server search once the query is long enough to be worth the
+  // (whole-table) scan — see `clientSearchGate`. Shorter partial queries stay
+  // in browse mode instead of firing a scan per settled keystroke.
+  const searchActive = shouldRunClientSearch(debouncedSearch);
+  // User has typed something, but not yet enough to search — prompt them
+  // rather than silently showing the full browse list.
+  const belowSearchThreshold =
+    debouncedSearch.trim().length > 0 && !searchActive;
 
   // Search: bounded match set (a single query). Browse: cursor-paginated so we
   // pull the next batch as the user pages past what's loaded.
@@ -159,7 +171,12 @@ export function ClientsBoard({ canEdit }: { canEdit: boolean }) {
         onSort={handleSort}
       />
 
-      {loading ? (
+      {belowSearchThreshold ? (
+        <p className="rounded-xl border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+          Keep typing to search — at least {MIN_PHONE_DIGITS} digits of a phone
+          number or {MIN_TEXT_CHARS} letters of a name.
+        </p>
+      ) : loading ? (
         <BoardSkeleton />
       ) : total === 0 ? (
         <EmptyState search={debouncedSearch} />

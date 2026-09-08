@@ -32,7 +32,7 @@ export function ClientsToolbar({
           type="search"
           value={search}
           onChange={(event) => onSearch(event.target.value)}
-          placeholder="Search by name, phone, or pet…"
+          placeholder="Search by name, phone, or pet — min 3 letters or 4 digits"
           className="w-full rounded-lg border border-zinc-200 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:ring-orange-900"
         />
       </label>
