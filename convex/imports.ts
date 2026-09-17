@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
+import { refreshClientPhones } from "./lib/clientPhones";
+import { refreshClientSummary } from "./lib/clientSummary";
 import { toE164 } from "./lib/phone";
 import { requireRole } from "./lib/rbac";
 import { softAuth } from "./lib/tenant";
@@ -194,6 +196,14 @@ export const commitBatch = mutation({
             });
             createdLegacy += 1;
           }
+        }
+
+        // Sync the denormalized summary + phone search-index rows once per row,
+        // after all of this client's pets are inserted.
+        if (clientId) {
+          await refreshClientSummary(ctx, clientId);
+          const clientDoc = await ctx.db.get(clientId);
+          if (clientDoc) await refreshClientPhones(ctx, clientDoc);
         }
       } catch (caught) {
         failures.push({

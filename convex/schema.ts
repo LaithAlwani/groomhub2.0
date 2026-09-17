@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { appointmentStatusValidator } from "./lib/appointmentStatus";
 import { altPhoneEntryValidator, phoneLabelValidator } from "./lib/phone";
 
 export const roleValidator = v.union(
@@ -336,12 +337,57 @@ export default defineSchema({
     // a hint, not a scope.
     preferredLocationId: v.optional(v.id("locations")),
     deletedAt: v.optional(v.number()),
+    // --- Denormalized clients-board summary (see `lib/clientSummary.ts`) ---
+    // Kept in sync by the refresh helpers called from every pet/appointment
+    // mutation so `listWithPets`/`pageWithPets` render a row from the client
+    // doc alone, with no per-row pet/appointment reads. Any new mutation that
+    // touches a client's pets or appointments MUST call the matching helper.
+    // First 8 VISIBLE pets, in `by_client` order — exactly the shape the
+    // clients board's ClientPetPills consumes.
+    petSummary: v.optional(
+      v.array(
+        v.object({
+          _id: v.id("pets"),
+          name: v.string(),
+          breed: v.optional(v.string()),
+        }),
+      ),
+    ),
+    // True count of visible pets (>= petSummary.length) for a future "+N more".
+    petCount: v.optional(v.number()),
+    // Most-recent appointment by startTime, NO status filter (cancelled/noShow
+    // still count) — mirrors the old live `enrichClientRow` behavior.
+    lastVisit: v.optional(
+      v.object({
+        startTime: v.number(),
+        status: appointmentStatusValidator,
+      }),
+    ),
+    // Sentinel: set on every refresh. `undefined` => never backfilled => the
+    // query falls back to live enrichment for that row.
+    summaryUpdatedAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .searchIndex("search_name", {
       searchField: "fullName",
       filterFields: ["orgId", "deletedAt"],
     }),
+
+  // Search index for phone lookup — one row per (client, phone digit-variant).
+  // Replaces the old whole-table `scanPhoneMatches`: prefix (area-code) search
+  // is a range scan on `digits`; suffix (last-N) search is a range scan on the
+  // REVERSED digits. Both the full-E.164 and national forms of each stored
+  // number get a row (see `phoneSearchDigits`). Rebuilt by `refreshClientPhones`
+  // (`lib/clientPhones.ts`) whenever a client's phone/altPhones change.
+  clientPhones: defineTable({
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    digits: v.string(),
+    digitsReversed: v.string(),
+  })
+    .index("by_org_digits", ["orgId", "digits"])
+    .index("by_org_digitsReversed", ["orgId", "digitsReversed"])
+    .index("by_client", ["clientId"]),
 
   // Pets belong to one client. Soft-delete via `deletedAt`; appointment history
   // referencing a removed pet stays readable.
@@ -393,18 +439,10 @@ export default defineSchema({
     serviceId: v.id("services"),
     startTime: v.number(),
     endTime: v.number(),
-    status: v.union(
-      v.literal("pendingApproval"),
-      // Groomer declined an admin-booked appointment; sits in an admin queue
-      // until reassigned (→ pendingApproval) or cancelled (→ cancelled).
-      v.literal("declined"),
-      v.literal("scheduled"),
-      v.literal("checkedIn"),
-      v.literal("inProgress"),
-      v.literal("completed"),
-      v.literal("noShow"),
-      v.literal("cancelled"),
-    ),
+    // Shared with `clients.lastVisit.status` — see `lib/appointmentStatus.ts`.
+    // "declined": groomer declined an admin-booked appointment; sits in an
+    // admin queue until reassigned (→ pendingApproval) or cancelled.
+    status: appointmentStatusValidator,
     // Base price captured from the service (+ location override) at booking.
     priceCentsSnapshot: v.number(),
     // Optional manual override of the charged total. Unset = use the base

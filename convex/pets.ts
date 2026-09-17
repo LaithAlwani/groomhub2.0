@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { appError } from "./lib/errors";
+import { refreshClientPetSummary } from "./lib/clientSummary";
 import { requireRole } from "./lib/rbac";
 import { softAuth } from "./lib/tenant";
 import { sexValidator, speciesValidator, vaccinationValidator } from "./schema";
@@ -247,7 +248,7 @@ export const create = mutation({
     const client = await ctx.db.get(args.clientId);
     if (!client) appError("NOT_FOUND", { reason: "CLIENT_NOT_FOUND" });
     if (client.orgId !== orgId) appError("FORBIDDEN", { reason: "WRONG_ORG" });
-    return await ctx.db.insert("pets", {
+    const petId = await ctx.db.insert("pets", {
       orgId,
       clientId: args.clientId,
       // Vaccinations are managed separately on the pet detail page via
@@ -255,6 +256,8 @@ export const create = mutation({
       vaccinations: [],
       ...buildPetPatch(args),
     });
+    await refreshClientPetSummary(ctx, args.clientId);
+    return petId;
   },
 });
 
@@ -292,6 +295,7 @@ export const update = mutation({
       await ctx.storage.delete(existing.imageStorageId);
     }
     await ctx.db.patch(existing._id, buildPetPatch(args));
+    await refreshClientPetSummary(ctx, existing.clientId);
   },
 });
 
@@ -306,6 +310,7 @@ export const archive = mutation({
     const existing = await loadOwnPet(ctx, args.id, orgId);
     if (existing.deletedAt !== undefined) return;
     await ctx.db.patch(existing._id, { deletedAt: Date.now() });
+    await refreshClientPetSummary(ctx, existing.clientId);
   },
 });
 
@@ -319,6 +324,7 @@ export const restore = mutation({
     const existing = await loadOwnPet(ctx, args.id, orgId);
     if (existing.deletedAt === undefined) return;
     await ctx.db.patch(existing._id, { deletedAt: undefined });
+    await refreshClientPetSummary(ctx, existing.clientId);
   },
 });
 
@@ -334,6 +340,7 @@ export const hardDelete = mutation({
       await ctx.storage.delete(existing.imageStorageId);
     }
     await ctx.db.delete(existing._id);
+    await refreshClientPetSummary(ctx, existing.clientId);
   },
 });
 

@@ -9,6 +9,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { appError } from "./lib/errors";
+import { refreshClientLastVisit } from "./lib/clientSummary";
 import { ensureMembership, readMembershipForQuery } from "./lib/ensureMembership";
 import { mapClerkOrgRole } from "./lib/roles";
 import { requireRole } from "./lib/rbac";
@@ -418,6 +419,8 @@ export const completeAppointment = mutation({
 
     if (appt.status !== "completed") {
       await ctx.db.patch(appt._id, { status: "completed" });
+      // Completing possibly-most-recent appt: refresh the client's last-visit.
+      await refreshClientLastVisit(ctx, appt.clientId);
       await ctx.scheduler.runAfter(0, internal.email.sendPetReady, {
         appointmentId: appt._id,
       });

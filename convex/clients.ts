@@ -11,12 +11,16 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { appError } from "./lib/errors";
+import { deleteClientPhones, refreshClientPhones } from "./lib/clientPhones";
+import {
+  refreshClientPetSummary,
+  refreshClientSummary,
+} from "./lib/clientSummary";
 import {
   altPhoneEntryValidator,
   phoneEntryLabel,
   phoneEntryNumber,
   phoneLabelValidator,
-  phoneSearchDigits,
   toE164,
   type PhoneLabel,
   type StoredPhoneEntry,
@@ -25,12 +29,13 @@ import { requireRole } from "./lib/rbac";
 import { softAuth } from "./lib/tenant";
 
 const MAX_RESULTS = 200;
-// Safety cap on how many client rows a single phone search will scan. Phone
-// matching is a substring test that no index supports, so we stream the org's
-// clients and filter in JS — bounded here so a huge org can't blow the query's
-// read budget. If a shop ever exceeds this we should move phone search to a
-// dedicated indexed `clientPhones` table (see the scaling plan).
-const MAX_PHONE_SCAN = 10_000;
+// How many `clientPhones` index rows to read per prefix/suffix scan. Rows are
+// deduped to distinct clients afterward, so we over-read to still surface
+// MAX_RESULTS distinct clients when a short query matches many numbers.
+const PHONE_INDEX_TAKE = MAX_RESULTS * 4;
+// Upper-bound sentinel for a string prefix range: any real digits string sorts
+// before `<prefix> + "￿"` and any longer prefix sorts after it.
+const HIGH_CODE_POINT = "￿";
 
 // Fuzzy (typo-tolerant) name search. Convex's full-text index requires an exact
 // match for short terms, so "mile" won't find "Mike". When the indexed search
@@ -46,11 +51,11 @@ const MIN_FUZZY_QUERY_LEN = 4; // ≤3-char queries have plenty of prefix matche
 const FUZZY_THRESHOLD = 0.5; // Fuse: lower = stricter, higher = looser
 
 /**
- * Stream the org's clients (in `by_org` order) and collect up to `MAX_RESULTS`
- * whose primary or alt phone contains `digits`. Stops early once enough matches
- * are found or `MAX_PHONE_SCAN` rows have been examined. Unlike a `.take(200)`
- * prefilter, this considers EVERY client (up to the scan cap), so matches
- * aren't limited to the oldest 200 rows.
+ * Find clients whose primary or alt phone PREFIX-matches (area code) or
+ * SUFFIX-matches (last-N digits) `digits`, via the indexed `clientPhones` table
+ * — no whole-table scan. Prefix search is a range scan on `digits`; suffix
+ * search is a range scan on the reversed digits. Rows are deduped to distinct
+ * clients, then loaded to drop cross-org/archived and sort by name.
  */
 async function scanPhoneMatches(
   ctx: QueryCtx,
@@ -58,18 +63,37 @@ async function scanPhoneMatches(
   digits: string,
   includeArchived: boolean,
 ): Promise<Doc<"clients">[]> {
+  const reversed = digits.split("").reverse().join("");
+  const prefixRows = await ctx.db
+    .query("clientPhones")
+    .withIndex("by_org_digits", (index) =>
+      index
+        .eq("orgId", orgId)
+        .gte("digits", digits)
+        .lt("digits", digits + HIGH_CODE_POINT),
+    )
+    .take(PHONE_INDEX_TAKE);
+  const suffixRows = await ctx.db
+    .query("clientPhones")
+    .withIndex("by_org_digitsReversed", (index) =>
+      index
+        .eq("orgId", orgId)
+        .gte("digitsReversed", reversed)
+        .lt("digitsReversed", reversed + HIGH_CODE_POINT),
+    )
+    .take(PHONE_INDEX_TAKE);
+
+  const clientIds = new Set<Id<"clients">>();
+  for (const row of prefixRows) clientIds.add(row.clientId);
+  for (const row of suffixRows) clientIds.add(row.clientId);
+
   const matches: Doc<"clients">[] = [];
-  let scanned = 0;
-  for await (const row of ctx.db
-    .query("clients")
-    .withIndex("by_org", (index) => index.eq("orgId", orgId))) {
-    if (scanned >= MAX_PHONE_SCAN) break;
-    scanned += 1;
-    const visible = includeArchived || row.deletedAt === undefined;
-    if (visible && phoneMatches(row, digits)) {
-      matches.push(row);
-      if (matches.length >= MAX_RESULTS) break;
-    }
+  for (const clientId of clientIds) {
+    const client = await ctx.db.get(clientId);
+    if (!client || client.orgId !== orgId) continue;
+    if (!includeArchived && client.deletedAt !== undefined) continue;
+    matches.push(client);
+    if (matches.length >= MAX_RESULTS) break;
   }
   return matches.sort((a, b) => a.fullName.localeCompare(b.fullName));
 }
@@ -224,10 +248,32 @@ async function scanFuzzyMatches(
 /**
  * Enrich a client for the clients board — projected to ONLY the fields the
  * table/cards/CSV render (name, phone, email, member-since, a few pet
- * names/breeds, last visit). Returning trimmed objects instead of full client +
- * pet documents keeps the query's client-bound payload small.
+ * names/breeds, last visit).
+ *
+ * Fast path: read the denormalized `petSummary`/`lastVisit` straight off the
+ * client doc the query already loaded — ZERO per-row pet/appointment reads.
+ * Fall back to live reads only for docs never touched by the summary backfill
+ * (`summaryUpdatedAt === undefined`), so the query stays correct mid-rollout.
+ * The summary is kept in sync by the helpers in `lib/clientSummary.ts`.
  */
 async function enrichClientRow(ctx: QueryCtx, client: Doc<"clients">) {
+  const base = {
+    _id: client._id,
+    _creationTime: client._creationTime,
+    fullName: client.fullName,
+    phone: client.phone,
+    email: client.email,
+  };
+
+  if (client.summaryUpdatedAt !== undefined) {
+    return {
+      client: base,
+      pets: client.petSummary ?? [],
+      lastAppointment: client.lastVisit ?? null,
+    };
+  }
+
+  // Live fallback (pre-backfill doc).
   const pets = await ctx.db
     .query("pets")
     .withIndex("by_client", (index) => index.eq("clientId", client._id))
@@ -235,8 +281,6 @@ async function enrichClientRow(ctx: QueryCtx, client: Doc<"clients">) {
   const visiblePets = pets
     .filter((pet) => pet.deletedAt === undefined)
     .map((pet) => ({ _id: pet._id, name: pet.name, breed: pet.breed }));
-
-  // Most recent appointment — read exactly one row via the time-ordered index.
   const lastAppointment = await ctx.db
     .query("appointments")
     .withIndex("by_client_start", (index) => index.eq("clientId", client._id))
@@ -244,13 +288,7 @@ async function enrichClientRow(ctx: QueryCtx, client: Doc<"clients">) {
     .first();
 
   return {
-    client: {
-      _id: client._id,
-      _creationTime: client._creationTime,
-      fullName: client.fullName,
-      phone: client.phone,
-      email: client.email,
-    },
+    client: base,
     pets: visiblePets,
     lastAppointment: lastAppointment
       ? { startTime: lastAppointment.startTime, status: lastAppointment.status }
@@ -495,32 +533,6 @@ function buildClientPatch(args: {
 }
 
 /**
- * True when the client's primary phone OR any altPhone STARTS WITH (area code)
- * or ENDS WITH (last-N digits) the caller-supplied digit query. Both are
- * digit-normalized first. Examples: "4231" matches "555-555-4231" (suffix);
- * "613" matches "613-883-1970" (prefix).
- *
- * We deliberately do NOT do an anywhere-substring match: `includes` matches
- * digits that straddle the area-code/prefix boundary (e.g. "1970" sits inside
- * every 519-70x / 819-70x number as "51970…"), flooding results with numbers
- * the user never meant. Prefix-or-suffix reflects how people actually search
- * and matches the future indexed `clientPhones` design.
- */
-function phoneMatches(row: Doc<"clients">, digits: string): boolean {
-  if (digits.length === 0) return false;
-  const stored = [row.phone, ...(row.altPhones ?? []).map(phoneEntryNumber)];
-  for (const raw of stored) {
-    // Match against both the full E.164 digits and the national number, so a
-    // "613…" prefix search still hits a "+1613…" stored number.
-    for (const num of phoneSearchDigits(raw)) {
-      if (num.length === 0) continue;
-      if (num.startsWith(digits) || num.endsWith(digits)) return true;
-    }
-  }
-  return false;
-}
-
-/**
  * Create a client. Admin + superAdmin only.
  */
 export const create = mutation({
@@ -528,10 +540,16 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const { orgId } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
     validateInput(args);
-    return await ctx.db.insert("clients", {
+    const clientId = await ctx.db.insert("clients", {
       orgId,
       ...buildClientPatch(args),
     });
+    // Put the new (empty) client straight on the denormalized fast path and
+    // index its phone numbers for search.
+    await refreshClientSummary(ctx, clientId);
+    const created = await ctx.db.get(clientId);
+    if (created) await refreshClientPhones(ctx, created);
+    return clientId;
   },
 });
 
@@ -545,6 +563,9 @@ export const update = mutation({
     const existing = await loadOwnClient(ctx, args.id, orgId);
     validateInput(args);
     await ctx.db.patch(existing._id, buildClientPatch(args));
+    // Phone/altPhones may have changed — rebuild the search index rows.
+    const updated = await ctx.db.get(existing._id);
+    if (updated) await refreshClientPhones(ctx, updated);
   },
 });
 
@@ -569,6 +590,8 @@ export const archive = mutation({
         await ctx.db.patch(pet._id, { deletedAt: now });
       }
     }
+    // Pets were cascade-archived → the denormalized pet summary is now empty.
+    await refreshClientPetSummary(ctx, existing._id);
   },
 });
 
@@ -623,6 +646,8 @@ export const hardDelete = mutation({
       .withIndex("by_client", (index) => index.eq("clientId", existing._id))
       .collect();
     for (const row of legacy) await ctx.db.delete(row._id);
+    // Drop this client's phone search-index rows before the client is gone.
+    await deleteClientPhones(ctx, existing._id);
     await ctx.db.delete(existing._id);
   },
 });
@@ -705,5 +730,58 @@ export const backfillPhonesToE164 = internalMutation({
       });
     }
     return { updated, isDone: page.isDone };
+  },
+});
+
+/**
+ * One-time migration: populate the denormalized `petSummary`/`petCount`/
+ * `lastVisit`/`summaryUpdatedAt` fields for every existing client. Idempotent
+ * (pure recompute) — also the re-sync tool after the bulk status migrations.
+ * Self-schedules the next page until done.
+ *
+ *   npx convex run clients:backfillClientSummaries
+ */
+export const backfillClientSummaries = internalMutation({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("clients")
+      .paginate({ cursor: args.cursor ?? null, numItems: 200 });
+    for (const client of page.page) {
+      await refreshClientSummary(ctx, client._id);
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.clients.backfillClientSummaries,
+        { cursor: page.continueCursor },
+      );
+    }
+    return { processed: page.page.length, isDone: page.isDone };
+  },
+});
+
+/**
+ * One-time migration: build the `clientPhones` search-index rows for every
+ * existing client. Idempotent (rebuilds each client's rows from scratch).
+ * MUST run before phone search returns results. Self-schedules until done.
+ *
+ *   npx convex run clients:backfillClientPhones
+ */
+export const backfillClientPhones = internalMutation({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("clients")
+      .paginate({ cursor: args.cursor ?? null, numItems: 200 });
+    for (const client of page.page) {
+      await refreshClientPhones(ctx, client);
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.clients.backfillClientPhones, {
+        cursor: page.continueCursor,
+      });
+    }
+    return { processed: page.page.length, isDone: page.isDone };
   },
 });

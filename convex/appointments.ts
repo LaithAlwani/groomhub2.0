@@ -9,6 +9,8 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { appError } from "./lib/errors";
+import { appointmentStatusValidator } from "./lib/appointmentStatus";
+import { refreshClientLastVisit } from "./lib/clientSummary";
 import {
   assertWithinAvailability,
   findConflictForStaff,
@@ -22,16 +24,6 @@ import { requireAuth, softAuth } from "./lib/tenant";
 
 const MAX_RESULTS = 500;
 const REMINDER_LEAD_MS = 24 * 60 * 60 * 1000;
-const APPOINTMENT_STATUSES = [
-  "pendingApproval",
-  "declined",
-  "scheduled",
-  "checkedIn",
-  "inProgress",
-  "completed",
-  "noShow",
-  "cancelled",
-] as const;
 const TERMINAL_STATUSES: ReadonlyArray<Doc<"appointments">["status"]> = [
   "completed",
   "cancelled",
@@ -43,9 +35,6 @@ const QUIET_PRE_STATUSES: ReadonlyArray<Doc<"appointments">["status"]> = [
   "pendingApproval",
   "declined",
 ];
-const statusValidator = v.union(
-  ...APPOINTMENT_STATUSES.map((status) => v.literal(status)),
-);
 
 /**
  * Lists appointments overlapping `[fromTime, toTime]` in the caller's org.
@@ -327,6 +316,9 @@ export const create = mutation({
       appointmentId: insertedId,
     });
     await scheduleReminderIfFarEnough(ctx, insertedId, args.startTime);
+    // Refresh the client's denormalized last-visit (this row may be the newest,
+    // or a backdated import — recompute handles both).
+    await refreshClientLastVisit(ctx, client._id);
     return insertedId;
   },
 });
@@ -396,6 +388,8 @@ export const reschedule = mutation({
       startTime: args.startTime,
       endTime: newEndTime,
     });
+    // Moving startTime can change which row is the client's most-recent.
+    await refreshClientLastVisit(ctx, existing.clientId);
     // Notify the client about the move — but only if they've already been
     // told about the booking. Pending approvals are still private.
     if (
@@ -501,7 +495,7 @@ export const editDetails = mutation({
  * own appointment; admin/superAdmin can update any.
  */
 export const updateStatus = mutation({
-  args: { id: v.id("appointments"), status: statusValidator },
+  args: { id: v.id("appointments"), status: appointmentStatusValidator },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
     const { role } = await requireRole(ctx, ["superAdmin", "admin", "staff"]);
@@ -515,6 +509,8 @@ export const updateStatus = mutation({
     const previousStatus = existing.status;
     if (previousStatus === args.status) return;
     await ctx.db.patch(existing._id, { status: args.status });
+    // If this is the client's most-recent row, its stored status must update.
+    await refreshClientLastVisit(ctx, existing.clientId);
     // Cancellation email: only when the client already knew about the booking
     // (i.e. previous status wasn't a stale pre-approval one — those never
     // surfaced to the client).
@@ -686,6 +682,8 @@ export const hardDelete = mutation({
       await ctx.storage.delete(storageId);
     }
     await ctx.db.delete(existing._id);
+    // The deleted row may have been the client's most-recent — recompute.
+    await refreshClientLastVisit(ctx, existing.clientId);
   },
 });
 
