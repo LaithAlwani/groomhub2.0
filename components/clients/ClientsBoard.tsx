@@ -24,8 +24,13 @@ import {
 import { exportClientsToCsv } from "./exportClientsToCsv";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
-// How many clients to pull per server batch when browsing (no search).
-const BROWSE_BATCH = 200;
+// How many clients to pull per server batch when browsing (no search). Kept at
+// the largest page size so the first browse load reads only what the biggest
+// page renders (not 4x it); paging deeper pulls the next batch on demand. Each
+// batch is one client doc per row (no pet/appointment fan-out), so a cold load
+// is ~1 doc/client — lower this only trades read size for more "load more" round
+// trips.
+const BROWSE_BATCH = 50;
 const PAGE_SIZE_STORAGE_KEY = "clients:pageSize";
 
 /** Accept a stored page size only if it's still one of the offered options. */
