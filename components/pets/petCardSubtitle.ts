@@ -7,13 +7,14 @@ const SPECIES_LABEL: Record<Doc<"pets">["species"], string> = {
 };
 
 /**
- * Compact metadata line for a pet card: breed (or species) · age · sex ·
+ * Compact metadata line for a pet card: breed (or species) · coat · age · sex ·
  * fixed-status · weight. Empty parts are skipped so short profiles stay clean.
  */
 export function formatSubtitle(pet: Doc<"pets">): string {
   const parts: string[] = [];
   if (pet.breed?.trim()) parts.push(pet.breed.trim());
   else parts.push(SPECIES_LABEL[pet.species]);
+  if (pet.coatType?.trim()) parts.push(pet.coatType.trim());
   const age = formatAge(pet.birthDate);
   if (age) parts.push(age);
   if (pet.sex) parts.push(pet.sex === "female" ? "Female" : "Male");

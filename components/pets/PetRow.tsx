@@ -14,7 +14,7 @@ export type PetWithImage = Doc<"pets"> & { imageUrl: string | null };
  * archive without triggering the card click.
  *
  * The header row shows the photo, name/badges, and compact metadata (breed ·
- * age · sex · fixed-status · weight). Below it a details block surfaces what a
+ * coat · age · sex · fixed-status · weight). Below it a details block surfaces what a
  * groomer needs before a visit: medical conditions / allergies as amber chips,
  * an expired-vaccine warning, and the free-text care notes.
  */
