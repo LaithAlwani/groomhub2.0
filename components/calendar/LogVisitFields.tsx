@@ -3,6 +3,7 @@
 import type { Id } from "@/convex/_generated/dataModel";
 import { ClientNameDisplay } from "./ClientNameDisplay";
 import { ClientPicker } from "./ClientPicker";
+import { GroomerSelectField } from "./GroomerSelectField";
 import { PetPicker } from "./PetPicker";
 import { ServiceSelectField } from "./ServiceSelectField";
 
@@ -17,6 +18,8 @@ export type LogVisitFormState = {
   date?: string;
   weight?: string;
   products?: string;
+  // Name-only groomer who performed the service (optional).
+  groomerId?: Id<"groomers"> | null;
 };
 
 /**
@@ -38,6 +41,7 @@ export function LogVisitFields({
   onChangeDate,
   onChangeWeight,
   onChangeProducts,
+  onChangeGroomer,
   openCreateClient,
   openCreatePet,
 }: {
@@ -53,6 +57,7 @@ export function LogVisitFields({
   onChangeDate?: (value: string) => void;
   onChangeWeight?: (value: string) => void;
   onChangeProducts?: (value: string) => void;
+  onChangeGroomer?: (id: Id<"groomers"> | null) => void;
   openCreateClient: () => void;
   openCreatePet: () => void;
 }) {
@@ -90,6 +95,12 @@ export function LogVisitFields({
         autoSelectSingle
       />
       <ServiceSelectField value={state.serviceId} onChange={onChangeService} />
+      {onChangeGroomer && (
+        <GroomerSelectField
+          value={state.groomerId ?? null}
+          onChange={onChangeGroomer}
+        />
+      )}
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Price

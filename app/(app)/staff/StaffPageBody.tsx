@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { AddFAB } from "@/components/app/AddFAB";
+import { GroomersSection } from "@/components/groomers/GroomersSection";
 import { InviteMemberDialog } from "@/components/staff/InviteMemberDialog";
 import { MemberList } from "@/components/staff/MemberList";
 import { PendingInvitationsList } from "@/components/staff/PendingInvitationsList";
@@ -50,6 +51,7 @@ export function StaffPageBody() {
 
       <PendingInvitationsList revalidateSignal={revalidateSignal} />
       <MemberList />
+      <GroomersSection />
 
       <AddFAB label="Invite member" onClick={() => setInviteOpen(true)} />
 

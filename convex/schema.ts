@@ -261,6 +261,17 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_active", ["orgId", "isActive"]),
 
+  // Name-only groomers the shop can attribute service records to. Unlike
+  // `memberships`, these need no login — the admin maintains the list on the
+  // Staff page. Archive-only (`isActive: false` + `deletedAt`): rows are never
+  // hard-deleted so historical service records keep resolving the name.
+  groomers: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    isActive: v.boolean(),
+    deletedAt: v.optional(v.number()),
+  }).index("by_org", ["orgId"]),
+
   // Service menu per shop. Soft-delete via `deletedAt`; superAdmin can hard-delete.
   // `priceCents` + `currency` are stored alongside payments going live (deferred);
   // for now they're just informational on the service card.
@@ -492,6 +503,10 @@ export default defineSchema({
     petId: v.id("pets"),
     appointmentId: v.optional(v.id("appointments")),
     staffId: v.id("memberships"),
+    // Optional name-only groomer (see `groomers`). When set, the history row
+    // shows this name instead of the `staffId` member's. Live lookup, no
+    // snapshot: groomers are archive-only so the row always resolves.
+    groomerId: v.optional(v.id("groomers")),
     date: v.number(), // ms epoch — when the service happened
     serviceId: v.optional(v.id("services")),
     serviceNameSnapshot: v.optional(v.string()),

@@ -17,6 +17,7 @@ import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as email from "../email.js";
 import type * as emailPayloads from "../emailPayloads.js";
+import type * as groomers from "../groomers.js";
 import type * as http from "../http.js";
 import type * as imports from "../imports.js";
 import type * as invitations from "../invitations.js";
@@ -64,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   dashboard: typeof dashboard;
   email: typeof email;
   emailPayloads: typeof emailPayloads;
+  groomers: typeof groomers;
   http: typeof http;
   imports: typeof imports;
   invitations: typeof invitations;

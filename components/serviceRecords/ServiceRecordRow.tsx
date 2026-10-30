@@ -12,12 +12,8 @@ import {
   formatDateTime,
   formatMoney,
 } from "@/components/calendar/appointmentDetailParts";
-import {
-  ServiceRecordEditForm,
-  draftToUpdate,
-  recordToDraft,
-  type RecordDraft,
-} from "./ServiceRecordEditForm";
+import { ServiceRecordEditForm } from "./ServiceRecordEditForm";
+import { draftToUpdate, recordToDraft, type RecordDraft } from "./recordDraft";
 import type { ServiceRecordItem } from "./types";
 
 /**

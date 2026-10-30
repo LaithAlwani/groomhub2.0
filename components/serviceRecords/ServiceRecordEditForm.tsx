@@ -1,60 +1,11 @@
 "use client";
 
 import { Loader2, Trash2 } from "lucide-react";
-import type { Id } from "@/convex/_generated/dataModel";
+import { GroomerSelectField } from "@/components/calendar/GroomerSelectField";
 import { ServiceSelectField } from "@/components/calendar/ServiceSelectField";
 import { ServiceRecordImages } from "./ServiceRecordImages";
+import type { RecordDraft } from "./recordDraft";
 import type { ServiceRecordItem } from "./types";
-
-export type RecordDraft = {
-  serviceId: Id<"services"> | null;
-  price: string;
-  notes: string;
-  weight: string;
-  products: string;
-};
-
-export function recordToDraft(record: ServiceRecordItem): RecordDraft {
-  return {
-    serviceId: record.serviceId ?? null,
-    price: record.priceCentsSnapshot
-      ? (record.priceCentsSnapshot / 100).toFixed(2)
-      : "",
-    notes: record.notes ?? "",
-    weight: record.weightLb ? String(record.weightLb) : "",
-    products: (record.productsUsed ?? []).join(", "),
-  };
-}
-
-/**
- * Turn a draft into `serviceRecords.update` args. Throws with a user-facing
- * message on an invalid price so the row can surface it.
- */
-export function draftToUpdate(draft: RecordDraft) {
-  const priceTrimmed = draft.price.trim();
-  let priceCents = 0;
-  if (priceTrimmed !== "") {
-    const parsed = Number(priceTrimmed);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      throw new Error("Enter a valid price.");
-    }
-    priceCents = Math.round(parsed * 100);
-  }
-  const weightNum = Number(draft.weight.trim());
-  return {
-    serviceId: draft.serviceId ?? undefined,
-    priceCents,
-    notes: draft.notes || undefined,
-    weightLb:
-      draft.weight.trim() !== "" && Number.isFinite(weightNum)
-        ? weightNum
-        : undefined,
-    productsUsed: draft.products
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean),
-  };
-}
 
 const inputClass =
   "rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:border-[#00273c] focus:outline-none focus:ring-2 focus:ring-[#00273c]/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
@@ -107,6 +58,11 @@ export function ServiceRecordEditForm({
             className={inputClass}
           />
         </label>
+        <GroomerSelectField
+          value={draft.groomerId}
+          onChange={(groomerId) => onChange({ groomerId })}
+          currentLabel={record.staffName}
+        />
         <label className="flex flex-col gap-1">
           <span className={labelClass}>Weight (lb)</span>
           <input

@@ -36,6 +36,7 @@ const REASON_MESSAGES: Record<string, string> = {
   ONLY_ASSIGNED_GROOMER_CAN_DECLINE:
     "Only the assigned groomer can decline this booking.",
   LOCATION_INACTIVE: "That location is no longer active.",
+  DUPLICATE_NAME: "A groomer with that name already exists.",
   WRONG_LOCATION: "That service isn't offered at this location.",
 };
 

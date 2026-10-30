@@ -437,6 +437,43 @@ export const pageWithPets = query({
   },
 });
 
+// Cap on the "recently opened" list the board keeps in localStorage.
+const RECENT_CLIENTS_MAX = 20;
+
+/**
+ * Board rows for an explicit list of client ids — powers the "Recently opened"
+ * view on `/clients`, whose ids live in the browser. Ids arrive as plain
+ * strings (NOT `v.id`) because localStorage can hold stale or garbage values
+ * and a malformed id must not fail the whole query; `normalizeId` drops them.
+ * Missing, cross-org and archived clients are omitted so the client can prune
+ * its stored list to exactly what came back. Order follows the argument.
+ *
+ * Returns `null` (not `[]`) while auth is unresolved, so a token refresh never
+ * looks like "all your recents are gone" and triggers a prune.
+ */
+export const listByIds = query({
+  args: { ids: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const identity = await softAuth(ctx);
+    if (!identity) return null;
+    const rows = [];
+    for (const raw of args.ids.slice(0, RECENT_CLIENTS_MAX)) {
+      const id = ctx.db.normalizeId("clients", raw);
+      if (!id) continue;
+      const client = await ctx.db.get(id);
+      if (
+        !client ||
+        client.orgId !== identity.orgId ||
+        client.deletedAt !== undefined
+      ) {
+        continue;
+      }
+      rows.push(await enrichClientRow(ctx, client));
+    }
+    return rows;
+  },
+});
+
 /**
  * Fetch a single client by id. Refuses cross-org IDs.
  */

@@ -9,6 +9,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { appError } from "./lib/errors";
+import { loadOwnGroomer } from "./groomers";
 import { refreshClientLastVisit } from "./lib/clientSummary";
 import { ensureMembership, readMembershipForQuery } from "./lib/ensureMembership";
 import { mapClerkOrgRole } from "./lib/roles";
@@ -100,6 +101,23 @@ function positiveWeight(weightLb: number | undefined): number | undefined {
   return Number.isFinite(weightLb) && weightLb > 0 ? weightLb : undefined;
 }
 
+/**
+ * Validate an optional groomer choice. `null` / `undefined` mean "no groomer"
+ * (stored as an absent field). An id must belong to the org and be active.
+ */
+async function resolveGroomerId(
+  ctx: MutationCtx,
+  orgId: string,
+  groomerId: Id<"groomers"> | null | undefined,
+): Promise<Id<"groomers"> | undefined> {
+  if (groomerId === null || groomerId === undefined) return undefined;
+  const groomer = await loadOwnGroomer(ctx, groomerId, orgId);
+  if (groomer.deletedAt !== undefined) {
+    appError("VALIDATION", { field: "groomerId", reason: "ARCHIVED" });
+  }
+  return groomer._id;
+}
+
 // ---------------------------------------------------------------------------
 // Enrichment (read side)
 // ---------------------------------------------------------------------------
@@ -141,6 +159,22 @@ async function staffName(
   return fullName || user.email || "Unknown";
 }
 
+/**
+ * Who performed the service, for display: the name-only groomer when one is
+ * attached (live name, so renames show through; archived rows still resolve),
+ * otherwise the `staffId` member's name.
+ */
+async function performerName(
+  ctx: QueryCtx,
+  row: Doc<"serviceRecords">,
+): Promise<string> {
+  if (row.groomerId) {
+    const groomer = await ctx.db.get(row.groomerId);
+    if (groomer && groomer.orgId === row.orgId) return groomer.name;
+  }
+  return await staffName(ctx, row.staffId);
+}
+
 async function enrichRecord(
   ctx: QueryCtx,
   row: Doc<"serviceRecords">,
@@ -151,7 +185,7 @@ async function enrichRecord(
     ctx.db.get(row.petId),
     resolveImages(ctx, row.beforeImageStorageIds),
     resolveImages(ctx, row.afterImageStorageIds),
-    staffName(ctx, row.staffId),
+    performerName(ctx, row),
   ]);
   // Prefer the live service name so renames show through; fall back to the
   // snapshot for archived/removed services.
@@ -250,6 +284,10 @@ const recordInputValidator = {
   notes: v.optional(v.string()),
   weightLb: v.optional(v.number()),
   productsUsed: v.optional(v.array(v.string())),
+  // Name-only groomer. Three states on `update`: omitted = leave unchanged,
+  // `null` = clear, id = set. (Convex drops `undefined` args, so `null` is the
+  // only way for a client to say "remove the groomer".)
+  groomerId: v.optional(v.union(v.id("groomers"), v.null())),
 };
 
 /**
@@ -305,6 +343,7 @@ export const create = mutation({
         appError("NOT_FOUND", { reason: "STAFF_NOT_FOUND" });
       }
     }
+    const groomerId = await resolveGroomerId(ctx, orgId, args.groomerId);
 
     const now = Date.now();
     return await ctx.db.insert("serviceRecords", {
@@ -313,6 +352,7 @@ export const create = mutation({
       clientId: pet.clientId,
       petId: pet._id,
       staffId,
+      groomerId,
       date: args.date ?? now,
       serviceId: args.serviceId,
       serviceNameSnapshot,
@@ -398,6 +438,13 @@ export const completeAppointment = mutation({
       productsUsed: cleanProducts(args.productsUsed),
     };
 
+    // Only touch the groomer when the caller said something about it, so a
+    // re-run of `completeAppointment` doesn't wipe a groomer set earlier.
+    const groomerPatch =
+      args.groomerId !== undefined
+        ? { groomerId: await resolveGroomerId(ctx, orgId, args.groomerId) }
+        : {};
+
     // Idempotent: if this appointment already spawned a record, update it.
     const existingRecord = await ctx.db
       .query("serviceRecords")
@@ -407,11 +454,16 @@ export const completeAppointment = mutation({
       .unique();
     let recordId: Id<"serviceRecords">;
     if (existingRecord) {
-      await ctx.db.patch(existingRecord._id, { ...fields, updatedAt: Date.now() });
+      await ctx.db.patch(existingRecord._id, {
+        ...fields,
+        ...groomerPatch,
+        updatedAt: Date.now(),
+      });
       recordId = existingRecord._id;
     } else {
       recordId = await ctx.db.insert("serviceRecords", {
         ...fields,
+        ...groomerPatch,
         createdBy: actor._id,
         createdAt: Date.now(),
       });
@@ -476,6 +528,10 @@ export const update = mutation({
       patch.currency = snapshot.currency;
     } else if (args.priceCents !== undefined) {
       patch.priceCentsSnapshot = args.priceCents;
+    }
+    if (args.groomerId !== undefined) {
+      // `null` resolves to `undefined`, which `patch` treats as "remove field".
+      patch.groomerId = await resolveGroomerId(ctx, row.orgId, args.groomerId);
     }
     await ctx.db.patch(row._id, patch);
   },

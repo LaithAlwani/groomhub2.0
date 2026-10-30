@@ -8,17 +8,19 @@ import { DialogShell } from "@/components/ui/DialogShell";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { useCurrentLocation } from "@/lib/useCurrentLocation";
 import { formatError } from "@/lib/formatError";
-import { combineLocalIso, isoTimeFromDate, todayIsoDate } from "@/lib/time";
+import { todayIsoDate } from "@/lib/time";
 import { ServiceRecordPhotoStage } from "@/components/serviceRecords/ServiceRecordPhotoStage";
+import { buildServiceRecordPayload } from "./buildServiceRecordPayload";
 import { LogVisitFields, type LogVisitFormState } from "./LogVisitFields";
 import { useBookingInlineCreate } from "./useBookingInlineCreate";
 
 /**
- * "Log a service" dialog: client + pet + (optional) service + price + weight +
- * products + notes. Creates a permanent `serviceRecords` entry — NOT an
- * appointment (walk-in / manual history). The acting member is the groomer.
- * A record with no service is a plain note. Photos are added afterward on the
- * record in the Service History list.
+ * "Log a service" dialog: client + pet + (optional) service + groomer + price
+ * + weight + products + notes. Creates a permanent `serviceRecords` entry —
+ * NOT an appointment (walk-in / manual history). The acting member is recorded
+ * as `staffId`; the optional groomer dropdown attributes the work to a
+ * name-only groomer from the Staff page list. A record with no service is a
+ * plain note. Photos can be staged before saving.
  */
 export function LogVisitDialog({
   initialClientId,
@@ -41,6 +43,7 @@ export function LogVisitDialog({
     date: todayIsoDate(),
     weight: "",
     products: "",
+    groomerId: null,
   });
   const [beforeIds, setBeforeIds] = useState<Id<"_storage">[]>([]);
   const [afterIds, setAfterIds] = useState<Id<"_storage">[]>([]);
@@ -78,41 +81,22 @@ export function LogVisitDialog({
       setPetError(state.clientId ? "Pick a pet" : "Pick a client");
       return;
     }
-    let priceCents: number | undefined;
-    const priceTrimmed = state.price.trim();
-    if (priceTrimmed !== "") {
-      const parsed = Number(priceTrimmed);
-      if (!Number.isFinite(parsed) || parsed < 0) {
-        setServerError("Enter a valid price.");
-        return;
-      }
-      priceCents = Math.round(parsed * 100);
-    }
-    const weightRaw = (state.weight ?? "").trim();
-    const weightNum = Number(weightRaw);
-    // Combine the chosen day with the current time so same-day logs keep a
-    // sensible order; backend defaults to now if we send nothing.
-    const date = state.date
-      ? combineLocalIso(state.date, isoTimeFromDate(new Date()))
-      : undefined;
-    setSubmitting(true);
+    let payload;
     try {
-      await createRecord({
+      payload = buildServiceRecordPayload({
+        state,
         petId: state.petId,
         locationId: currentLocation?._id,
-        serviceId: state.serviceId ?? undefined,
-        priceCents,
-        notes: state.notes || undefined,
-        date,
-        weightLb:
-          weightRaw !== "" && Number.isFinite(weightNum) ? weightNum : undefined,
-        productsUsed: (state.products ?? "")
-          .split(",")
-          .map((entry) => entry.trim())
-          .filter(Boolean),
-        beforeImageStorageIds: beforeIds.length ? beforeIds : undefined,
-        afterImageStorageIds: afterIds.length ? afterIds : undefined,
+        beforeIds,
+        afterIds,
       });
+    } catch (caught) {
+      setServerError((caught as Error).message);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createRecord(payload);
       onClose();
     } catch (caught) {
       setServerError(formatError(caught, "Could not log the service."));
@@ -157,6 +141,9 @@ export function LogVisitDialog({
             }
             onChangeProducts={(value) =>
               setState((current) => ({ ...current, products: value }))
+            }
+            onChangeGroomer={(groomerId) =>
+              setState((current) => ({ ...current, groomerId }))
             }
             openCreateClient={inlineCreate.openCreateClient}
             openCreatePet={inlineCreate.openCreatePet}
